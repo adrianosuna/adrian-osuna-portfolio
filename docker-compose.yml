@@ -1,0 +1,60 @@
+# Producción con Docker: app Next.js + MySQL propio (BD desde cero).
+#
+# Uso (con .env.production en esta carpeta, ver .env.production.example):
+#   docker compose --env-file .env.production build
+#   docker compose --env-file .env.production --profile setup run --rm migrate   # solo la 1.ª vez
+#   docker compose --env-file .env.production up -d
+#
+# El proxy inverso del host (Nginx/Caddy con HTTPS, 301 y rate limit en /api/*)
+# apunta a http://localhost:9443.
+
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-portfolio}
+      MYSQL_USER: ${MYSQL_USER:-portfolio}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?falta MYSQL_PASSWORD en .env.production}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?falta MYSQL_ROOT_PASSWORD en .env.production}
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$$MYSQL_USER -p$$MYSQL_PASSWORD"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  web:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?falta NEXT_PUBLIC_SITE_URL en .env.production}
+        NEXT_PUBLIC_GA_ID: ${NEXT_PUBLIC_GA_ID:-}
+    restart: unless-stopped
+    env_file: .env.production
+    ports:
+      # Atado a loopback: Docker se salta el firewall del sistema (ufw), así
+      # que solo el proxy inverso del propio servidor puede llegar al 9443.
+      - "127.0.0.1:9443:9443"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Crea las tablas (migración baseline) y asegura ADMIN_EMAIL como admin.
+  # Solo con `--profile setup run --rm migrate`; no forma parte del `up`.
+  migrate:
+    profiles: ["setup"]
+    build:
+      context: .
+      target: migrate
+      args:
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?falta NEXT_PUBLIC_SITE_URL en .env.production}
+    env_file: .env.production
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db-data:

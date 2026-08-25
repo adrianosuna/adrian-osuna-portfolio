@@ -1,0 +1,118 @@
+// Esquema de base de datos — Portfolio personal (reescritura del Portfolio viejo)
+// Convención (heredada de clinica-carmen-garcia): campos camelCase mapeados a
+// columnas snake_case, toda tabla con id autoincremental + uuid único, y FKs
+// referenciando uuid.
+// IMPORTANTE: este schema refleja EXACTAMENTE (vía prisma db pull) la BD ao_test
+// que también usa el Portfolio viejo — ambas apps comparten base de datos durante
+// la transición. La tabla `migrations` (de db-migrate) se declara externa en
+// prisma.config.ts y no la gestiona Prisma.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+// ─────────── USUARIOS (acceso solo con Google, por allowlist) ───────────
+// El admin da de alta un correo (INVITED) y ese usuario ya puede loguearse;
+// al primer login pasa a ACTIVE. Un correo no dado de alta no puede acceder.
+
+enum UserRole {
+  ADMIN @map("admin")
+  USER  @map("user")
+}
+
+enum UserStatus {
+  INVITED  @map("invited")
+  ACTIVE   @map("active")
+  DISABLED @map("disabled")
+}
+
+model User {
+  id        Int        @id @default(autoincrement())
+  uuid      String     @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
+  email     String     @unique(map: "email") @db.VarChar(255)
+  name      String?    @db.VarChar(255)
+  picture   String?    @db.VarChar(512)
+  googleSub String?    @unique(map: "google_sub") @map("google_sub") @db.VarChar(255)
+  role      UserRole   @default(USER)
+  status    UserStatus @default(INVITED)
+  lastLogin DateTime?  @map("last_login") @db.Timestamp(0)
+  createTs  DateTime   @default(now()) @map("create_ts") @db.Timestamp(0)
+  updateTs  DateTime   @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
+
+  @@map("user")
+}
+
+// ─────────── FINANZAS: sistema de ahorro anual ───────────
+// Un registro por año con su capital inicial y objetivo; control mensual
+// (ingreso / ahorro general / ahorro para viajes), ingresos extraordinarios
+// y detalle de gastos de viajes. Borrar un año limpia su detalle en cascada.
+
+model SavingYear {
+  id             Int             @id @default(autoincrement())
+  uuid           String          @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
+  year           Int             @unique(map: "year") @db.SmallInt
+  initialCapital Decimal         @default(0.00) @map("initial_capital") @db.Decimal(12, 2)
+  goal           Decimal?        @db.Decimal(12, 2)
+  createTs       DateTime        @default(now()) @map("create_ts") @db.Timestamp(0)
+  updateTs       DateTime        @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
+  extras         SavingExtra[]
+  months         SavingMonth[]
+  travelExpenses TravelExpense[]
+
+  @@map("saving_year")
+}
+
+// Control mensual: una fila por mes (1-12) y año. Los importes admiten NULL
+// (mes aún sin rellenar); el "restante" se calcula, no se guarda.
+model SavingMonth {
+  id            Int        @id @default(autoincrement())
+  uuid          String     @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
+  yearUuid      String     @map("year_uuid") @db.VarChar(36)
+  month         Int        @db.TinyInt
+  income        Decimal?   @db.Decimal(12, 2)
+  savingGeneral Decimal?   @map("saving_general") @db.Decimal(12, 2)
+  savingTravel  Decimal?   @map("saving_travel") @db.Decimal(12, 2)
+  createTs      DateTime   @default(now()) @map("create_ts") @db.Timestamp(0)
+  updateTs      DateTime   @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
+  savingYear    SavingYear @relation(fields: [yearUuid], references: [uuid], onDelete: Cascade, onUpdate: NoAction, map: "fk_saving_month_year")
+
+  @@unique([yearUuid, month], map: "uq_saving_month")
+  @@map("saving_month")
+}
+
+// Ingresos extraordinarios del año (pagas extra, bonus...). Suman al ahorro
+// general anual.
+model SavingExtra {
+  id         Int        @id @default(autoincrement())
+  uuid       String     @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
+  yearUuid   String     @map("year_uuid") @db.VarChar(36)
+  concept    String     @db.VarChar(255)
+  amount     Decimal    @default(0.00) @db.Decimal(12, 2)
+  createTs   DateTime   @default(now()) @map("create_ts") @db.Timestamp(0)
+  updateTs   DateTime   @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
+  savingYear SavingYear @relation(fields: [yearUuid], references: [uuid], onDelete: Cascade, onUpdate: NoAction, map: "fk_saving_extra_year")
+
+  @@index([yearUuid], map: "fk_saving_extra_year")
+  @@map("saving_extra")
+}
+
+// Detalle de gastos de viajes del año (se descuentan del ahorro de viajes).
+model TravelExpense {
+  id          Int        @id @default(autoincrement())
+  uuid        String     @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
+  yearUuid    String     @map("year_uuid") @db.VarChar(36)
+  concept     String     @db.VarChar(255)
+  amount      Decimal    @default(0.00) @db.Decimal(12, 2)
+  expenseDate DateTime?  @map("expense_date") @db.Date
+  createTs    DateTime   @default(now()) @map("create_ts") @db.Timestamp(0)
+  updateTs    DateTime   @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
+  savingYear  SavingYear @relation(fields: [yearUuid], references: [uuid], onDelete: Cascade, onUpdate: NoAction, map: "fk_travel_expense_year")
+
+  @@index([yearUuid], map: "fk_travel_expense_year")
+  @@map("travel_expense")
+}

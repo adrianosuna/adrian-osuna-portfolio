@@ -1,0 +1,13 @@
+# Todo lo que la imagen no necesita (el build regenera .next y src/generated).
+node_modules
+.next
+.git
+.gitignore
+.claude
+docs
+*.md
+.env*
+src/generated
+Dockerfile
+docker-compose.yml
+.dockerignore

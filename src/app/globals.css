@@ -1,0 +1,237 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-geist-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+  /* Tokens extra de la paleta pública (landing + login) */
+  --color-body: var(--pf-body);
+  --color-accent-teal: var(--pf-accent);
+  --color-primary-dark: var(--pf-primary-dark);
+  --color-btn: var(--pf-btn);
+  --color-btn-hover: var(--pf-btn-hover);
+  --color-logo-box: var(--pf-logo-bg);
+  /* Tokens semánticos del dashboard (paleta de theme.js del original) */
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-viajes: var(--viajes);
+  --color-viajes-bg: var(--viajes-bg);
+}
+
+/* Tema único OSCURO (el selector claro/oscuro se retiró antes del lanzamiento).
+   Tokens del dashboard: darkTheme de theme.js del Portfolio original. */
+:root {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.68 0.17 259.5); /* azul de marca (#1570ef), aclarado para fondo oscuro */
+  --primary-foreground: oklch(0.145 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --success: #4ade80;
+  --success-bg: rgba(22, 163, 74, 0.16);
+  --warning: #fbbf24;
+  --warning-bg: rgba(217, 119, 6, 0.16);
+  --danger: #f87171;
+  --danger-bg: rgba(220, 38, 38, 0.16);
+  --viajes: #a78bfa;
+  --viajes-bg: rgba(124, 58, 237, 0.18);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans scroll-smooth;
+  }
+  /* Anillo de foco consistente en todos los interactivos (teclado). */
+  :focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+  /* Selección de texto en el color primario del tema activo. */
+  ::selection {
+    background: color-mix(in oklab, var(--primary) 28%, transparent);
+  }
+}
+
+/* ─────────── Paleta pública (landing + login) ───────────
+   Esmeralda/teal oscuro del _palette.scss del Portfolio original. Scoped a
+   .pf-public para que el dashboard conserve su propia paleta (azul) sobre los
+   tokens de :root. */
+.pf-public {
+  --background: #0a1512;
+  --foreground: #eafaf4;
+  --card: rgba(255, 255, 255, 0.04);
+  --card-foreground: #eafaf4;
+  --popover: #0f1d19;
+  --popover-foreground: #eafaf4;
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.1);
+  --muted: rgba(255, 255, 255, 0.06);
+  --muted-foreground: #8ba398;
+  --primary: #10b981;
+  --primary-foreground: #ffffff;
+  --ring: #10b981;
+  --pf-body: #c4d3cd;
+  --pf-accent: #2dd4bf;
+  --pf-primary-dark: #059669;
+  --pf-btn: #059669;
+  --pf-btn-hover: #047857;
+  --pf-logo-bg: #ffffff;
+  --pf-shadow: rgba(0, 0, 0, 0.5);
+  --pf-nav: rgba(10, 21, 18, 0.72);
+}
+
+/* ─────────── Landing ─────────── */
+
+/* Títulos de sección numerados (01, 02…) con línea de cierre, como el original. */
+.pf-public main {
+  counter-reset: section;
+}
+.pf-section-title {
+  counter-increment: section;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.pf-section-title::before {
+  content: counter(section, decimal-leading-zero);
+  font-family: var(--font-geist-mono);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--primary);
+}
+.pf-section-title::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.pf-section-title--center {
+  justify-content: center;
+}
+.pf-section-title--center::after {
+  display: none;
+}
+
+/* Revelado al hacer scroll (fade-up). Usa la propiedad `translate` (independiente
+   de `transform`) para no interferir con los desplazamientos de hover de las
+   tarjetas. La transición incluye también transform/borde/sombra para que el
+   hover de las tarjetas siga siendo suave. */
+.reveal {
+  opacity: 0;
+  translate: 0 26px;
+  transition:
+    opacity 0.6s cubic-bezier(0.22, 0.7, 0.2, 1),
+    translate 0.6s cubic-bezier(0.22, 0.7, 0.2, 1),
+    transform 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
+  will-change: opacity, translate;
+}
+.reveal.is-visible {
+  opacity: 1;
+  translate: 0 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .reveal {
+    opacity: 1;
+    translate: none;
+    transition: none;
+  }
+}
+
+/* Los anclajes de sección no quedan tapados por la barra fija al navegar. */
+section[id] {
+  scroll-margin-top: 5rem;
+}
+
+/* Glow radial tras el hero: profundidad sutil que sigue al color primario del
+   tema activo (esmeralda en claro, más luminoso en oscuro). */
+.pf-hero-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 65% 52% at 50% 24%,
+    color-mix(in oklab, var(--primary) 13%, transparent),
+    transparent 72%
+  );
+}
