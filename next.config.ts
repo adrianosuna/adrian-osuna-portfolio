@@ -4,13 +4,18 @@ const nextConfig: NextConfig = {
   // Salida autocontenida para la imagen Docker (ver Dockerfile). Condicionada
   // por env porque `next start` (pnpm start local) no funciona con standalone.
   output: process.env.BUILD_STANDALONE ? "standalone" : undefined,
+  // Fecha de build horneada para el monitor de infraestructura ("versión
+  // desplegada"). En desarrollo equivale al arranque del dev server.
+  env: {
+    BUILD_TS: new Date().toISOString(),
+  },
   // Hay un pnpm-lock.yaml suelto en el home que confunde la detección de raíz.
   turbopack: {
     root: __dirname,
   },
   // Solo afecta a desarrollo: permite probar desde el móvil en la red local
   // (el dev server bloquea por defecto los orígenes que no son localhost).
-  allowedDevOrigins: ["192.168.1.138", "192.168.1.*"],
+  allowedDevOrigins: ["192.168.1.*"],
   images: {
     // Avatares de la cuenta de Google (foto de perfil en el dashboard).
     remotePatterns: [{ protocol: "https", hostname: "lh3.googleusercontent.com" }],

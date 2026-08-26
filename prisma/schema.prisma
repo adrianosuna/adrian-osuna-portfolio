@@ -1,11 +1,13 @@
-// Esquema de base de datos — Portfolio personal (reescritura del Portfolio viejo)
+// Esquema de base de datos — Portfolio personal (reescritura del Portfolio
+// antiguo en Express, ya retirado).
 // Convención (heredada de clinica-carmen-garcia): campos camelCase mapeados a
 // columnas snake_case, toda tabla con id autoincremental + uuid único, y FKs
 // referenciando uuid.
-// IMPORTANTE: este schema refleja EXACTAMENTE (vía prisma db pull) la BD ao_test
-// que también usa el Portfolio viejo — ambas apps comparten base de datos durante
-// la transición. La tabla `migrations` (de db-migrate) se declara externa en
-// prisma.config.ts y no la gestiona Prisma.
+// IMPORTANTE: el esquema se adoptó de la BD del Portfolio antiguo vía
+// `prisma db pull` + baseline (0_init). La BD local de desarrollo (ao_test)
+// conserva sus tablas y datos y hoy solo la usa esta app; la tabla
+// `migrations` (de su db-migrate) es una huérfana declarada externa en
+// prisma.config.ts — Prisma no la gestiona.
 
 generator client {
   provider = "prisma-client"
@@ -47,17 +49,40 @@ model User {
   @@map("user")
 }
 
+// Registro de sesiones activas (una fila por login). El callback jwt comprueba
+// la fila en cada petición: borrarla cierra esa sesión remotamente al instante.
+// Caducan con el JWT (7 días desde el login); las filas caducadas se purgan al
+// listar. SIN FK físico a user: la colación de `user` difiere entre la BD local
+// (tabla creada por el Portfolio antiguo con utf8mb4_0900_ai_ci) y la de
+// producción (utf8mb4_unicode_ci), y MySQL exige colaciones iguales en un FK. La
+// integridad la garantiza la aplicación (removeUser borra las sesiones del
+// usuario; solo se crean filas en el login de un usuario existente).
+model UserSession {
+  id        Int      @id @default(autoincrement())
+  uuid      String   @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
+  userUuid  String   @map("user_uuid") @db.VarChar(36)
+  userAgent String?  @map("user_agent") @db.VarChar(255)
+  lastSeen  DateTime @default(now()) @map("last_seen") @db.Timestamp(0)
+  createTs  DateTime @default(now()) @map("create_ts") @db.Timestamp(0)
+  updateTs  DateTime @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
+
+  @@index([userUuid], map: "idx_user_session_user")
+  @@map("user_session")
+}
+
 // ─────────── FINANZAS: sistema de ahorro anual ───────────
-// Un registro por año con su capital inicial y objetivo; control mensual
-// (ingreso / ahorro general / ahorro para viajes), ingresos extraordinarios
-// y detalle de gastos de viajes. Borrar un año limpia su detalle en cascada.
+// Un registro por año con su objetivo de ahorro; control mensual (ingreso /
+// ahorro general / ahorro para viajes), ingresos extraordinarios y detalle de
+// gastos de viajes. Borrar un año limpia su detalle en cascada. El capital
+// inicial/final se retiró el 26/08/2026: el módulo controla solo el ahorro.
 
 model SavingYear {
   id             Int             @id @default(autoincrement())
   uuid           String          @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
   year           Int             @unique(map: "year") @db.SmallInt
-  initialCapital Decimal         @default(0.00) @map("initial_capital") @db.Decimal(12, 2)
   goal           Decimal?        @db.Decimal(12, 2)
+  // Último recordatorio por correo de "mes sin rellenar" (reaviso semanal).
+  lastReminded   DateTime?       @map("last_reminded") @db.Timestamp(0)
   createTs       DateTime        @default(now()) @map("create_ts") @db.Timestamp(0)
   updateTs       DateTime        @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
   extras         SavingExtra[]
@@ -101,17 +126,102 @@ model SavingExtra {
   @@map("saving_extra")
 }
 
-// Detalle de gastos de viajes del año (se descuentan del ahorro de viajes).
+// ─────────── MANTENIMIENTO DEL SERVIDOR (personal del admin) ───────────
+// Tareas recurrentes (revisar deps, backups, renovar dominio...) con su
+// periodicidad en meses. Un cron diario dentro de la app (instrumentation.ts)
+// avisa por correo de las vencidas; "marcar hecha" recalcula el vencimiento.
+
+model MaintenanceTask {
+  id             Int       @id @default(autoincrement())
+  uuid           String    @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
+  title          String    @db.VarChar(255)
+  notes          String?   @db.Text
+  intervalMonths Int       @map("interval_months") @db.SmallInt
+  nextDue        DateTime  @map("next_due") @db.Date
+  lastDone       DateTime? @map("last_done") @db.Date
+  lastNotified   DateTime? @map("last_notified") @db.Timestamp(0)
+  createTs       DateTime  @default(now()) @map("create_ts") @db.Timestamp(0)
+  updateTs       DateTime  @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
+
+  @@index([nextDue], map: "idx_maintenance_next_due")
+  @@map("maintenance_task")
+}
+
+// ─────────── PIPELINE DE OPORTUNIDADES (personal del admin) ───────────
+// Kanban de ofertas, encargos y contactos que llegan por el portfolio o
+// LinkedIn, con su estado en el embudo. Seguimiento: próxima acción con fecha
+// (el cron diario avisa por correo de las vencidas, reaviso semanal vía
+// next_action_notified). Al cerrar/descartar se sella closed_at y la tarjeta
+// puede archivarse (sale del tablero a la vista Histórico, no se pierde).
+
+enum OpportunityStatus {
+  CONTACTO     @map("contacto")
+  CONVERSACION @map("conversacion")
+  PROPUESTA    @map("propuesta")
+  CERRADO      @map("cerrado")
+  DESCARTADO   @map("descartado")
+}
+
+model Opportunity {
+  id                 Int                @id @default(autoincrement())
+  uuid               String             @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
+  title              String             @db.VarChar(255)
+  company            String?            @db.VarChar(255)
+  contact            String?            @db.VarChar(255)
+  origin             String?            @db.VarChar(100)
+  amount             Decimal?           @db.Decimal(12, 2)
+  notes              String?            @db.Text
+  status             OpportunityStatus  @default(CONTACTO)
+  nextAction         String?            @map("next_action") @db.VarChar(255)
+  nextActionDate     DateTime?          @map("next_action_date") @db.Date
+  nextActionNotified DateTime?          @map("next_action_notified") @db.Timestamp(0)
+  closedAt           DateTime?          @map("closed_at") @db.Timestamp(0)
+  archived           Boolean            @default(false)
+  createTs           DateTime           @default(now()) @map("create_ts") @db.Timestamp(0)
+  updateTs           DateTime           @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
+  events             OpportunityEvent[]
+
+  @@index([nextActionDate], map: "idx_opportunity_next_action")
+  @@map("opportunity")
+}
+
+// Historial de una oportunidad: los cambios de estado se registran solos
+// (type=estado, no borrables) y el resto son entradas manuales del timeline
+// (nota, llamada, email, reunión). FK real con borrado en cascada: ambas
+// tablas las crea Prisma con la misma colación en local y en producción.
+enum OpportunityEventType {
+  ESTADO  @map("estado")
+  NOTA    @map("nota")
+  LLAMADA @map("llamada")
+  EMAIL   @map("email")
+  REUNION @map("reunion")
+}
+
+model OpportunityEvent {
+  id              Int                  @id @default(autoincrement())
+  uuid            String               @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
+  opportunityUuid String               @map("opportunity_uuid") @db.VarChar(36)
+  type            OpportunityEventType
+  detail          String               @db.VarChar(500)
+  createTs        DateTime             @default(now()) @map("create_ts") @db.Timestamp(0)
+  updateTs        DateTime             @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
+  opportunity     Opportunity          @relation(fields: [opportunityUuid], references: [uuid], onDelete: Cascade, onUpdate: NoAction, map: "fk_opportunity_event_opportunity")
+
+  @@index([opportunityUuid], map: "fk_opportunity_event_opportunity")
+  @@map("opportunity_event")
+}
+
+// Detalle de gastos de viajes del año (se descuentan del ahorro de viajes;
+// el sobrante engrosa el ahorro anual). Sin fecha: retirada el 26/08/2026.
 model TravelExpense {
-  id          Int        @id @default(autoincrement())
-  uuid        String     @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
-  yearUuid    String     @map("year_uuid") @db.VarChar(36)
-  concept     String     @db.VarChar(255)
-  amount      Decimal    @default(0.00) @db.Decimal(12, 2)
-  expenseDate DateTime?  @map("expense_date") @db.Date
-  createTs    DateTime   @default(now()) @map("create_ts") @db.Timestamp(0)
-  updateTs    DateTime   @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
-  savingYear  SavingYear @relation(fields: [yearUuid], references: [uuid], onDelete: Cascade, onUpdate: NoAction, map: "fk_travel_expense_year")
+  id         Int        @id @default(autoincrement())
+  uuid       String     @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
+  yearUuid   String     @map("year_uuid") @db.VarChar(36)
+  concept    String     @db.VarChar(255)
+  amount     Decimal    @default(0.00) @db.Decimal(12, 2)
+  createTs   DateTime   @default(now()) @map("create_ts") @db.Timestamp(0)
+  updateTs   DateTime   @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
+  savingYear SavingYear @relation(fields: [yearUuid], references: [uuid], onDelete: Cascade, onUpdate: NoAction, map: "fk_travel_expense_year")
 
   @@index([yearUuid], map: "fk_travel_expense_year")
   @@map("travel_expense")

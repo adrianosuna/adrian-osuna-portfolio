@@ -2,7 +2,7 @@
 
 # Portfolio & Dashboard — Adrián Osuna
 
-**Portfolio profesional orientado a casos de estudio + dashboard interno de gestión (finanzas personales, usuarios y administración), en un único proyecto full-stack.**
+**Portfolio profesional orientado a casos de estudio + dashboard interno de gestión (finanzas personales, pipeline de oportunidades, usuarios y panel de control del servidor), en un único proyecto full-stack.**
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js&logoColor=white)](https://nextjs.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev)
@@ -10,6 +10,7 @@
 [![Prisma](https://img.shields.io/badge/Prisma-7-2D3748?logo=prisma&logoColor=white)](https://www.prisma.io)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 [![Auth.js](https://img.shields.io/badge/Auth.js-v5-8B5CF6)](https://authjs.dev)
+[![Vitest](https://img.shields.io/badge/Vitest-153_tests-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev)
 [![Docker](https://img.shields.io/badge/Docker-multi--stage-2496ED?logo=docker&logoColor=white)](https://www.docker.com)
 
 🌐 [adrianosuna.com](https://adrianosuna.com)
@@ -22,16 +23,19 @@
 
 **Landing pública** (`/`)
 - **Proyectos como casos de estudio** — cada uno con *reto → qué construí → resultado*, captura y enlaces a demo en vivo y código
-- Hero con posicionamiento y cifras calculadas en vivo (años de experiencia y de liderazgo, siempre al día)
+- Hero con posicionamiento y cifras calculadas en vivo (años de experiencia y de liderazgo, siempre al día) con contador animado al entrar en pantalla
 - Tema oscuro único con paleta esmeralda/teal propia; navbar transparente que gana fondo con blur al hacer scroll
 - Animaciones de revelado al hacer scroll, respetando `prefers-reduced-motion`
-- SEO completo: metadata y Open Graph (imagen generada en build), JSON-LD `Person` + `WebSite`, sitemap y robots
+- SEO completo: metadata y Open Graph (imagen generada en build), JSON-LD `ProfilePage` con proyectos como `CreativeWork`, sitemap y robots
+- **Preparada para buscadores de IA (GEO)**: agentes de IA permitidos explícitamente en robots.txt y `/llms.txt` generado en build desde el contenido real
 - **Google Analytics 4 con consentimiento previo (RGPD)**: ni un script se carga sin aceptación, con [política de privacidad](https://adrianosuna.com/privacidad) y retirada del consentimiento en un clic
 
 **Dashboard interno** (`/app`)
-- 💶 **Finanzas** (personal del admin) — sistema de ahorro anual: control mensual editable, ingresos extraordinarios, gastos de viaje, objetivo anual con progreso, KPIs y gráficas SVG propias (sin librerías de charts)
-- 👥 **Usuarios** — allowlist con roles: invitar por correo, activar/bloquear, eliminar
-- 🔐 **Acceso solo con Google** por lista de invitados; revocación de sesión inmediata
+- 💶 **Finanzas** (personal del admin) — sistema de ahorro anual por pestañas (Resumen histórico + un tab por año): control mensual editable, ingresos extraordinarios, gastos de viaje cuyo sobrante engrosa el ahorro, objetivo con desvío frente al día de hoy, **proyección a fin de año a ritmo actual**, tasa de ahorro, donut de composición y gráficas SVG propias (sin librerías de charts). Exportación del año a **Excel** y recordatorio por correo si un mes se queda sin rellenar
+- 📊 **Oportunidades** (admin) — mini-CRM del pipeline: kanban con drag&drop en escritorio (vista de tabla en móvil), seguimientos con fecha y **aviso por correo al vencer**, historial de actividad por tarjeta, métricas del embudo y archivo con histórico
+- 🖥️ **Panel de control** (admin) — cuatro pestañas: **Servidor** (SSL, latencia pública, MySQL a fondo, backups, disco y recursos en vivo), **Visitas** (GA4 vía Data API: tiempo real, comparativas, conversiones, geografía, mapa horario…), **Usuarios** (allowlist + **sesiones activas con cierre remoto**) y **Mantenimiento** (tareas recurrentes con aviso por correo)
+- ⏰ **Cron interno** (node-cron): avisos diarios por correo — mantenimiento vencido, seguimientos del pipeline y meses de ahorro sin rellenar — con plantilla propia y reaviso semanal
+- 🔐 **Acceso solo con Google** por lista de invitados; registro de sesiones con revocación inmediata
 
 ## 🏗️ Arquitectura
 
@@ -39,33 +43,39 @@
 flowchart LR
     subgraph Público
         L["Landing /"]
-        PR["/privacidad"]
+        LT["/llms.txt · robots"]
         LG["Login /login"]
     end
     subgraph "Dashboard /app (protegido)"
         H["Home"]
-        F["Finanzas · admin"]
-        U["Usuarios · admin"]
+        F["Finanzas"]
+        O["Oportunidades"]
+        PC["Panel de control"]
     end
-    A["Auth.js v5<br/>Google + allowlist"]
+    A["Auth.js v5<br/>Google + allowlist + sesiones"]
     SA["Server Actions"]
     P["Prisma 7<br/>driver adapter MariaDB"]
     DB[("MySQL")]
+    CR["Cron interno<br/>avisos por correo"]
+    GA["GA4 Data API"]
 
     LG --> A
     A --> H
-    H --> F & U
-    F & U --> SA
+    H --> F & O & PC
+    F & O & PC --> SA
     SA --> P
     A --> P
     P --> DB
-    L -. "consentimiento" .-> PR
+    CR --> P
+    PC --> GA
 ```
 
 - **App Router** con server components: los datos se leen en el servidor y las mutaciones van por **server actions** con validación de sesión/rol, devolviendo siempre `{ ok, message? }`. Al cliente solo llegan mensajes de error controlados (`AppError`); las excepciones internas se registran en servidor.
-- **Autenticación** con Auth.js v5 (JWT, 7 días) y verificación del usuario en base de datos **en cada petición**: deshabilitar a un usuario corta su sesión al instante y los cambios de rol se aplican en vivo. Solo se aceptan correos verificados por Google.
-- **Dos sistemas de diseño** conviven vía CSS custom properties sobre un tema único oscuro: paleta esmeralda/teal para las páginas públicas (`.pf-public`) y paleta azul para el dashboard.
-- **Base de datos** MySQL con Prisma 7 (driver adapter de MariaDB): convención `id` autoincremental + `uuid` de negocio, FKs por `uuid` y timestamps automáticos.
+- **Autenticación** con Auth.js v5 (JWT, 7 días) y verificación del usuario **y de su sesión registrada** en base de datos en cada petición: deshabilitar a un usuario o cerrar su sesión desde el panel corta el acceso al instante, y los cambios de rol se aplican en vivo. Solo se aceptan correos verificados por Google.
+- **Cron interno** arrancado por `instrumentation.ts` (node-cron, diario a las 8:00 Europe/Madrid): tres avisos por correo (nodemailer, plantilla email-safe propia) que quedan inactivos sin SMTP configurado.
+- **Un solo sistema de diseño** vía CSS custom properties sobre un tema único oscuro, con componentes propios: campos de formulario custom (número, select y calendario con popover en portal) y modal común con cabecera y pie fijos.
+- **Base de datos** MySQL con Prisma 7 (driver adapter de MariaDB): convención `id` autoincremental + `uuid` de negocio, FKs por `uuid`, timestamps automáticos y migraciones generadas con `migrate diff` (schema a schema).
+- **Tests** (Vitest, 153 sin BD ni red): fórmulas de finanzas, proyecciones, parsers de GA contra API simulada, guardas de todas las server actions, callbacks de auth, umbrales del monitor, avisos del cron, superficies GEO, exportación a Excel y componentes de UI en jsdom.
 - **Seguridad**: headers HTTP (HSTS, X-Frame-Options, CSP, nosniff), errores internos nunca expuestos al cliente y solo correos verificados por Google en el login.
 
 ## 🚀 Puesta en marcha (desarrollo)
@@ -100,6 +110,8 @@ pnpm dev                     # → http://localhost:9444
 | `AUTH_GOOGLE_ID` | Client ID del cliente OAuth de Google (tipo *Aplicación web*) |
 | `AUTH_GOOGLE_SECRET` | Client secret de ese mismo cliente |
 | `NEXT_PUBLIC_GA_ID` | Opcional: ID de medición GA4; activa la analítica y el banner de cookies |
+| `GA_PROPERTY_ID` + `GA_SA_*` | Opcional: service account con acceso Lector a GA4 — activa la pestaña Visitas |
+| `SMTP_*` + `ALERT_EMAIL` | Opcional: SMTP para los avisos por correo del cron — sin ellos queda inactivo |
 
 Las variables de producción (URLs públicas, contraseñas del MySQL en contenedor)
 viven en `.env.production` — ver [.env.production.example](.env.production.example).
@@ -115,25 +127,27 @@ viven en `.env.production` — ver [.env.production.example](.env.production.exa
 | `pnpm dev` | Servidor de desarrollo en el puerto 9444 (Turbopack) |
 | `pnpm build` | Build de producción con type-check |
 | `pnpm start` | Sirve el build de producción en el puerto 9443 |
+| `pnpm test` | Tests unitarios de la lógica crítica (Vitest, sin BD ni red) |
 | `pnpm lint` | ESLint |
 | `pnpm deps` | Lista dependencias desactualizadas (`pnpm outdated`) |
 
 ## 🐳 Despliegue
 
 Producción corre en contenedores: app Next.js (build standalone multi-stage) +
-MySQL propio con volumen persistente para los datos.
+MySQL propio con volumen persistente para los datos y un servicio `migrate`
+one-shot que aplica migraciones y seed.
 
 ```bash
 cp .env.production.example .env.production                                      # rellenar valores
 docker compose --env-file .env.production build
-docker compose --env-file .env.production --profile setup run --rm migrate     # solo la 1.ª vez
+docker compose --env-file .env.production --profile setup run --rm migrate     # 1.ª vez y tras migraciones
 docker compose --env-file .env.production up -d                                # → localhost:9443
 ```
 
 Delante va **Caddy** como proxy inverso (HTTPS automático con Let's Encrypt +
 redirecciones 301) apuntando a `localhost:9443`. Guía completa del despliegue
-en OVH, del VPS recién contratado a la checklist final:
-[docs/DESPLIEGUE.md](docs/DESPLIEGUE.md).
+en OVH — del VPS recién contratado a los backups diarios subidos a Google
+Drive con rclone: [docs/DESPLIEGUE.md](docs/DESPLIEGUE.md).
 
 ## 📁 Estructura del proyecto
 
@@ -143,54 +157,65 @@ src/
 │   ├── page.tsx              # Landing pública
 │   ├── privacidad/           # Política de privacidad y cookies
 │   ├── login/                # Acceso con Google
-│   ├── api/
-│   │   └── auth/[...nextauth]/   # Handlers de Auth.js
+│   ├── llms.txt/             # Superficie GEO para buscadores de IA
+│   ├── api/auth/[...nextauth]/   # Handlers de Auth.js
 │   └── app/                  # Dashboard (protegido)
-│       ├── finance/          # Ahorro anual + server actions (solo admin)
-│       └── system/
-│           └── users/        # Gestión de usuarios (admin)
+│       ├── finance/          # Ahorro anual + actions + exportación a Excel
+│       ├── pipeline/         # Oportunidades (mini-CRM) + actions
+│       └── panel/            # Panel de control (4 pestañas) + actions
 ├── components/
 │   ├── landing/              # Secciones (casos de estudio), navbar, analytics RGPD
-│   └── dashboard/            # TopNav, módulo de ahorro, usuarios
+│   ├── dashboard/            # TopNav + módulos: savings/, pipeline/, panel/, users/
+│   └── ui/                   # Campos de formulario custom y modal común
 ├── lib/
 │   ├── landing/content.ts    # Contenido de la landing, fuente única
-│   ├── finance.ts            # Capa de datos del módulo de finanzas
-│   ├── errors.ts             # AppError: errores aptos para el cliente
-│   ├── site.ts               # URL pública del sitio (metadata/SEO)
+│   ├── finance.ts            # Datos de finanzas + recordatorio de mes sin rellenar
+│   ├── pipeline.ts           # Métricas del embudo + aviso de seguimientos
+│   ├── mantenimiento.ts      # Vencimientos de tareas + aviso de vencidas
+│   ├── cron.ts               # Planificador interno (node-cron)
+│   ├── correo.ts             # SMTP + plantilla email-safe de la casa
+│   ├── ga.ts                 # GA4 Data API (JWT firmado a mano, sin SDK)
+│   ├── infra.ts              # Monitor del servidor (SSL, BD, disco, recursos)
 │   └── prisma.ts             # Singleton de PrismaClient
-├── auth.ts                   # Auth.js: Google + allowlist + guardas
+├── instrumentation.ts        # Arranque del cron (una vez por proceso)
+├── auth.ts                   # Auth.js: Google + allowlist + sesiones + guardas
 └── types/next-auth.d.ts      # Tipos de sesión ampliados
 prisma/
-├── schema.prisma             # Esquema (User, SavingYear, SavingMonth, …)
-├── migrations/0_init/        # Migración baseline
+├── schema.prisma             # Esquema (User, UserSession, SavingYear, Opportunity, …)
+├── migrations/               # Baseline 0_init + migraciones (migrate diff)
 └── seed.ts                   # Asegura el administrador inicial
+tests/                        # 153 tests (Vitest; jsdom para componentes)
 docs/
-├── DESPLIEGUE.md             # Guía de despliegue en OVH (Docker + Caddy)
+├── DESPLIEGUE.md             # Guía de despliegue en OVH (Docker + Caddy + rclone)
+├── CHANGELOG.md              # Historial de lo hecho, bien contado
 └── TAREAS.md                 # Tareas pendientes del proyecto
 ```
 
 ## 🔐 Modelo de acceso
 
 El dashboard funciona por **lista de invitados**: un administrador da de alta un
-correo desde *Usuarios* (estado `invited`) y esa persona ya puede entrar con su
-cuenta de Google — al primer login pasa a `active`. Un correo no invitado o
+correo desde el Panel de control (estado `invited`) y esa persona ya puede entrar
+con su cuenta de Google — al primer login pasa a `active`. Un correo no invitado o
 deshabilitado no puede acceder, aunque su cuenta de Google sea válida. No hay
-contraseñas propias: la identidad la verifica Google. El módulo de **Finanzas es
-personal del administrador**: los usuarios invitados no lo ven ni pueden tocarlo.
+contraseñas propias: la identidad la verifica Google. Cada login queda registrado
+como **sesión activa** (dispositivo y última actividad) y puede **cerrarse
+remotamente** desde el panel. Los módulos de **Finanzas, Oportunidades y Panel de
+control son personales del administrador**: los usuarios invitados no los ven.
 
 ## 🗺️ Roadmap
 
-Las tareas pendientes, detalladas, viven en [docs/TAREAS.md](docs/TAREAS.md).
+Las tareas pendientes viven en [docs/TAREAS.md](docs/TAREAS.md) y el historial
+detallado de lo hecho en [docs/CHANGELOG.md](docs/CHANGELOG.md).
 
 - [x] Landing orientada a casos de estudio, tema oscuro único
-- [x] Autenticación Google + allowlist con roles
-- [x] Módulo de finanzas: sistema de ahorro anual (solo admin)
-- [x] Gestión de usuarios con allowlist y roles en vivo
-- [x] Auditoría de seguridad, SEO y responsividad móvil aplicada
-- [x] Google Analytics 4 con consentimiento RGPD y política de privacidad
-- [x] Docker: imagen standalone + MySQL en contenedor (ensayado en local)
-- [ ] Despliegue en producción (`adrianosuna.com`)
-- [ ] Exportación del año de ahorro a Excel
+- [x] Autenticación Google + allowlist con roles y sesiones revocables
+- [x] Despliegue en producción (`adrianosuna.com`) con backups diarios a Google Drive
+- [x] Módulo de finanzas: ahorro anual con asistente, tasa de ahorro y exportación a Excel
+- [x] Pipeline de oportunidades (mini-CRM con seguimientos e historial)
+- [x] Panel de control: servidor, visitas GA4, usuarios/sesiones y mantenimiento
+- [x] Avisos por correo (cron interno + plantilla propia)
+- [x] Preparación para buscadores de IA (GEO) y re-pasada de Lighthouse
+- [x] Suite de tests de la lógica crítica (153, sin BD ni red)
 - [ ] Control de gastos (registro por categorías)
 
 ## 👤 Autor

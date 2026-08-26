@@ -1,7 +1,10 @@
 'use client'
 
-// Tabla de gestión de usuarios (solo administradores): invitar por correo,
-// cambiar rol, activar/deshabilitar y eliminar. Réplica del Users original.
+// Gestión de usuarios (solo administradores): invitar por correo, cambiar rol,
+// activar/deshabilitar y eliminar. Réplica del Users original. En escritorio
+// es una tabla; en móvil, tarjetas apiladas (la tabla con scroll horizontal se
+// veía mal). La fila del propio admin no muestra acciones: ninguna es legal
+// sobre uno mismo (el servidor lo revalida igualmente).
 import { useState, useTransition } from 'react'
 import Image from 'next/image'
 import {
@@ -9,7 +12,9 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { inviteUser, removeUser, updateUser } from '@/app/app/system/users/actions'
+import { Modal } from '@/components/ui/modal'
+import { SelectField, TextField } from '@/components/ui/fields'
+import { inviteUser, removeUser, updateUser } from '@/app/app/panel/actions'
 
 export interface UserRow {
   uuid: string
@@ -38,9 +43,6 @@ const fmtDate = (iso: string | null) => {
   return `${dd}/${mm}/${d.getFullYear()} ${hh}:${mi}`
 }
 
-// text-base en móvil: con menos de 16px, iOS Safari hace zoom al enfocar un input.
-const inputClass =
-  'w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-base outline-none transition-colors focus:border-primary sm:text-sm'
 const btnPrimary =
   'inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-3.5 py-1.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50'
 const btnOutline =
@@ -56,6 +58,18 @@ function Avatar({ row }: { row: UserRow }) {
   return (
     <span className="flex size-9 items-center justify-center rounded-full bg-primary/10 text-primary">
       <UserRound className="size-4.5" />
+    </span>
+  )
+}
+
+function RolTag({ role }: { role: UserRow['role'] }) {
+  return (
+    <span
+      className={cn(
+        'rounded-md px-2 py-0.5 text-xs font-semibold',
+        role === 'ADMIN' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
+      )}>
+      {role === 'ADMIN' ? 'Admin' : 'Usuario'}
     </span>
   )
 }
@@ -84,6 +98,76 @@ export function UsersTable({ rows, meUuid }: { rows: UserRow[]; meUuid: string }
       setRole('USER')
     })
 
+  // Acciones sobre OTRO usuario (nunca se pintan para el propio admin).
+  const acciones = (row: UserRow) => {
+    const makeAdmin = row.role !== 'ADMIN'
+    return (
+      <span className="inline-flex items-center gap-0.5">
+        <button
+          type="button"
+          className={btnIcon}
+          disabled={pending}
+          title={makeAdmin ? 'Hacer administrador' : 'Quitar administrador'}
+          onClick={() =>
+            run(
+              updateUser(row.uuid, { role: makeAdmin ? 'ADMIN' : 'USER' }),
+              makeAdmin ? 'Ahora es administrador' : 'Ya no es administrador',
+            )
+          }>
+          {makeAdmin ? <Crown className="size-4" /> : <UserRound className="size-4" />}
+        </button>
+
+        {row.status === 'DISABLED' ? (
+          <button
+            type="button"
+            className={cn(btnIcon, 'text-success hover:bg-success-bg hover:text-success')}
+            disabled={pending}
+            title="Activar"
+            onClick={() => run(updateUser(row.uuid, { status: 'ACTIVE' }), 'Usuario activado')}>
+            <CircleCheck className="size-4" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            className={cn(btnIcon, 'hover:bg-danger-bg hover:text-danger')}
+            disabled={pending}
+            title="Bloquear"
+            onClick={() =>
+              run(updateUser(row.uuid, { status: 'DISABLED' }), 'Usuario deshabilitado — su sesión queda cortada')
+            }>
+            <Ban className="size-4" />
+          </button>
+        )}
+
+        {confirming === row.uuid ? (
+          <>
+            <button
+              type="button"
+              className="rounded-md bg-danger px-2 py-1 text-xs font-semibold text-white"
+              onClick={() => {
+                setConfirming(null)
+                run(removeUser(row.uuid), 'Usuario eliminado')
+              }}>
+              Sí
+            </button>
+            <button type="button" className={btnIcon} onClick={() => setConfirming(null)}>
+              No
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            className={cn(btnIcon, 'hover:bg-danger-bg hover:text-danger')}
+            disabled={pending}
+            title="Eliminar"
+            onClick={() => setConfirming(row.uuid)}>
+            <Trash2 className="size-4" />
+          </button>
+        )}
+      </span>
+    )
+  }
+
   const thClass = 'px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground'
   const tdClass = 'px-3 py-2.5'
 
@@ -95,24 +179,64 @@ export function UsersTable({ rows, meUuid }: { rows: UserRow[]; meUuid: string }
         </button>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-border bg-card">
-        {/* En móvil se ocultan las columnas informativas de fechas: así las
-            acciones quedan a mano sin arrastrar 400px de scroll. */}
-        <table className="w-full min-w-120 text-sm md:min-w-190">
+      {/* Móvil: tarjetas apiladas */}
+      <div className="flex flex-col gap-3 md:hidden">
+        {rows.map((row) => {
+          const isMe = row.uuid === meUuid
+          const status = STATUS_TAG[row.status]
+          return (
+            <div key={row.uuid} className="rounded-xl border border-border bg-card p-4">
+              <div className="flex items-center gap-3">
+                <Avatar row={row} />
+                <div className="min-w-0 flex-1 leading-tight">
+                  <p className="truncate font-semibold">
+                    {row.name || '—'}
+                    {isMe && (
+                      <span className="ml-1.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-semibold text-primary">
+                        Tú
+                      </span>
+                    )}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">{row.email}</p>
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                <RolTag role={row.role} />
+                <span className={cn('rounded-md px-2 py-0.5 text-xs font-semibold', status.className)}>
+                  {status.label}
+                </span>
+                {row.lastLogin && (
+                  <span className="text-[11.5px] text-muted-foreground/70">
+                    Último acceso: {fmtDate(row.lastLogin)}
+                  </span>
+                )}
+              </div>
+              {!isMe && (
+                <div className="mt-2.5 flex justify-end border-t border-border/60 pt-1.5">
+                  {acciones(row)}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Escritorio: tabla */}
+      <div className="hidden overflow-x-auto rounded-xl border border-border bg-card md:block">
+        <table className="w-full min-w-190 text-sm">
           <thead>
             <tr className="border-b border-border">
               <th className={thClass}>Usuario</th>
               <th className={cn(thClass, 'text-center')}>Rol</th>
               <th className={cn(thClass, 'text-center')}>Estado</th>
-              <th className={cn(thClass, 'hidden md:table-cell')}>Último acceso</th>
-              <th className={cn(thClass, 'hidden md:table-cell')}>Alta</th>
+              <th className={thClass}>Último acceso</th>
+              <th className={thClass}>Alta</th>
               <th className={cn(thClass, 'text-center')}>Acciones</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => {
               const isMe = row.uuid === meUuid
-              const makeAdmin = row.role !== 'ADMIN'
               const status = STATUS_TAG[row.status]
               return (
                 <tr key={row.uuid} className="border-b border-border/50 last:border-0">
@@ -133,97 +257,19 @@ export function UsersTable({ rows, meUuid }: { rows: UserRow[]; meUuid: string }
                     </div>
                   </td>
                   <td className={cn(tdClass, 'text-center')}>
-                    <span
-                      className={cn(
-                        'rounded-md px-2 py-0.5 text-xs font-semibold',
-                        row.role === 'ADMIN' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
-                      )}>
-                      {row.role === 'ADMIN' ? 'Admin' : 'Usuario'}
-                    </span>
+                    <RolTag role={row.role} />
                   </td>
                   <td className={cn(tdClass, 'text-center')}>
                     <span className={cn('rounded-md px-2 py-0.5 text-xs font-semibold', status.className)}>
                       {status.label}
                     </span>
                   </td>
-                  <td className={cn(tdClass, 'hidden whitespace-nowrap md:table-cell')}>
+                  <td className={cn(tdClass, 'whitespace-nowrap')}>
                     {fmtDate(row.lastLogin) ?? <span className="text-muted-foreground">Nunca</span>}
                   </td>
-                  <td className={cn(tdClass, 'hidden whitespace-nowrap md:table-cell')}>{fmtDate(row.createTs) ?? '—'}</td>
+                  <td className={cn(tdClass, 'whitespace-nowrap')}>{fmtDate(row.createTs) ?? '—'}</td>
                   <td className={cn(tdClass, 'text-center')}>
-                    <span className="inline-flex items-center gap-0.5">
-                      {/* Hacer/quitar administrador. Las autoprotecciones avisan
-                          con un toast al pulsar: el `title` solo se ve con ratón
-                          y en táctil el porqué quedaría invisible. */}
-                      <button
-                        type="button"
-                        className={btnIcon}
-                        disabled={pending}
-                        title={isMe ? 'No puedes cambiar tu rol' : makeAdmin ? 'Hacer administrador' : 'Quitar administrador'}
-                        onClick={() => {
-                          if (isMe) return void toast.error('No puedes cambiar tu propio rol')
-                          run(
-                            updateUser(row.uuid, { role: makeAdmin ? 'ADMIN' : 'USER' }),
-                            makeAdmin ? 'Ahora es administrador' : 'Ya no es administrador',
-                          )
-                        }}>
-                        {makeAdmin ? <Crown className="size-4" /> : <UserRound className="size-4" />}
-                      </button>
-
-                      {/* Activar / bloquear */}
-                      {row.status === 'DISABLED' ? (
-                        <button
-                          type="button"
-                          className={cn(btnIcon, 'text-success hover:bg-success-bg hover:text-success')}
-                          disabled={pending}
-                          title="Activar"
-                          onClick={() => run(updateUser(row.uuid, { status: 'ACTIVE' }), 'Usuario activado')}>
-                          <CircleCheck className="size-4" />
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className={cn(btnIcon, 'hover:bg-danger-bg hover:text-danger')}
-                          disabled={pending}
-                          title={isMe ? 'No puedes bloquearte' : 'Bloquear'}
-                          onClick={() => {
-                            if (isMe) return void toast.error('No puedes bloquearte a ti mismo')
-                            run(updateUser(row.uuid, { status: 'DISABLED' }), 'Usuario deshabilitado — su sesión queda cortada')
-                          }}>
-                          <Ban className="size-4" />
-                        </button>
-                      )}
-
-                      {/* Eliminar (con confirmación inline) */}
-                      {confirming === row.uuid ? (
-                        <>
-                          <button
-                            type="button"
-                            className="rounded-md bg-danger px-2 py-1 text-xs font-semibold text-white"
-                            onClick={() => {
-                              setConfirming(null)
-                              run(removeUser(row.uuid), 'Usuario eliminado')
-                            }}>
-                            Sí
-                          </button>
-                          <button type="button" className={btnIcon} onClick={() => setConfirming(null)}>
-                            No
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          type="button"
-                          className={cn(btnIcon, 'hover:bg-danger-bg hover:text-danger')}
-                          disabled={pending}
-                          title={isMe ? 'No puedes eliminarte' : 'Eliminar'}
-                          onClick={() => {
-                            if (isMe) return void toast.error('No puedes eliminarte a ti mismo')
-                            setConfirming(row.uuid)
-                          }}>
-                          <Trash2 className="size-4" />
-                        </button>
-                      )}
-                    </span>
+                    {isMe ? <span className="text-xs text-muted-foreground/50">—</span> : acciones(row)}
                   </td>
                 </tr>
               )
@@ -234,44 +280,45 @@ export function UsersTable({ rows, meUuid }: { rows: UserRow[]; meUuid: string }
 
       {/* Invitar usuario */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setModalOpen(false)} aria-hidden="true" />
-          <div role="dialog" aria-modal="true" aria-label="Invitar usuario" className="relative max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-xl border border-border bg-popover p-5 shadow-xl">
-            <h3 className="mb-1 text-base font-bold">Invitar usuario</h3>
-            <p className="mb-4 text-[13px] text-muted-foreground">
-              El correo queda en la lista de invitados y podrá entrar con su cuenta de Google.
-            </p>
-            <div className="flex flex-col gap-3">
-              <div>
-                <p className="mb-1 text-[13px] text-muted-foreground">Correo de Google</p>
-                <input
-                  type="email"
-                  className={inputClass}
-                  placeholder="persona@gmail.com"
-                  value={email}
-                  autoFocus
-                  onChange={(e) => setEmail(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && email.trim() && onInvite()}
-                />
-              </div>
-              <div>
-                <p className="mb-1 text-[13px] text-muted-foreground">Rol</p>
-                <select className={inputClass} value={role} onChange={(e) => setRole(e.target.value as 'ADMIN' | 'USER')}>
-                  <option value="USER">Usuario</option>
-                  <option value="ADMIN">Admin</option>
-                </select>
-              </div>
-            </div>
-            <div className="mt-5 flex justify-end gap-2">
+        <Modal
+          title="Invitar usuario"
+          description="El correo queda en la lista de invitados y podrá entrar con su cuenta de Google."
+          onClose={() => setModalOpen(false)}
+          footer={
+            <>
               <button type="button" className={btnOutline} onClick={() => setModalOpen(false)}>
                 Cancelar
               </button>
               <button type="button" className={btnPrimary} disabled={!email.trim() || pending} onClick={onInvite}>
                 Invitar
               </button>
+            </>
+          }>
+            <div className="flex flex-col gap-3">
+              <div>
+                <p className="mb-1 text-[13px] text-muted-foreground">Correo de Google</p>
+                <TextField
+                  type="email"
+                  value={email}
+                  autoFocus
+                  onChange={setEmail}
+                  onEnter={() => email.trim() && onInvite()}
+                />
+              </div>
+              <div>
+                <p className="mb-1 text-[13px] text-muted-foreground">Rol</p>
+                <SelectField
+                  ariaLabel="Rol"
+                  value={role}
+                  onChange={(v) => setRole(v as 'ADMIN' | 'USER')}
+                  options={[
+                    { value: 'USER', label: 'Usuario' },
+                    { value: 'ADMIN', label: 'Admin' },
+                  ]}
+                />
+              </div>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   )

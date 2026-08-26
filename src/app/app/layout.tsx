@@ -19,7 +19,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-muted/40">
+    // min-w-0 en la cadena de flex: sin él, un hijo con anchura mínima grande
+    // (p. ej. el tablero del pipeline con min-w-260 dentro de su scroller)
+    // impediría encoger al layout entero y desbordaría la página en móvil.
+    <div className="flex min-h-screen min-w-0 flex-col bg-muted/40">
       <TopNav
         user={{
           name: session.user.name ?? null,
@@ -29,7 +32,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         }}
         onSignOut={cerrarSesion}
       />
-      <main className="mx-auto w-full max-w-300 flex-1 px-4 py-6 sm:px-6">{children}</main>
+      <main className="mx-auto w-full min-w-0 max-w-300 flex-1 px-4 py-6 sm:px-6">{children}</main>
       <Toaster richColors position="bottom-right" theme="dark" />
     </div>
   )

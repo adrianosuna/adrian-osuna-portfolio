@@ -204,11 +204,75 @@ Dump diario de la BD con cron (guarda los últimos 7 días):
 
 ```bash
 crontab -e
-# 0 4 * * * docker compose -f /home/ubuntu/adrian-osuna-portfolio/docker-compose.yml --env-file /home/ubuntu/adrian-osuna-portfolio/.env.production exec -T db sh -c 'mysqldump -uportfolio -p"$MYSQL_PASSWORD" portfolio' | gzip > /home/ubuntu/backups/portfolio-$(date +\%u).sql.gz
+# 0 4 * * * docker compose -f /var/www/adrian-osuna-portfolio/docker-compose.yml --env-file /var/www/adrian-osuna-portfolio/.env.production exec -T db sh -c 'mysqldump --no-tablespaces -uportfolio -p"$MYSQL_PASSWORD" portfolio' | gzip > /home/ubuntu/backups/portfolio-$(date +\%u).sql.gz && /usr/bin/rclone copy /home/ubuntu/backups gdrive:vps-backups/adrianosuna.com --quiet
+# (--no-tablespaces: el usuario de la app no tiene el privilegio PROCESS y no
+# lo necesita; sin el flag, el dump falla en MySQL 8)
 ```
 
-(Crear antes la carpeta: `mkdir -p ~/backups`. Idealmente, copiar esos dumps
-también fuera del VPS de vez en cuando.)
+(Crear antes la carpeta: `mkdir -p ~/backups`.)
+
+**Copia fuera del VPS (configurado el 26/08/2026)**: tras el dump, el mismo
+cron sube `~/backups` a Google Drive con `rclone copy` — carpeta
+`vps-backups/adrianosuna.com` (un subdirectorio por dominio, pensado para
+futuros proyectos en el mismo VPS). Como `copy` no borra y los nombres rotan
+por día de semana, Drive mantiene el espejo de los últimos 7 días sin crecer.
+Montaje de rclone (si hubiera que rehacerlo): instalador oficial de rclone.org,
+remote `gdrive` tipo `drive` con scope `drive.file` (solo ve sus propios
+ficheros) y **client_id OAuth propio** (app de escritorio "rclone-backups" en
+el proyecto de Google Cloud del portfolio, con la Drive API habilitada y la
+pantalla de consentimiento PUBLICADA — en modo "Prueba" los tokens caducan a
+los 7 días); la autorización se hace con `rclone config reconnect gdrive:` en
+el VPS + `rclone authorize` en una máquina con navegador. El token vive en
+`~/.config/rclone/rclone.conf` del VPS.
+
+El Panel de control del dashboard (`/app/panel`) vigila esta carpeta:
+el compose la monta de solo lectura en el contenedor (`/backups`) para medir la
+edad del último dump y el uso de disco del VPS. Si los backups estuvieran en
+otra ruta, definir `BACKUPS_HOST_DIR` en `.env.production`.
+
+## Avisos de mantenimiento por correo
+
+La pestaña **Mantenimiento** de `/app/panel` gestiona tareas recurrentes del
+servidor; un cron interno de la app (node-cron, arrancado en
+`src/instrumentation.ts`) avisa por correo de las vencidas a diario a las 8:00
+(hora española), con reaviso semanal. Requiere las variables `SMTP_HOST`,
+`SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` y `ALERT_EMAIL` en `.env.production`
+(con Gmail: contraseña de aplicación en myaccount.google.com/apppasswords).
+Son variables de runtime: basta recrear el contenedor, sin rebuild. La tabla
+`maintenance_task` llega con la migración `add_maintenance_task` (servicio
+`migrate`). El botón "Probar correo" de la pestaña verifica el SMTP.
+
+El mismo cron y el mismo SMTP avisan también de los **seguimientos vencidos
+del pipeline** (`/app/pipeline`: oportunidades vivas cuya próxima acción tiene
+fecha ya pasada) y de los **meses de ahorro sin rellenar** (`/app/finance`:
+al cerrarse un mes sin datos llega un recordatorio), ambos con idéntico
+reaviso semanal. No requieren configuración extra; sus campos llegan con las
+migraciones `pipeline_seguimiento_e_historial` y `add_saving_reminder`.
+
+## Visitas en el Panel de control (GA Data API)
+
+La pestaña **Visitas** de `/app/panel` lee Google Analytics con la Data API y
+una **service account**. Configuración (una sola vez):
+
+1. En [Google Cloud Console](https://console.cloud.google.com/), con el mismo
+   proyecto del OAuth de login (o uno nuevo): **APIs y servicios → Biblioteca →
+   "Google Analytics Data API" → Habilitar**.
+2. **IAM y administración → Cuentas de servicio → Crear**: nombre libre (p. ej.
+   `portfolio-visitas`), sin roles de proyecto. Dentro de la cuenta creada:
+   **Claves → Agregar clave → JSON** (se descarga un fichero, guardarlo bien:
+   no se puede volver a descargar).
+3. En [Google Analytics](https://analytics.google.com/): **Administrar →
+   Gestión de accesos a la propiedad → +** y añadir el correo de la service
+   account (`...@...iam.gserviceaccount.com`) con rol **Lector**.
+4. El id de propiedad: **Administrar → Configuración de la propiedad →
+   ID de la propiedad** (numérico, no el G-XXXX).
+5. En `.env.production`, del JSON descargado: `GA_PROPERTY_ID` (paso 4),
+   `GA_SA_CLIENT_EMAIL` = `client_email` y `GA_SA_PRIVATE_KEY` = `private_key`
+   **tal cual** (una sola línea con `\n` escapados, entre comillas dobles).
+   Después, recrear el contenedor (`docker compose --env-file .env.production
+   up -d`; no requiere rebuild: son variables de runtime).
+
+Sin estas variables la pestaña muestra "sin configurar" y no llama a nada.
 
 ## Swap (solo si el build se queda sin memoria)
 

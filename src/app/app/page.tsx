@@ -3,8 +3,8 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import {
-  ArrowRight, CalendarDays, Euro, ExternalLink, LayoutGrid, Rocket,
-  ShieldCheck, TrendingUp, Users,
+  ArrowRight, Briefcase, CalendarDays, Euro, ExternalLink, Gauge, LayoutGrid,
+  Rocket, ShieldCheck, TrendingUp,
 } from 'lucide-react'
 import { FaGoogle } from 'react-icons/fa6'
 import { auth } from '@/auth'
@@ -71,8 +71,8 @@ export default async function HomePage() {
       icon: <TrendingUp className="size-5" />, chip: 'bg-success-bg text-success', hint: 'En desarrollo',
     },
     {
-      title: 'Módulos activos', value: '2',
-      icon: <LayoutGrid className="size-5" />, chip: 'bg-viajes-bg text-viajes', hint: 'Finanzas y Sistema',
+      title: 'Módulos activos', value: '3',
+      icon: <LayoutGrid className="size-5" />, chip: 'bg-viajes-bg text-viajes', hint: 'Finanzas, Pipeline y Panel de control',
     },
   ]
 
@@ -80,15 +80,18 @@ export default async function HomePage() {
     ...(isAdmin
       ? [
           { title: 'Finanzas', desc: 'Sistema de ahorro anual y control de gastos.', icon: <Euro className="size-4.5" />, chip: 'bg-primary/10 text-primary', to: '/app/finance' },
-          { title: 'Usuarios', desc: 'Invita correos y gestiona roles y accesos.', icon: <Users className="size-4.5" />, chip: 'bg-viajes-bg text-viajes', to: '/app/system/users' },
+          { title: 'Oportunidades', desc: 'Pipeline de ofertas y encargos, del contacto al cierre.', icon: <Briefcase className="size-4.5" />, chip: 'bg-warning-bg text-warning', to: '/app/pipeline' },
+          { title: 'Panel de control', desc: 'Servidor, visitas y usuarios en un solo sitio.', icon: <Gauge className="size-4.5" />, chip: 'bg-success-bg text-success', to: '/app/panel' },
         ]
       : []),
-    { title: 'Portfolio público', desc: 'Abre la landing tal y como la ven tus visitas.', icon: <ExternalLink className="size-4.5" />, chip: 'bg-success-bg text-success', to: '/' },
+    { title: 'Portfolio público', desc: 'Abre la landing tal y como la ven tus visitas.', icon: <ExternalLink className="size-4.5" />, chip: 'bg-primary/10 text-primary', to: '/' },
   ]
 
   const roadmap = [
     { title: 'Sistema de ahorro anual', desc: 'Control mensual, ingresos extra, viajes y KPIs por año.', tag: 'Disponible', tagClass: 'bg-success-bg text-success' },
-    { title: 'Gestión de usuarios', desc: 'Allowlist con roles y estados de acceso.', tag: 'En desarrollo', tagClass: 'bg-warning-bg text-warning' },
+    { title: 'Pipeline de oportunidades', desc: 'Kanban de ofertas y encargos por estados.', tag: 'Disponible', tagClass: 'bg-success-bg text-success' },
+    { title: 'Gestión de usuarios', desc: 'Allowlist con roles, dentro del Panel de control.', tag: 'Disponible', tagClass: 'bg-success-bg text-success' },
+    { title: 'Panel de control', desc: 'Monitor de infraestructura y estado en vivo del servidor.', tag: 'Disponible', tagClass: 'bg-success-bg text-success' },
     { title: 'Control de gastos', desc: 'Registro de movimientos, categorías y resumen mensual.', tag: 'En desarrollo', tagClass: 'bg-warning-bg text-warning' },
   ]
 
@@ -195,7 +198,7 @@ export default async function HomePage() {
               <span className="w-16 shrink-0 pt-px text-[12.5px] font-semibold uppercase tracking-[0.4px] text-muted-foreground/70">
                 {it.label}
               </span>
-              <span className="min-w-0 break-words text-[13.5px]">{it.value}</span>
+              <span className="min-w-0 wrap-break-word text-[13.5px]">{it.value}</span>
             </div>
           ))}
         </div>

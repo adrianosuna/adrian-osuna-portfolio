@@ -34,10 +34,17 @@ services:
         NEXT_PUBLIC_GA_ID: ${NEXT_PUBLIC_GA_ID:-}
     restart: unless-stopped
     env_file: .env.production
+    environment:
+      # Ruta interna del volumen de backups para el monitor de infraestructura.
+      INFRA_BACKUPS_DIR: /backups
     ports:
       # Atado a loopback: Docker se salta el firewall del sistema (ufw), así
       # que solo el proxy inverso del propio servidor puede llegar al 9443.
       - "127.0.0.1:9443:9443"
+    volumes:
+      # Solo lectura: el monitor de infraestructura lee la edad de los dumps
+      # del cron y, de paso, el uso de disco del VPS (statfs sobre la carpeta).
+      - ${BACKUPS_HOST_DIR:-/home/ubuntu/backups}:/backups:ro
     depends_on:
       db:
         condition: service_healthy

@@ -14,6 +14,7 @@ import {
 import { FaGithub, FaLinkedin } from 'react-icons/fa6'
 import { cn } from '@/lib/utils'
 import { Reveal } from '@/components/landing/reveal'
+import { Contador } from '@/components/landing/contador'
 import {
   PROFILE, TIMELINE, companyDuration, periodLabel, yearsSince,
   type Content,
@@ -61,15 +62,15 @@ export function Hero({ t }: { t: Content }) {
       <div className="relative mx-auto grid w-full max-w-300 items-center gap-10 px-6 pb-8 pt-28 sm:px-8 sm:pt-32 md:min-h-[min(calc(100svh-4rem),56rem)] md:grid-cols-[1fr_auto] md:gap-16 md:py-24">
         {/* Texto: centrado en móvil, alineado a la izquierda en escritorio */}
         <div className="order-2 text-center md:order-1 md:text-left">
-          <Reveal as="p" className="font-mono text-[13px] uppercase tracking-[2px] text-accent-teal">
+          <Reveal inmediata as="p" className="font-mono text-[13px] uppercase tracking-[2px] text-accent-teal">
             {t.hero.hi}
           </Reveal>
-          <Reveal delay={80}>
+          <Reveal inmediata delay={80}>
             <h1 className="mb-1.5 mt-3 text-[clamp(42px,5vw,80px)] font-extrabold leading-[1.04] tracking-[-2px] text-foreground">
               {PROFILE.name}
             </h1>
           </Reveal>
-          <Reveal delay={160}>
+          <Reveal inmediata delay={160}>
             {/* Cada título es indivisible: la línea solo puede partirse por el "·".
                 El espacio entre spans es imprescindible: sin él no hay punto de
                 ruptura y la línea entera desborda el ancho del móvil. */}
@@ -84,17 +85,17 @@ export function Hero({ t }: { t: Content }) {
               ))}
             </p>
           </Reveal>
-          <Reveal as="p" delay={240} className="mx-auto mt-5 max-w-150 text-lg leading-[1.65] text-body md:mx-0 lg:text-xl">
+          <Reveal inmediata as="p" delay={240} className="mx-auto mt-5 max-w-150 text-lg leading-[1.65] text-body md:mx-0 lg:text-xl">
             {t.hero.tagline}
           </Reveal>
-          <Reveal delay={320} className="mt-5 inline-block">
+          <Reveal inmediata delay={320} className="mt-5 inline-block">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-1.5 text-[13.5px] text-muted-foreground">
               <MapPin className="size-3.5" />
               {t.hero.location}
             </span>
           </Reveal>
           {/* CTAs: la acción principal lleva a la evidencia (los proyectos) */}
-          <Reveal delay={400} className="mt-8 flex flex-wrap items-center justify-center gap-3 md:justify-start">
+          <Reveal inmediata delay={400} className="mt-8 flex flex-wrap items-center justify-center gap-3 md:justify-start">
             <a
               className="inline-flex items-center gap-2 rounded-xl bg-btn px-6 py-3 text-[15px] font-semibold text-white transition-all hover:-translate-y-px hover:bg-btn-hover"
               href="#proyectos">
@@ -103,12 +104,13 @@ export function Hero({ t }: { t: Content }) {
             </a>
             <a
               className="inline-flex items-center gap-2 rounded-xl border border-border px-6 py-3 text-[15px] font-semibold text-primary transition-all hover:-translate-y-px hover:border-primary"
-              href="#contacto">
+              href="#contacto"
+              data-ga="clic_contactar">
               <Mail className="size-4" />
               {t.hero.ctaContact}
             </a>
           </Reveal>
-          <Reveal delay={480} className="mt-7 flex items-center justify-center gap-2.5 md:justify-start">
+          <Reveal inmediata delay={480} className="mt-7 flex items-center justify-center gap-2.5 md:justify-start">
             {socials.map(({ href, label, Icon }) => (
               <a
                 key={label}
@@ -117,6 +119,7 @@ export function Hero({ t }: { t: Content }) {
                 rel={href.startsWith('http') ? 'noreferrer' : undefined}
                 aria-label={label}
                 title={label}
+                data-ga={`clic_${label.toLowerCase()}`}
                 className="flex size-10 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary">
                 <Icon className="size-4.5" />
               </a>
@@ -125,7 +128,7 @@ export function Hero({ t }: { t: Content }) {
         </div>
 
         {/* Foto: marco redondeado con contorno teal desplazado detrás */}
-        <Reveal delay={200} className="order-1 flex justify-center md:order-2">
+        <Reveal inmediata delay={200} className="order-1 flex justify-center md:order-2">
           <div className="relative">
             <div
               aria-hidden="true"
@@ -137,6 +140,9 @@ export function Hero({ t }: { t: Content }) {
               width={400}
               height={400}
               priority
+              // Tamaños reales renderizados (size-44/56/85/100): sin esto, el
+              // móvil descargaba la variante de 828px para pintar 176px.
+              sizes="(max-width: 640px) 11rem, (max-width: 768px) 14rem, (max-width: 1024px) 21.25rem, 25rem"
               className="relative size-44 rounded-[30px] border border-border object-cover shadow-[0_18px_50px_var(--pf-shadow)] sm:size-56 md:size-85 lg:size-100"
             />
           </div>
@@ -178,17 +184,19 @@ function ScrollHint() {
 // Los años se calculan desde las fechas reales (siempre al día).
 export function Stats({ t }: { t: Content }) {
   const items = [
-    { value: `${yearsSince({ y: 2021, m: 3 })}+`, label: t.stats.experience },
-    { value: '2', label: t.stats.platforms },
-    { value: '1º', label: t.stats.firstDev },
-    { value: `${yearsSince({ y: 2024, m: 1 })}+`, label: t.stats.leading },
+    { numero: yearsSince({ y: 2021, m: 3 }), sufijo: '+', label: t.stats.experience },
+    { numero: 2, sufijo: '', label: t.stats.platforms },
+    { numero: 1, sufijo: 'º', label: t.stats.firstDev },
+    { numero: yearsSince({ y: 2024, m: 1 }), sufijo: '+', label: t.stats.leading },
   ]
   return (
     <section className="mx-auto w-full max-w-245 px-[6%] pb-4">
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-4">
         {items.map((s, i) => (
           <Reveal key={s.label} delay={i * 70} className="bg-card px-4 py-6 text-center">
-            <p className="font-mono text-3xl font-bold text-primary sm:text-4xl">{s.value}</p>
+            <p className="font-mono text-3xl font-bold text-primary sm:text-4xl">
+              <Contador numero={s.numero} sufijo={s.sufijo} />
+            </p>
             <p className="mt-1.5 text-[13px] text-muted-foreground">{s.label}</p>
           </Reveal>
         ))}
@@ -275,7 +283,8 @@ export function Projects({ t }: { t: Content }) {
                           className="flex items-center gap-1.5 font-mono text-[14px] font-semibold text-primary hover:text-primary-dark"
                           href={p.url}
                           target="_blank"
-                          rel="noreferrer">
+                          rel="noreferrer"
+                          data-ga="clic_demo">
                           {p.urlLabel} <ExternalLink className="size-3.5" />
                         </a>
                       )}
@@ -284,7 +293,8 @@ export function Projects({ t }: { t: Content }) {
                           className="flex items-center gap-1.5 font-mono text-[14px] font-semibold text-primary hover:text-primary-dark"
                           href={p.repo}
                           target="_blank"
-                          rel="noreferrer">
+                          rel="noreferrer"
+                          data-ga="clic_repo">
                           <FaGithub className="size-4" /> Ver el código
                         </a>
                       )}
@@ -427,7 +437,8 @@ export function Contact({ t }: { t: Content }) {
         <Reveal delay={120} className="flex flex-col gap-3">
           <a
             className="inline-flex w-full items-center justify-center gap-2.5 rounded-xl bg-btn px-4 py-3.5 text-[15px] font-semibold text-white transition-all hover:-translate-y-px hover:bg-btn-hover"
-            href={`mailto:${PROFILE.email}`}>
+            href={`mailto:${PROFILE.email}`}
+            data-ga="clic_email">
             <Mail className="size-4 shrink-0" />
             {/* <wbr> tras el usuario: si el correo no cabe en una línea, parte
                 limpiamente por la @ en vez de cortarse por cualquier sitio. */}
@@ -443,7 +454,8 @@ export function Contact({ t }: { t: Content }) {
                 className="group flex items-center justify-between px-4.5 py-3.5 text-[15px] font-semibold text-body transition-colors hover:text-primary"
                 href={href}
                 target="_blank"
-                rel="noreferrer">
+                rel="noreferrer"
+                data-ga={`clic_${label.toLowerCase()}`}>
                 <span className="flex items-center gap-2.5">
                   <Icon className="size-4 text-muted-foreground transition-colors group-hover:text-primary" />
                   {label}
@@ -478,7 +490,7 @@ export function Footer({ t }: { t: Content }) {
         </div>
         <div className="flex flex-col items-start gap-2.5 text-sm">
           <h3 className="mb-1 text-sm font-semibold tracking-[0.3px] text-foreground">{t.footer.contactTitle}</h3>
-          <a className="flex items-center gap-1.5 text-muted-foreground transition-colors hover:text-primary" href={`mailto:${PROFILE.email}`}>
+          <a className="flex items-center gap-1.5 text-muted-foreground transition-colors hover:text-primary" href={`mailto:${PROFILE.email}`} data-ga="clic_email">
             <Mail className="size-3.5" />
             {PROFILE.email}
           </a>
@@ -486,7 +498,8 @@ export function Footer({ t }: { t: Content }) {
             className="flex items-center gap-1.5 text-muted-foreground transition-colors hover:text-primary"
             href={PROFILE.linkedin}
             target="_blank"
-            rel="noreferrer">
+            rel="noreferrer"
+            data-ga="clic_linkedin">
             <FaLinkedin className="size-3.5" />
             LinkedIn
           </a>
@@ -494,7 +507,8 @@ export function Footer({ t }: { t: Content }) {
             className="flex items-center gap-1.5 text-muted-foreground transition-colors hover:text-primary"
             href={PROFILE.github}
             target="_blank"
-            rel="noreferrer">
+            rel="noreferrer"
+            data-ga="clic_github">
             <FaGithub className="size-3.5" />
             GitHub
           </a>

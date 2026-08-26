@@ -25,13 +25,20 @@ interface RevealProps {
   className?: string
   /** Retardo de la transición en ms (escalonar listas). */
   delay?: number
+  /**
+   * Entrada inmediata por CSS puro (sin observer ni hidratación): para el
+   * contenido sobre el pliegue (hero) — de otro modo nace con opacity 0 hasta
+   * que React hidrata y el LCP se dispara en móviles lentos.
+   */
+  inmediata?: boolean
   children: ReactNode
 }
 
-export function Reveal({ as: Tag = 'div', className, delay, children }: RevealProps) {
+export function Reveal({ as: Tag = 'div', className, delay, inmediata, children }: RevealProps) {
   const ref = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
+    if (inmediata) return
     const el = ref.current
     if (!el) return
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -42,7 +49,17 @@ export function Reveal({ as: Tag = 'div', className, delay, children }: RevealPr
     const observer = getObserver()
     observer.observe(el)
     return () => observer.unobserve(el)
-  }, [])
+  }, [inmediata])
+
+  if (inmediata) {
+    return (
+      <Tag
+        className={cn('pf-entrada', className)}
+        style={delay ? { animationDelay: `${delay}ms` } : undefined}>
+        {children}
+      </Tag>
+    )
+  }
 
   return (
     <Tag

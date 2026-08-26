@@ -1,18 +1,22 @@
 // Capa de datos del módulo de finanzas (solo servidor).
-// Semántica (heredada del Excel "Ahorro Anual"):
-//   - Ahorro general anual = suma del ahorro general mensual + ingresos extra.
-//   - Capital final = capital inicial + ahorro general anual (el ahorro de
-//     viajes está destinado a gastarse, no engrosa el capital).
+// Semántica del ahorro anual:
+//   - Ahorro anual = ahorro general mensual + ingresos extra + SOBRANTE de
+//     viajes (ahorrado - gastado): al cerrar el año, lo que no se gastó en
+//     viajes se suma al ahorro y el año siguiente empieza de cero.
+// (El capital inicial/final se retiró el 26/08/2026: solo se controla el ahorro.)
 import 'server-only'
 import { prisma } from '@/lib/prisma'
+import { botonHtml, correoConfigurado, enviarCorreo, tarjetaHtml } from '@/lib/correo'
+import { hoyMadrid } from '@/lib/mantenimiento'
+import { SITE_URL } from '@/lib/site'
 
 const num = (v: unknown) => (v === null || v === undefined ? 0 : Number(v))
 
 export interface YearSummary {
   uuid: string
   year: number
-  initialCapital: number
   goal: number | null
+  incomeTotal: number
   monthsGeneral: number
   monthsTravel: number
   extrasTotal: number
@@ -30,11 +34,10 @@ export interface ConceptRow {
   uuid: string
   concept: string
   amount: number
-  expenseDate?: string | null // 'YYYY-MM-DD'
 }
 
 export interface YearDetail {
-  year: { uuid: string; year: number; initialCapital: number; goal: number | null }
+  year: { uuid: string; year: number; goal: number | null }
   months: MonthRow[]
   extras: ConceptRow[]
   travels: ConceptRow[]
@@ -49,8 +52,8 @@ export async function listYears(): Promise<YearSummary[]> {
   return years.map((y) => ({
     uuid: y.uuid,
     year: y.year,
-    initialCapital: num(y.initialCapital),
     goal: y.goal === null ? null : num(y.goal),
+    incomeTotal: y.months.reduce((s, m) => s + num(m.income), 0),
     monthsGeneral: y.months.reduce((s, m) => s + num(m.savingGeneral), 0),
     monthsTravel: y.months.reduce((s, m) => s + num(m.savingTravel), 0),
     extrasTotal: y.extras.reduce((s, e) => s + num(e.amount), 0),
@@ -73,7 +76,6 @@ export async function getYearDetail(year: number): Promise<YearDetail | null> {
     year: {
       uuid: record.uuid,
       year: record.year,
-      initialCapital: num(record.initialCapital),
       goal: record.goal === null ? null : num(record.goal),
     },
     months: record.months.map((m) => ({
@@ -87,11 +89,68 @@ export async function getYearDetail(year: number): Promise<YearDetail | null> {
       uuid: t.uuid,
       concept: t.concept,
       amount: num(t.amount),
-      expenseDate: t.expenseDate ? t.expenseDate.toISOString().slice(0, 10) : null,
     })),
   }
 }
 
-// Ahorro general anual y capital final de un año del resumen.
-export const ahorroAnualDe = (y: YearSummary) => y.monthsGeneral + y.extrasTotal
-export const capitalFinalDe = (y: YearSummary) => y.initialCapital + ahorroAnualDe(y)
+// Ahorro anual de un año del resumen: mensual + extras + sobrante de viajes
+// (si se gastó más de lo ahorrado para viajes, el exceso resta).
+export const ahorroAnualDe = (y: YearSummary) =>
+  y.monthsGeneral + y.extrasTotal + (y.monthsTravel - y.travelsTotal)
+
+// ─────────── Recordatorio de mes sin rellenar (cron diario) ───────────
+
+const MESES_LARGOS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+
+/** Año y mes del mes natural anterior a una fecha ISO ('2027-01-15' → 2026/12). */
+export function mesAnterior(hoyIso: string): { year: number; month: number } {
+  const [y, m] = hoyIso.split('-').map(Number)
+  return m === 1 ? { year: y - 1, month: 12 } : { year: y, month: m - 1 }
+}
+
+/** Meses de 1 a `hasta` sin ningún dato (sin fila, o con los tres campos a null). */
+export function mesesSinRellenar(
+  months: Array<{ month: number; income: unknown; savingGeneral: unknown; savingTravel: unknown }>,
+  hasta: number,
+): number[] {
+  const vacios: number[] = []
+  for (let m = 1; m <= hasta; m++) {
+    const fila = months.find((x) => x.month === m)
+    if (!fila || (fila.income === null && fila.savingGeneral === null && fila.savingTravel === null)) {
+      vacios.push(m)
+    }
+  }
+  return vacios
+}
+
+/** Recordatorio por correo de meses sin rellenar: mira el año del mes natural
+ *  anterior (en enero, el diciembre del año pasado) y avisa de todos sus meses
+ *  cerrados y vacíos. Reaviso semanal vía `last_reminded`, no diario. Devuelve
+ *  cuántos meses se avisaron. `hoyIso` se inyecta en tests. */
+export async function avisarMesSinRellenar(hoyIso = hoyMadrid()): Promise<number> {
+  if (!correoConfigurado()) return 0
+  const { year, month } = mesAnterior(hoyIso)
+  const registro = await prisma.savingYear.findUnique({ where: { year }, include: { months: true } })
+  if (!registro) return 0
+
+  const vacios = mesesSinRellenar(registro.months, month)
+  if (!vacios.length) return 0
+  const hace7dias = new Date(Date.now() - 7 * 86_400_000)
+  if (registro.lastReminded && registro.lastReminded > hace7dias) return 0
+
+  const nombres = vacios.map((m) => MESES_LARGOS[m - 1]).join(', ')
+  await enviarCorreo(
+    `✍ Ahorro ${year}: ${vacios.length === 1 ? 'un mes sin rellenar' : `${vacios.length} meses sin rellenar`}`,
+    `<p style="margin:0 0 14px">El control mensual del ahorro tiene meses ya cerrados sin rellenar:</p>
+     ${tarjetaHtml(`Ahorro ${year}`, `Sin rellenar: ${nombres}`, null, vacios.length > 1)}
+     ${botonHtml('Abrir Finanzas', `${SITE_URL}/app/finance?year=${year}`)}
+     <p style="margin:14px 0 0;font-size:12px;color:#64766f">Rellena los meses (o déjalos a cero) y el
+     aviso desaparece. Se repite semanalmente mientras siga pendiente.</p>`,
+  )
+
+  await prisma.savingYear.update({
+    where: { uuid: registro.uuid },
+    data: { lastReminded: new Date() },
+  })
+  return vacios.length
+}

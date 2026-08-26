@@ -13,7 +13,7 @@ export const PROFILE = {
 // `end` ausente = puesto actual. El rango y la duración se calculan
 // dinámicamente, de modo que "X años y Y meses" está siempre al día.
 
-type YM = { y: number; m: number }
+export type YM = { y: number; m: number }
 
 export const TIMELINE = [
   {
@@ -72,7 +72,9 @@ const durationLabel = (start: YM, end?: YM | null) => {
 export const yearsSince = (start: YM) => Math.floor(diffMonths(nowYM(), start) / 12)
 
 // Duración total en una empresa: del primer puesto al último (o a la actualidad).
-export const companyDuration = (roles: TimelineCompany['roles']) => {
+// Firma sobre YM genérico (no sobre los literales de TIMELINE): así admite
+// cualquier rol, incluidos los de los tests.
+export const companyDuration = (roles: ReadonlyArray<{ start: YM; end?: YM }>) => {
   const minStart = roles.map((r) => r.start).reduce((a, b) => (diffMonths(a, b) <= 0 ? a : b))
   const anyPresent = roles.some((r) => !('end' in r) || !r.end)
   const ends = roles.map((r) => ('end' in r ? r.end : undefined)).filter(Boolean) as YM[]
@@ -241,7 +243,7 @@ export const CONTENT: Content = {
   contact: {
     title: 'Contacto',
     headline: '¿Construimos algo juntos?',
-    text: 'Cuéntame qué estás construyendo o qué necesitas construir. Respondo siempre, normalmente en menos de 24 horas.',
+    text: 'Si tienes un proyecto en mente, buscas a alguien que lo lidere o simplemente quieres hablar de software, escríbeme: respondo en menos de 24 horas.',
   },
   footer: {
     blurb: 'Aplicaciones web eficientes y escalables, del backend a la interfaz.',
@@ -252,7 +254,9 @@ export const CONTENT: Content = {
   },
   a11y: {
     skip: 'Saltar al contenido',
-    home: 'Ir al inicio',
+    // Debe CONTENER el texto visible del logo ("AO.") — regla WCAG 2.5.3
+    // (label in name): el nombre accesible debe incluir la etiqueta visible.
+    home: 'AO. Ir al inicio',
     openMenu: 'Abrir menú',
     closeMenu: 'Cerrar menú',
   },

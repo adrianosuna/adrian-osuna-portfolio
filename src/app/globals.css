@@ -63,26 +63,29 @@
 }
 
 /* Tema único OSCURO (el selector claro/oscuro se retiró antes del lanzamiento).
-   Tokens del dashboard: darkTheme de theme.js del Portfolio original. */
+   Paleta unificada del sitio entero: la esmeralda/teal del _palette.scss del
+   Portfolio original — el dashboard abandonó su azul heredado el 25/08/2026
+   para que dentro y fuera compartan identidad. */
 :root {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.68 0.17 259.5); /* azul de marca (#1570ef), aclarado para fondo oscuro */
-  --primary-foreground: oklch(0.145 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: #0a1512;
+  --foreground: #eafaf4;
+  --card: rgba(255, 255, 255, 0.04);
+  --card-foreground: #eafaf4;
+  --popover: #0f1d19;
+  --popover-foreground: #eafaf4;
+  --primary: #10b981;
+  /* Texto oscuro sobre esmeralda: el blanco no llega al contraste AA. */
+  --primary-foreground: #06231b;
+  --secondary: rgba(255, 255, 255, 0.06);
+  --secondary-foreground: #eafaf4;
+  --muted: rgba(255, 255, 255, 0.06);
+  --muted-foreground: #8ba398;
+  --accent: rgba(255, 255, 255, 0.06);
+  --accent-foreground: #eafaf4;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.12);
+  --ring: #10b981;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -116,6 +119,9 @@
   }
   html {
     @apply font-sans scroll-smooth;
+    /* Los controles nativos (spinners de number, calendario de date, selects,
+       scrollbars) se renderizan en oscuro, acordes al tema único del sitio. */
+    color-scheme: dark;
   }
   /* Anillo de foco consistente en todos los interactivos (teclado). */
   :focus-visible {
@@ -128,29 +134,17 @@
   }
 }
 
-/* ─────────── Paleta pública (landing + login) ───────────
-   Esmeralda/teal oscuro del _palette.scss del Portfolio original. Scoped a
-   .pf-public para que el dashboard conserve su propia paleta (azul) sobre los
-   tokens de :root. */
+/* ─────────── Tokens extra de la zona pública (landing + login) ───────────
+   La base de color ya es la misma en todo el sitio (:root); aquí solo quedan
+   los tokens propios de la landing (botones, cuerpo de texto, glow, nav). */
 .pf-public {
-  --background: #0a1512;
-  --foreground: #eafaf4;
-  --card: rgba(255, 255, 255, 0.04);
-  --card-foreground: #eafaf4;
-  --popover: #0f1d19;
-  --popover-foreground: #eafaf4;
-  --border: rgba(255, 255, 255, 0.1);
-  --input: rgba(255, 255, 255, 0.1);
-  --muted: rgba(255, 255, 255, 0.06);
-  --muted-foreground: #8ba398;
-  --primary: #10b981;
-  --primary-foreground: #ffffff;
-  --ring: #10b981;
   --pf-body: #c4d3cd;
   --pf-accent: #2dd4bf;
   --pf-primary-dark: #059669;
-  --pf-btn: #059669;
-  --pf-btn-hover: #047857;
+  /* Un punto más oscuros que el primario: el blanco sobre #059669 se queda en
+     3.76:1 de contraste (Lighthouse/WCAG piden 4.5:1); sobre #047857 da ~5.6. */
+  --pf-btn: #047857;
+  --pf-btn-hover: #065f46;
   --pf-logo-bg: #ffffff;
   --pf-shadow: rgba(0, 0, 0, 0.5);
   --pf-nav: rgba(10, 21, 18, 0.72);
@@ -207,6 +201,23 @@
   opacity: 1;
   translate: 0 0;
 }
+/* Entrada inmediata (hero): misma estética que .reveal pero con animación CSS
+   pura que arranca al pintar, sin esperar a la hidratación de React — el LCP
+   del hero no paga los ~2-3 s de JS en móviles lentos. */
+@keyframes pf-entrada {
+  from {
+    opacity: 0;
+    translate: 0 26px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+.pf-entrada {
+  animation: pf-entrada 0.6s cubic-bezier(0.22, 0.7, 0.2, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -215,6 +226,9 @@
     opacity: 1;
     translate: none;
     transition: none;
+  }
+  .pf-entrada {
+    animation: none;
   }
 }
 

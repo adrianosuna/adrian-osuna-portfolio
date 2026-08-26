@@ -4,7 +4,7 @@
 // script ni cookie hasta que el visitante acepta en el banner. La elección se
 // guarda en localStorage; "Rechazar" es tan fácil como "Aceptar" y se puede
 // cambiar desde /privacidad. Sin NEXT_PUBLIC_GA_ID no se renderiza nada.
-import { useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import Script from 'next/script'
 
@@ -46,6 +46,20 @@ function useConsent() {
 
 export function Analytics() {
   const consent = useConsent()
+
+  // Eventos de conversión por delegación: cualquier elemento de la landing con
+  // data-ga="nombre" dispara ese evento al hacer clic (los mide la pestaña
+  // Visitas del Panel de control). Solo con consentimiento y gtag cargado.
+  useEffect(() => {
+    if (consent !== 'granted') return
+    const onClick = (e: MouseEvent) => {
+      const nombre = (e.target as Element | null)?.closest?.('[data-ga]')?.getAttribute('data-ga')
+      if (nombre) (window as { gtag?: (...args: unknown[]) => void }).gtag?.('event', nombre)
+    }
+    document.addEventListener('click', onClick)
+    return () => document.removeEventListener('click', onClick)
+  }, [consent])
+
   if (!GA_ID || consent === undefined) return null
 
   return (

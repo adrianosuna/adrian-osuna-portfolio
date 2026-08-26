@@ -1,11 +1,15 @@
 // Módulo de finanzas personales: sistema de ahorro anual (réplica mejorada del
-// Excel "Ahorro Anual"). El año activo va en la URL (?year=2026); sin él se
-// muestra el último año disponible.
+// Excel "Ahorro Anual") organizado en pestañas — Resumen (la foto de todos los
+// años) + un tab por año. El tab activo va en la URL: sin parámetro se abre el
+// Resumen; ?year=2026 abre ese año.
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { Euro } from 'lucide-react'
 import { auth } from '@/auth'
 import { getYearDetail, listYears } from '@/lib/finance'
+import { hoyMadrid } from '@/lib/mantenimiento'
+import { FinanzasTabs } from '@/components/dashboard/savings/finanzas-tabs'
+import { ResumenGeneral } from '@/components/dashboard/savings/resumen-general'
 import { SavingsModule } from '@/components/dashboard/savings/savings-module'
 
 export const metadata: Metadata = { title: 'Finanzas' }
@@ -25,10 +29,9 @@ export default async function FinancePage({
   const { year: yearParam } = await searchParams
   const years = await listYears()
 
+  // Sin ?year (o con un año que no existe) se abre la pestaña Resumen.
   const requested = Number(yearParam)
-  const selected = years.some((y) => y.year === requested)
-    ? requested
-    : (years[years.length - 1]?.year ?? null)
+  const selected = years.some((y) => y.year === requested) ? requested : null
   const detail = selected === null ? null : await getYearDetail(selected)
 
   return (
@@ -40,7 +43,12 @@ export default async function FinancePage({
       <p className="mb-5 mt-1 text-sm text-muted-foreground">
         Tus finanzas personales: sistema de ahorro anual y, próximamente, control de gastos.
       </p>
-      <SavingsModule years={years} detail={detail} />
+      <FinanzasTabs years={years} selected={selected} />
+      {selected === null ? (
+        <ResumenGeneral years={years} />
+      ) : (
+        <SavingsModule detail={detail} hoy={hoyMadrid()} />
+      )}
     </div>
   )
 }

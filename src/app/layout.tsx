@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { SITE_URL } from "@/lib/site";
+import { CONTENT } from "@/lib/landing/content";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -22,6 +23,22 @@ export const metadata: Metadata = {
   description:
     "Portfolio de Adrián Osuna, desarrollador web full-stack especializado en React y Node.js. Aplicaciones web eficientes y escalables, de la base de datos a la interfaz.",
   keywords: ["Adrián Osuna", "desarrollador web", "full stack", "React", "Node.js", "Next.js", "portfolio"],
+  // Sin límite de snippet e imágenes grandes en previsualizaciones: los
+  // resúmenes generativos (AI Overviews y similares) citan mejor sin recortes.
+  robots: {
+    index: true,
+    follow: true,
+    "max-snippet": -1,
+    "max-image-preview": "large",
+    "max-video-preview": -1,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-snippet": -1,
+      "max-image-preview": "large",
+      "max-video-preview": -1,
+    },
+  },
   // El canonical y og:url viven en la página de la landing (src/app/page.tsx):
   // aquí se heredarían en /login, /app/* y la 404, declarándolas "la home".
   openGraph: {
@@ -45,15 +62,20 @@ export const viewport: Viewport = {
   themeColor: "#0a1512",
 };
 
-// Datos estructurados (JSON-LD): resultado enriquecido en buscadores.
+// Datos estructurados (JSON-LD): resultado enriquecido en buscadores y
+// contexto entendible para los motores de IA. Nodos enlazados por @id:
+// la web es la ProfilePage de la Person, con sus proyectos como obras.
+const personId = `${SITE_URL}/#persona`;
 const jsonLd = {
   "@context": "https://schema.org",
   "@graph": [
     {
       "@type": "Person",
+      "@id": personId,
       name: "Adrián Osuna",
       alternateName: "Adrián Osuna Albalá",
       jobTitle: "Desarrollador Full-Stack",
+      description: CONTENT.hero.tagline,
       worksFor: { "@type": "Organization", name: "INTARCON" },
       url: SITE_URL,
       image: `${SITE_URL}/img/adrian.webp`,
@@ -76,7 +98,24 @@ const jsonLd = {
       name: "Adrián Osuna — Portfolio",
       url: SITE_URL,
       inLanguage: "es",
+      description: CONTENT.footer.blurb,
+      author: { "@id": personId },
     },
+    {
+      "@type": "ProfilePage",
+      url: SITE_URL,
+      inLanguage: "es",
+      mainEntity: { "@id": personId },
+    },
+    // Los casos de estudio, como obras creadas por la persona.
+    ...CONTENT.projects.map((p) => ({
+      "@type": "CreativeWork" as const,
+      name: p.title,
+      ...(p.url ? { url: p.url } : {}),
+      description: `${p.context} ${p.built}`,
+      creator: { "@id": personId },
+      keywords: p.stack.join(", "),
+    })),
   ],
 };
 

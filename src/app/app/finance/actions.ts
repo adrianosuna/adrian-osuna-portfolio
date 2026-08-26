@@ -8,7 +8,6 @@ import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/auth'
 import { AppError } from '@/lib/errors'
 import { prisma } from '@/lib/prisma'
-import { listYears } from '@/lib/finance'
 
 type Result = { ok: boolean; message?: string }
 
@@ -35,7 +34,6 @@ const validYear = (year: number) => Number.isInteger(year) && year >= 2000 && ye
 
 export async function createYear(datos: {
   year: number
-  initialCapital?: number | null
   goal?: number | null
 }): Promise<Result> {
   return guarded(async () => {
@@ -43,19 +41,10 @@ export async function createYear(datos: {
     if (!validYear(year)) return fail('Indica un año válido')
     if (await prisma.savingYear.findUnique({ where: { year } })) return fail('Ese año ya existe')
 
-    let initial = datos.initialCapital
-    if (initial === undefined || initial === null) {
-      // Encadenado: capital final del año anterior más cercano.
-      const years = await listYears()
-      const prev = years.filter((y) => y.year < year).sort((a, b) => b.year - a.year)[0]
-      initial = prev ? prev.initialCapital + prev.monthsGeneral + prev.extrasTotal : 0
-    }
-
     const goal = Number(datos.goal)
     await prisma.savingYear.create({
       data: {
         year,
-        initialCapital: Number(initial) || 0,
         goal: Number.isFinite(goal) && goal > 0 ? goal : null,
       },
     })
@@ -66,21 +55,16 @@ export async function createYear(datos: {
 
 export async function updateYear(
   uuid: string,
-  datos: { year?: number; initialCapital?: number | null; goal?: number | null },
+  datos: { year?: number; goal?: number | null },
 ): Promise<Result> {
   return guarded(async () => {
-    const patch: { year?: number; initialCapital?: number; goal?: number | null } = {}
+    const patch: { year?: number; goal?: number | null } = {}
     if (datos.year !== undefined) {
       const year = Number(datos.year)
       if (!validYear(year)) return fail('Indica un año válido')
       const existing = await prisma.savingYear.findUnique({ where: { year } })
       if (existing && existing.uuid !== uuid) return fail('Ese año ya existe')
       patch.year = year
-    }
-    if (datos.initialCapital !== undefined) {
-      const initial = Number(datos.initialCapital)
-      if (!Number.isFinite(initial)) return fail('Capital inicial no válido')
-      patch.initialCapital = initial
     }
     if (datos.goal !== undefined) {
       const goal = Number(datos.goal)
@@ -158,10 +142,6 @@ const cleanConcept = (datos: { concept?: string; amount?: number | null }): Conc
   return { concept, amount }
 }
 
-// Fecha 'YYYY-MM-DD' válida o null (solo la usan los gastos de viaje).
-const cleanDate = (v: string | null | undefined) =>
-  typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(`${v}T00:00:00Z`) : null
-
 export async function addExtra(yearUuid: string, datos: { concept: string; amount: number }): Promise<Result> {
   return guarded(async () => {
     const parsed = cleanConcept(datos)
@@ -192,14 +172,12 @@ export async function deleteExtra(uuid: string): Promise<Result> {
 
 export async function addTravel(
   yearUuid: string,
-  datos: { concept: string; amount: number; expenseDate?: string | null },
+  datos: { concept: string; amount: number },
 ): Promise<Result> {
   return guarded(async () => {
     const parsed = cleanConcept(datos)
     if (parsed.error !== undefined) return fail(parsed.error)
-    await prisma.travelExpense.create({
-      data: { yearUuid, ...parsed, expenseDate: cleanDate(datos.expenseDate) },
-    })
+    await prisma.travelExpense.create({ data: { yearUuid, ...parsed } })
     refresh()
     return ok
   })
@@ -207,15 +185,12 @@ export async function addTravel(
 
 export async function updateTravel(
   uuid: string,
-  datos: { concept: string; amount: number; expenseDate?: string | null },
+  datos: { concept: string; amount: number },
 ): Promise<Result> {
   return guarded(async () => {
     const parsed = cleanConcept(datos)
     if (parsed.error !== undefined) return fail(parsed.error)
-    await prisma.travelExpense.update({
-      where: { uuid },
-      data: { ...parsed, expenseDate: cleanDate(datos.expenseDate) },
-    })
+    await prisma.travelExpense.update({ where: { uuid }, data: parsed })
     refresh()
     return ok
   })

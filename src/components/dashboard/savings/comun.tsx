@@ -1,0 +1,109 @@
+// Utilidades compartidas del módulo de finanzas (lado cliente): formato de
+// euros, fórmulas del resumen anual y clases/piezas de UI comunes. Las
+// fórmulas duplican a propósito las de lib/finance.ts (server-only: un
+// componente cliente no puede importarlas).
+import type { YearSummary } from '@/lib/finance'
+
+// Formato de importes: euros sin decimales (mismo criterio que el Excel).
+export const eur = (v: number | null | undefined) =>
+  v === null || v === undefined || Number.isNaN(v)
+    ? '—'
+    : v.toLocaleString('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
+
+// Ahorro anual = mensual + extras + sobrante de viajes (lo no gastado en
+// viajes se suma al cierre; si se gastó de más, el exceso resta).
+export const ahorroAnualDe = (y: YearSummary) =>
+  y.monthsGeneral + y.extrasTotal + (y.monthsTravel - y.travelsTotal)
+
+/** Tasa de ahorro: qué parte de lo ingresado se ahorra (null sin ingresos). */
+export const tasaAhorroDe = (y: YearSummary) =>
+  y.incomeTotal > 0 ? ahorroAnualDe(y) / y.incomeTotal : null
+
+/** Formato de tasa: '34%' o '—'. */
+export const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v * 100)}%`)
+
+// ─────────── proyección del año en curso (fórmulas puras) ───────────
+
+export interface ProyeccionAnual {
+  /** Media de ahorro general de los meses rellenos; null sin datos. */
+  mediaMensual: number | null
+  /** Ahorro anual proyectado: lo actual + la media por los meses que faltan. */
+  proyeccion: number | null
+  /** €/mes necesarios en los meses que faltan para cumplir el objetivo;
+   *  0 si ya está cumplido; null sin objetivo o sin meses por delante. */
+  necesarioMensual: number | null
+  /** Meses aún sin rellenar de aquí a diciembre (el actual incluido). */
+  mesesFuturos: number
+}
+
+/** Proyección de fin de año a ritmo actual. `fijos` son los aportes que no
+ *  dependen del mes (extras + sobrante de viajes). `mesActual` en 1-12; los
+ *  meses pasados sin rellenar se dan por perdidos (no se ahorra hacia atrás). */
+export function proyeccionDe(
+  meses: Array<{ month: number; savingGeneral: number | null }>,
+  fijos: number,
+  goal: number | null,
+  mesActual: number,
+): ProyeccionAnual {
+  const rellenos = meses.filter((m) => m.savingGeneral !== null)
+  const mesesFuturos = meses.filter((m) => m.savingGeneral === null && m.month >= mesActual).length
+  const conObjetivo = goal !== null && goal > 0
+
+  if (!rellenos.length) {
+    return {
+      mediaMensual: null,
+      proyeccion: null,
+      necesarioMensual: conObjetivo && mesesFuturos > 0 ? (goal - fijos) / mesesFuturos : null,
+      mesesFuturos,
+    }
+  }
+
+  const mediaMensual = rellenos.reduce((s, m) => s + (m.savingGeneral || 0), 0) / rellenos.length
+  const actual = rellenos.reduce((s, m) => s + (m.savingGeneral || 0), 0) + fijos
+  const necesarioMensual = !conObjetivo
+    ? null
+    : actual >= goal
+      ? 0
+      : mesesFuturos === 0
+        ? null
+        : (goal - actual) / mesesFuturos
+
+  return {
+    mediaMensual,
+    proyeccion: actual + mediaMensual * mesesFuturos,
+    necesarioMensual,
+    mesesFuturos,
+  }
+}
+
+/** Objetivo prorrateado a hoy (por día del año natural): cuánto "deberías"
+ *  llevar ahorrado a estas alturas. Años pasados: el objetivo completo;
+ *  futuros: 0. */
+export function esperadoHoy(goal: number, año: number, hoyIso: string): number {
+  const añoHoy = Number(hoyIso.slice(0, 4))
+  if (año < añoHoy) return goal
+  if (año > añoHoy) return 0
+  const inicio = Date.UTC(año, 0, 1)
+  const dias = Math.floor((Date.parse(`${hoyIso}T00:00:00Z`) - inicio) / 86_400_000) + 1
+  const total = (Date.UTC(año + 1, 0, 1) - inicio) / 86_400_000
+  return goal * (dias / total)
+}
+
+export const cardClass = 'rounded-xl border border-border bg-card'
+export const btnPrimary =
+  'inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-3.5 py-1.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50'
+export const btnOutline =
+  'inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3.5 py-1.5 text-sm font-semibold transition-colors hover:border-primary hover:text-primary'
+export const btnDanger =
+  'inline-flex items-center justify-center gap-1.5 rounded-md border border-danger/40 px-3.5 py-1.5 text-sm font-semibold text-danger transition-colors hover:bg-danger-bg'
+// p-2 (36px con icono): target táctil suficiente en móvil.
+export const btnIcon = 'rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+
+export function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="mb-1 text-[13px] text-muted-foreground">{label}</p>
+      {children}
+    </div>
+  )
+}

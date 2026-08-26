@@ -1,80 +1,74 @@
 # Tareas pendientes
 
-Única lista de tareas del proyecto (actualizada 25/08/2026). **El código está
-al día**: auditoría de seguridad/SEO/móvil aplicada, reenfoque de la landing
-implementado, Google Analytics con consentimiento RGPD funcionando y el
-despliegue con Docker ensayado en local con éxito. Lo que queda:
+**adrianosuna.com está en producción desde el 25/08/2026.** Aquí vive solo lo
+pendiente, por horizontes: cuando algo se termina, se documenta bien contado
+en `CHANGELOG.md` y se retira de aquí.
+
+> **Flujo de actualización en producción** (cada vez que se suba un commit):
+> `cd /var/www/adrian-osuna-portfolio && git pull && docker compose --env-file
+> .env.production build && docker compose --env-file .env.production up -d`
+> (añadir el paso `migrate` solo si hay migraciones nuevas de BD).
 
 ---
 
-## 1 · Lanzamiento en `adrianosuna.com`
+## 1 · Ahora: el gran despliegue
 
-### 1.1 Rotar el client secret de Google 🔴
+- [ ] **Desplegar todo el trabajo del 25–26/08** (pipeline v2, Panel de
+      control completo, paleta unificada, modal común, mantenimiento, GEO,
+      tests...). Este despliegue tiene extras respecto al flujo normal:
+      1. **Paso `migrate` obligatorio**: una única migración nueva,
+         `modulos_post_lanzamiento` (las 8 individuales del 25-26/08 se
+         consolidaron el 26/08 al no haber llegado a producción; incluye el
+         seed de las 5 tareas de mantenimiento). Verificada desde cero contra
+         un MySQL 8.4 limpio: baseline + consolidada + seed, todo OK.
+      2. **`.env.production` del VPS**: actualizar `AUTH_GOOGLE_SECRET` (el
+         secret se rotó el 25/08 — ⚠ con el viejo, el login de producción
+         falla) y añadir las variables nuevas: `GA_PROPERTY_ID`,
+         `GA_SA_CLIENT_EMAIL`, `GA_SA_PRIVATE_KEY`, `SMTP_HOST/PORT/USER/PASS`
+         y `ALERT_EMAIL` (valores ya probados en el `.env` local).
+      3. Tras desplegar, **todas las sesiones piden relogin** (los JWT sin
+         registro de sesión se invalidan a propósito).
 
-El secret actual se compartió por chat durante el desarrollo: hay que invalidarlo.
+## 2 · Operación recurrente (una vez al mes, 10 min)
 
-- [ ] Google Cloud Console → Credenciales → cliente OAuth → **"Agregar secreto"**,
-      copiar el nuevo y **eliminar el antiguo**.
-- [ ] Actualizar `AUTH_GOOGLE_SECRET` en los `.env` (desarrollo y producción).
-- [ ] En el mismo cliente OAuth, añadir la redirect URI de producción:
-      `https://adrianosuna.com/api/auth/callback/google`.
-- **Hecho cuando:** el login funciona con el secret nuevo y el viejo está borrado.
+- [ ] `pnpm deps` + `pnpm audit` en local; actualizar lo que toque y redesplegar.
+      Dependencias retenidas a propósito (revisar si ya se pueden subir):
+      - **eslint 10** — bloqueado hasta que `eslint-config-next` actualice sus
+        plugins (`eslint-plugin-react` usa APIs eliminadas).
+      - **TypeScript 7** — esperar al soporte de `typescript-eslint` (≥7.1).
+      - **`@types/node`** — solo al cambiar el Node del sistema (hoy Node 24).
+      - **next-auth** — fijado en `5.0.0-beta.32`; vigilar cuándo sale de beta.
+- [ ] Vistazo a **GA4** (visitas, orígenes) y **Search Console** (búsquedas,
+      indexación, errores de rastreo).
+- [ ] Vistazo a los backups (`ls -lh ~/backups/`) y al estado de los
+      contenedores (`docker compose ps` — db healthy, web up).
 
-### 1.2 Desplegar en el VPS de OVH
+## 3 · Siguiente feature: tab de Gastos en Finanzas
 
-Todo el procedimiento (validado en local el 25/08/2026, del VPS recién
-contratado a la web publicada con Caddy) está en **[DESPLIEGUE.md](DESPLIEGUE.md)**:
-seguirlo de arriba abajo, incluida la checklist de verificación final del §8.
+La feature estrella del backlog — registro de movimientos por categorías y
+resumen mensual en `/app/finance`.
 
-- [ ] Contratar el VPS (Ubuntu 24.04) y apuntar el DNS.
-- [ ] Seguir DESPLIEGUE.md hasta completar la checklist del §8.
-- [ ] Programar el backup diario de la BD (cron con `mysqldump`, ver la guía).
+- [ ] Modelo de datos: tabla `expense` nueva (id + uuid + FK a `saving_year`
+      o fecha propia, concepto, categoría, importe, timestamps).
+      ⚠ **Nota sobre migraciones**: seguir el flujo ya rodado (ver CLAUDE.md):
+      generar el SQL con `prisma migrate diff` schema-a-schema (sin tocar la
+      BD), aplicarlo en local con `migrate deploy` y en producción con el
+      servicio `migrate`. Nunca `prisma migrate dev`/`reset` contra `ao_test`
+      (tiene datos reales).
+- [ ] Server actions + página con la misma estructura que el módulo de ahorro
+      (borrador editable, `revalidatePath`, mensajes vía `AppError`).
+- [ ] Al terminar: actualizar la tarjeta "Gastos del mes" del inicio del
+      dashboard (hoy muestra "—" / "En desarrollo").
 
-Recordatorios clave:
-- El `.env.production` del servidor se crea desde el example — **no copiar el
-  del PC** (es el del ensayo local, con contraseñas de prueba y URLs localhost).
-- `NEXT_PUBLIC_SITE_URL` y `NEXT_PUBLIC_GA_ID` se hornean en el build: si
-  cambian, reconstruir la imagen.
-- (Opcional post-lanzamiento) Rate limit por IP en `/api/*`: requiere un build
-  de Caddy con el módulo `caddy-ratelimit`. No es bloqueante.
+## 4 · Backlog (sin prisa, por orden sugerido)
 
----
+- [ ] **Ajustar la fecha de la tarea "Renovar dominio"** a su caducidad real
+      en OVH (Panel de control → Mantenimiento → editar la tarea). Solo puede
+      hacerlo Adrián.
+- [ ] **Dato real para los casos de estudio**: si algún día hay una cifra
+      publicable de Client360 o IntarLAB (usuarios, cálculos, ensayos/mes),
+      añadirla a "El resultado" del caso — multiplica la fuerza del cierre.
 
-## 2 · Necesita material de Adrián (sin fecha)
-
-- [ ] Si algún día hay un dato real de Client360 o IntarLAB (usuarios,
-      cálculos, ensayos/mes), añadirlo a "El resultado" de su caso de estudio:
-      multiplica la fuerza del cierre.
-
----
-
-## 3 · Backlog funcional (post-lanzamiento)
-
-- [ ] **Exportar a Excel** el año de ahorro (`/app/finance`) — paridad con el
-      proyecto original: route handler + librería xlsx, mismo formato de filas.
-- [ ] **Tab de gastos** en Finanzas: registro de movimientos por categorías y
-      resumen mensual. Requiere tabla `expense` nueva — ⚠ coordinar con la BD
-      compartida (ver CLAUDE.md antes de tocar el esquema).
-
----
-
-## 4 · Mejoras opcionales
-
-- [ ] **Contador animado** en la franja de cifras al entrar en viewport,
-      respetando `prefers-reduced-motion` (baja prioridad).
-- [ ] **CSP completa con nonces**: la actual (`object-src`, `base-uri`,
-      `frame-ancestors`) es la mínima segura; una con `script-src` exige
-      nonces por petición (middleware) y ajustar `img-src` para los avatares
-      de Google (`lh3.googleusercontent.com`).
-
-## 5 · Dependencias retenidas (revisar cada uno o dos meses)
-
-`pnpm deps` las lista; están retenidas a propósito, no olvidadas:
-
-- [ ] **eslint 10**: bloqueado hasta que `eslint-config-next` actualice sus
-      plugins (`eslint-plugin-react` usa APIs eliminadas en la 10).
-- [ ] **TypeScript 7**: el build de Next ya funciona, pero `typescript-eslint`
-      lo soportará a partir de la 7.1 — mientras tanto, TS 6.
-- [ ] **`@types/node` 26**: corresponde a Node 26; actualizar solo al cambiar
-      el Node del sistema (hoy: Node 24 → `@types/node` ^24).
-- [ ] **next-auth**: fijado en `5.0.0-beta.32`; vigilar cuándo sale de beta.
+Los descartes razonados (CSP con nonces, rate limit en Caddy, monitorización
+externa, módulo de notas...) están documentados en `CHANGELOG.md` para no
+reabrirlos sin motivo.
