@@ -1,19 +1,31 @@
-// Home del dashboard interno: saludo contextual, resumen, accesos rápidos,
-// hoja de ruta y estado de la cuenta (réplica del Home original).
+// Inicio del dashboard: centro de mando. Primero lo que requiere atención hoy
+// (seguimientos vencidos, mantenimiento, meses de ahorro sin rellenar), luego
+// los KPIs con dato real y la actividad reciente. Los datos llegan de una sola
+// pasada paralela (lib/inicio.ts); el pulso de visitas va en Suspense para que
+// la red externa no retrase el pintado. Las piezas visuales, en components/.
+import { Suspense } from 'react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import {
-  ArrowRight, Briefcase, CalendarDays, Euro, ExternalLink, Gauge, LayoutGrid,
-  Rocket, ShieldCheck, TrendingUp,
+  ArrowUpRight, Briefcase, CalendarDays, Euro, ExternalLink, Gauge,
+  TrendingDown, TrendingUp,
 } from 'lucide-react'
-import { FaGoogle } from 'react-icons/fa6'
 import { auth } from '@/auth'
-import { listYears, ahorroAnualDe } from '@/lib/finance'
+import { resumenInicio } from '@/lib/inicio'
+import { pulsoVisitas } from '@/lib/ga'
+import { ImporteDeSesion } from '@/components/dashboard/savings/privado'
+import { Actividad, Atencion, Tile, TileEsqueleto, cardClass } from '@/components/dashboard/inicio'
 import { cn } from '@/lib/utils'
 
-// Euros sin decimales (mismo criterio que el módulo de finanzas).
+// Euros sin decimales (mismo criterio que el módulo de finanzas, agrupación
+// de miles siempre: es-ES no agrupa los números de 4 cifras por defecto).
 const eur = (v: number) =>
-  v.toLocaleString('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
+  v.toLocaleString('es-ES', {
+    style: 'currency',
+    currency: 'EUR',
+    maximumFractionDigits: 0,
+    useGrouping: 'always',
+  })
 
 // Saludo según la hora del día (hora española).
 const saludo = () => {
@@ -24,17 +36,31 @@ const saludo = () => {
   return 'Buenas noches'
 }
 
-// Chip cuadrado con icono sobre fondo suave (cabeceras de tarjeta y stats).
-function IconChip({ icon, className, size = 'md' }: { icon: React.ReactNode; className: string; size?: 'sm' | 'md' }) {
+/** Pulso de visitas (GA4). En Suspense: si Google tarda, el resto ya está. */
+async function TileVisitas() {
+  const pulso = await pulsoVisitas()
+  if (!pulso) return null
+  const { usuarios, previos } = pulso
+  const delta = previos > 0 ? Math.round(((usuarios - previos) / previos) * 100) : null
+  const sube = delta !== null && delta >= 0
   return (
-    <span
-      className={cn(
-        'grid shrink-0 place-items-center rounded-[10px]',
-        size === 'md' ? 'size-11' : 'size-8',
-        className,
-      )}>
-      {icon}
-    </span>
+    <Tile
+      label="Visitas (7 días)"
+      valor={usuarios.toLocaleString('es-ES', { useGrouping: 'always' })}
+      icon={<TrendingUp className="size-4" />}
+      chip="bg-primary/10 text-primary"
+      to="/app/panel?tab=visitas"
+      pie={
+        delta === null ? (
+          'Sin comparativa'
+        ) : (
+          <span className={cn('inline-flex items-center gap-1', sube ? 'text-success' : 'text-danger')}>
+            {sube ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
+            {sube ? '+' : ''}{delta}% frente a los 7 previos
+          </span>
+        )
+      }
+    />
   )
 }
 
@@ -51,155 +77,127 @@ export default async function HomePage() {
   })
   const hoy = fechaRaw.charAt(0).toUpperCase() + fechaRaw.slice(1)
 
-  // Ahorro general del año en curso (módulo de finanzas). Las finanzas son
-  // personales del administrador: a otros roles ni se les consultan.
-  const years = isAdmin ? await listYears() : []
-  const actual = years.find((y) => y.year === new Date().getFullYear())
-  const ahorro = actual ? ahorroAnualDe(actual) : null
+  // Los módulos son personales del administrador: a otros roles ni se consultan.
+  const resumen = isAdmin ? await resumenInicio() : null
 
-  const stats = [
-    ...(isAdmin
-      ? [{
-          title: `Ahorro en ${new Date().getFullYear()}`,
-          value: ahorro === null ? '—' : eur(ahorro),
-          icon: <Euro className="size-5" />, chip: 'bg-primary/10 text-primary',
-          to: '/app/finance', hint: ahorro === null ? 'Sin datos' : 'Finanzas',
-        }]
-      : []),
-    {
-      title: 'Gastos del mes', value: '—',
-      icon: <TrendingUp className="size-5" />, chip: 'bg-success-bg text-success', hint: 'En desarrollo',
-    },
-    {
-      title: 'Módulos activos', value: '3',
-      icon: <LayoutGrid className="size-5" />, chip: 'bg-viajes-bg text-viajes', hint: 'Finanzas, Pipeline y Panel de control',
-    },
+  const cabecera = (
+    <div className="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <h1 className="text-2xl font-bold">
+          {saludo()}, {firstName}
+        </h1>
+        <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+          <CalendarDays className="size-4" />
+          {hoy}
+        </p>
+      </div>
+      <Link
+        href="/"
+        className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:border-primary hover:text-primary">
+        <ExternalLink className="size-3.5" /> Ver el portfolio
+      </Link>
+    </div>
+  )
+
+  // Usuarios invitados: el dashboard no tiene módulos para ellos.
+  if (!isAdmin || !resumen) {
+    return (
+      <div>
+        {cabecera}
+        <div className={cn(cardClass, 'mt-6 p-6 text-center')}>
+          <p className="text-sm font-semibold">Tu cuenta está activa</p>
+          <p className="mx-auto mt-1 max-w-md text-[13px] text-muted-foreground">
+            Los módulos de gestión (finanzas, oportunidades y panel de control) son personales
+            del administrador. Desde aquí puedes visitar el portfolio público.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  const { avisos, ahorro, pipeline, actividad } = resumen
+  const pctObjetivo = ahorro && ahorro.goal ? Math.round((ahorro.total / ahorro.goal) * 100) : null
+
+  const accesos = [
+    { title: 'Finanzas', desc: 'Ahorro anual', icon: <Euro className="size-4" />, chip: 'bg-primary/10 text-primary', to: '/app/finance' },
+    { title: 'Oportunidades', desc: 'Pipeline y seguimientos', icon: <Briefcase className="size-4" />, chip: 'bg-warning-bg text-warning', to: '/app/pipeline' },
+    { title: 'Panel de control', desc: 'Servidor, visitas y usuarios', icon: <Gauge className="size-4" />, chip: 'bg-success-bg text-success', to: '/app/panel' },
   ]
-
-  const shortcuts = [
-    ...(isAdmin
-      ? [
-          { title: 'Finanzas', desc: 'Sistema de ahorro anual y control de gastos.', icon: <Euro className="size-4.5" />, chip: 'bg-primary/10 text-primary', to: '/app/finance' },
-          { title: 'Oportunidades', desc: 'Pipeline de ofertas y encargos, del contacto al cierre.', icon: <Briefcase className="size-4.5" />, chip: 'bg-warning-bg text-warning', to: '/app/pipeline' },
-          { title: 'Panel de control', desc: 'Servidor, visitas y usuarios en un solo sitio.', icon: <Gauge className="size-4.5" />, chip: 'bg-success-bg text-success', to: '/app/panel' },
-        ]
-      : []),
-    { title: 'Portfolio público', desc: 'Abre la landing tal y como la ven tus visitas.', icon: <ExternalLink className="size-4.5" />, chip: 'bg-primary/10 text-primary', to: '/' },
-  ]
-
-  const roadmap = [
-    { title: 'Sistema de ahorro anual', desc: 'Control mensual, ingresos extra, viajes y KPIs por año.', tag: 'Disponible', tagClass: 'bg-success-bg text-success' },
-    { title: 'Pipeline de oportunidades', desc: 'Kanban de ofertas y encargos por estados.', tag: 'Disponible', tagClass: 'bg-success-bg text-success' },
-    { title: 'Gestión de usuarios', desc: 'Allowlist con roles, dentro del Panel de control.', tag: 'Disponible', tagClass: 'bg-success-bg text-success' },
-    { title: 'Panel de control', desc: 'Monitor de infraestructura y estado en vivo del servidor.', tag: 'Disponible', tagClass: 'bg-success-bg text-success' },
-    { title: 'Control de gastos', desc: 'Registro de movimientos, categorías y resumen mensual.', tag: 'En desarrollo', tagClass: 'bg-warning-bg text-warning' },
-  ]
-
-  const cuenta = [
-    { label: 'Correo', value: user.email ?? '—' },
-    { label: 'Acceso', value: <span className="inline-flex items-center gap-1.5"><FaGoogle className="size-3" />Cuenta de Google verificada</span> },
-    { label: 'Sesión', value: 'Caduca automáticamente a la semana' },
-    { label: 'Rol', value: isAdmin ? 'Administrador (gestión completa del panel)' : 'Usuario' },
-  ]
-
-  const cardClass = 'rounded-xl border border-border bg-card'
 
   return (
     <div>
-      {/* Cabecera: saludo + fecha + rol */}
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-bold">
-            {saludo()}, {firstName}
-          </h1>
-          <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-            <CalendarDays className="size-4" />
-            {hoy}
-          </p>
-        </div>
-        <span
-          className={cn(
-            'mt-1.5 rounded-md px-2.5 py-1 text-xs font-semibold',
-            isAdmin ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
-          )}>
-          {isAdmin ? 'Administrador' : 'Usuario'}
-        </span>
+      {cabecera}
+
+      {/* Lo primero: qué requiere atención hoy */}
+      <h2 className="mb-2.5 mt-6 text-[13px] font-semibold uppercase tracking-[0.5px] text-muted-foreground">
+        {avisos.length ? 'Requiere tu atención' : 'Estado'}
+      </h2>
+      <Atencion avisos={avisos} />
+
+      {/* KPIs con dato real */}
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <Tile
+          label={ahorro ? `Ahorro en ${ahorro.year}` : 'Ahorro'}
+          valor={ahorro ? <ImporteDeSesion valor={eur(ahorro.total)} /> : '—'}
+          icon={<Euro className="size-4" />}
+          chip="bg-primary/10 text-primary"
+          to="/app/finance"
+          pie={
+            !ahorro ? (
+              'Sin año creado'
+            ) : pctObjetivo === null ? (
+              'Sin objetivo fijado'
+            ) : (
+              <span className="flex items-center gap-2">
+                <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                  <span
+                    className={cn('block h-full rounded-full', pctObjetivo >= 100 ? 'bg-success' : 'bg-primary')}
+                    style={{ width: `${Math.min(100, pctObjetivo)}%` }}
+                  />
+                </span>
+                <span className="shrink-0 tabular-nums">{pctObjetivo}% del objetivo</span>
+              </span>
+            )
+          }
+        />
+        <Tile
+          label="Pipeline abierto"
+          valor={<ImporteDeSesion valor={eur(pipeline.valorAbierto)} />}
+          icon={<Briefcase className="size-4" />}
+          chip="bg-warning-bg text-warning"
+          to="/app/pipeline"
+          pie={
+            pipeline.abiertas === 0
+              ? 'Ninguna oportunidad viva'
+              : `${pipeline.abiertas} ${pipeline.abiertas === 1 ? 'oportunidad' : 'oportunidades'} en juego`
+          }
+        />
+        <Suspense fallback={<TileEsqueleto />}>
+          <TileVisitas />
+        </Suspense>
       </div>
 
-      {/* Resumen */}
-      <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {stats.map((s) => {
-          const body = (
-            <div className={cn(cardClass, 'flex items-center gap-3.5 p-5', s.to && 'transition-all hover:-translate-y-0.5 hover:shadow-md')}>
-              <IconChip icon={s.icon} className={s.chip} />
+      {/* Actividad reciente + accesos a los módulos */}
+      <div className="mt-4 grid gap-4 lg:grid-cols-[7fr_5fr]">
+        <Actividad items={actividad} />
+
+        <div className={cn(cardClass, 'px-4 py-3')}>
+          <h2 className="border-b border-border pb-2.5 text-[15px] font-semibold">Módulos</h2>
+          {accesos.map((a, i) => (
+            <Link
+              key={a.title}
+              href={a.to}
+              className={cn(
+                'group flex items-center gap-3 py-2.5',
+                i < accesos.length - 1 && 'border-b border-border/60',
+              )}>
+              <span className={cn('grid size-8 shrink-0 place-items-center rounded-md', a.chip)}>{a.icon}</span>
               <div className="min-w-0 flex-1">
-                <p className="text-[13.5px] text-muted-foreground">{s.title}</p>
-                <p className="text-2xl font-semibold">{s.value}</p>
+                <p className="text-sm font-semibold">{a.title}</p>
+                <p className="truncate text-[12px] text-muted-foreground">{a.desc}</p>
               </div>
-              {s.hint && (
-                <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">{s.hint}</span>
-              )}
-            </div>
-          )
-          return s.to ? (
-            <Link key={s.title} href={s.to}>{body}</Link>
-          ) : (
-            <div key={s.title}>{body}</div>
-          )
-        })}
-      </div>
-
-      {/* Accesos rápidos */}
-      <h2 className="mb-3 mt-8 text-base font-semibold">Accesos rápidos</h2>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {shortcuts.map((s) => (
-          <Link key={s.title} href={s.to}>
-            <div className={cn(cardClass, 'h-full p-5 transition-all hover:-translate-y-0.5 hover:shadow-md')}>
-              <IconChip icon={s.icon} className={s.chip} size="sm" />
-              <p className="mt-3.5 text-[15px] font-semibold">{s.title}</p>
-              <p className="mt-1 min-h-9 text-[13px] text-muted-foreground">{s.desc}</p>
-              <p className="mt-2.5 flex items-center gap-1 text-[13px] font-semibold text-primary">
-                Abrir <ArrowRight className="size-3" />
-              </p>
-            </div>
-          </Link>
-        ))}
-      </div>
-
-      {/* Hoja de ruta + estado de la cuenta */}
-      <div className="mt-8 grid gap-4 lg:grid-cols-[7fr_5fr]">
-        <div className={cn(cardClass, 'px-5 py-4')}>
-          <h2 className="flex items-center gap-2.5 border-b border-border pb-3 text-[15px] font-semibold">
-            <IconChip icon={<Rocket className="size-4" />} className="bg-primary/10 text-primary" size="sm" />
-            Hoja de ruta
-          </h2>
-          {roadmap.map((it, i) => (
-            <div
-              key={it.title}
-              className={cn('flex items-center justify-between gap-3 py-3.5', i < roadmap.length - 1 && 'border-b border-border/60')}>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold">{it.title}</p>
-                <p className="text-[12.5px] text-muted-foreground">{it.desc}</p>
-              </div>
-              <span className={cn('shrink-0 rounded-md px-2 py-0.5 text-[11px] font-semibold', it.tagClass)}>
-                {it.tag}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        <div className={cn(cardClass, 'px-5 py-4')}>
-          <h2 className="flex items-center gap-2.5 border-b border-border pb-3 text-[15px] font-semibold">
-            <IconChip icon={<ShieldCheck className="size-4" />} className="bg-success-bg text-success" size="sm" />
-            Tu cuenta
-          </h2>
-          {cuenta.map((it, i) => (
-            <div key={it.label} className={cn('flex gap-3 py-3.5', i < cuenta.length - 1 && 'border-b border-border/60')}>
-              <span className="w-16 shrink-0 pt-px text-[12.5px] font-semibold uppercase tracking-[0.4px] text-muted-foreground/70">
-                {it.label}
-              </span>
-              <span className="min-w-0 wrap-break-word text-[13.5px]">{it.value}</span>
-            </div>
+              <ArrowUpRight className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
+            </Link>
           ))}
         </div>
       </div>

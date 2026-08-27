@@ -9,6 +9,7 @@ import { auth } from '@/auth'
 import { getYearDetail, listYears } from '@/lib/finance'
 import { hoyMadrid } from '@/lib/mantenimiento'
 import { FinanzasTabs } from '@/components/dashboard/savings/finanzas-tabs'
+import { ContenidoPrivado } from '@/components/dashboard/savings/privado'
 import { ResumenGeneral } from '@/components/dashboard/savings/resumen-general'
 import { SavingsModule } from '@/components/dashboard/savings/savings-module'
 
@@ -43,12 +44,16 @@ export default async function FinancePage({
       <p className="mb-5 mt-1 text-sm text-muted-foreground">
         Tus finanzas personales: sistema de ahorro anual y, próximamente, control de gastos.
       </p>
+      {/* Modo privado: los importes salen ocultos y se revelan con el ojo de
+          la barra (la barra queda fuera del difuminado para poder navegar). */}
       <FinanzasTabs years={years} selected={selected} />
-      {selected === null ? (
-        <ResumenGeneral years={years} />
-      ) : (
-        <SavingsModule detail={detail} hoy={hoyMadrid()} />
-      )}
+      <ContenidoPrivado>
+        {selected === null ? (
+          <ResumenGeneral years={years} hoy={hoyMadrid()} />
+        ) : (
+          <SavingsModule detail={detail} hoy={hoyMadrid()} />
+        )}
+      </ContenidoPrivado>
     </div>
   )
 }

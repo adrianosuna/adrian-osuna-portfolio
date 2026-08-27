@@ -79,7 +79,12 @@ Proyecto Next.js App Router con `src/`. **Paleta única en todo el sitio**
   viven en `src/components/landing/` y su contenido (perfil, experiencia,
   textos, casos) en `src/lib/landing/content.ts` — la única fuente de verdad
   del contenido.
-- **Dashboard** (`/app/*`): componentes en `src/components/dashboard/`.
+- **Dashboard** (`/app/*`): componentes en `src/components/dashboard/`. El
+  inicio es un **centro de mando**: franja de avisos accionables (seguimientos
+  vencidos, mantenimiento, meses de ahorro sin rellenar), KPIs con dato real y
+  actividad reciente; sus datos salen de `src/lib/inicio.ts` en una pasada
+  paralela de consultas acotadas (nunca traer módulos enteros para pintar
+  cifras) y el pulso de visitas va en Suspense.
   Los modales usan siempre `src/components/ui/modal.tsx` (cabecera y pie
   fijos, cuerpo con scroll); los popovers de `fields.tsx` (select, calendario)
   se renderizan en un portal con posición fija — nunca los recorta un

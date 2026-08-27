@@ -7,7 +7,9 @@ import type { MonthRow } from '@/lib/finance'
 
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
-const eurCorto = (v: number) => v.toLocaleString('es-ES', { maximumFractionDigits: 0 }) + ' €'
+// useGrouping siempre: es-ES no agrupa los números de 4 cifras por defecto.
+const eurCorto = (v: number) =>
+  v.toLocaleString('es-ES', { maximumFractionDigits: 0, useGrouping: 'always' }) + ' €'
 
 // Barras apiladas por mes: ahorro general + ahorro para viajes. La variante
 // `compacto` cabe en una pantalla de móvil sin scroll: lienzo estrecho,

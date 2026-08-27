@@ -5,10 +5,17 @@
 import type { YearSummary } from '@/lib/finance'
 
 // Formato de importes: euros sin decimales (mismo criterio que el Excel).
+// `useGrouping: 'always'`: es-ES no agrupa los números de 4 cifras por defecto
+// (daba "3950 €" junto a "12.750 €"); con esto siempre lleva punto de miles.
 export const eur = (v: number | null | undefined) =>
   v === null || v === undefined || Number.isNaN(v)
     ? '—'
-    : v.toLocaleString('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
+    : v.toLocaleString('es-ES', {
+        style: 'currency',
+        currency: 'EUR',
+        maximumFractionDigits: 0,
+        useGrouping: 'always',
+      })
 
 // Ahorro anual = mensual + extras + sobrante de viajes (lo no gastado en
 // viajes se suma al cierre; si se gastó de más, el exceso resta).

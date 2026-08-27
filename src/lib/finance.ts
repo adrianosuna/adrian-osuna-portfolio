@@ -21,6 +21,9 @@ export interface YearSummary {
   monthsTravel: number
   extrasTotal: number
   travelsTotal: number
+  /** Ahorro general de los 12 meses (null = mes sin rellenar). Permite
+   *  comparar años a la misma altura y proyectar el año en curso. */
+  generalPorMes: Array<number | null>
 }
 
 export interface MonthRow {
@@ -58,6 +61,10 @@ export async function listYears(): Promise<YearSummary[]> {
     monthsTravel: y.months.reduce((s, m) => s + num(m.savingTravel), 0),
     extrasTotal: y.extras.reduce((s, e) => s + num(e.amount), 0),
     travelsTotal: y.travelExpenses.reduce((s, t) => s + num(t.amount), 0),
+    generalPorMes: Array.from({ length: 12 }, (_, i) => {
+      const m = y.months.find((x) => x.month === i + 1)
+      return m?.savingGeneral === null || m?.savingGeneral === undefined ? null : num(m.savingGeneral)
+    }),
   }))
 }
 

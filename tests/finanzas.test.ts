@@ -23,6 +23,7 @@ const año = (parcial: Partial<YearSummary> = {}): YearSummary => ({
   monthsTravel: 1_200,
   extrasTotal: 1_500,
   travelsTotal: 900,
+  generalPorMes: Array.from({ length: 12 }, () => 500),
   ...parcial,
 })
 

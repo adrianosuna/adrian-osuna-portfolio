@@ -49,8 +49,14 @@ export const TERMINALES: readonly EstadoOportunidad[] = ['CERRADO', 'DESCARTADO'
 
 export const ORIGENES = ['LinkedIn', 'Web', 'Email', 'Referido', 'Otro']
 
+// useGrouping siempre: es-ES no agrupa los números de 4 cifras por defecto.
 export const eur = (v: number) =>
-  v.toLocaleString('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
+  v.toLocaleString('es-ES', {
+    style: 'currency',
+    currency: 'EUR',
+    maximumFractionDigits: 0,
+    useGrouping: 'always',
+  })
 
 /** 'YYYY-MM-DD' (o un ISO completo) → 'DD/MM/YYYY'. */
 export const fmtFecha = (iso: string) => iso.slice(0, 10).split('-').reverse().join('/')

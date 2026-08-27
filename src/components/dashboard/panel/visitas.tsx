@@ -17,7 +17,8 @@ import { Refrescar } from './ui'
 
 const RANGOS: RangoDias[] = [7, 30, 90]
 
-const nf = (v: number) => v.toLocaleString('es-ES')
+// Agrupación de miles siempre (es-ES no agrupa los números de 4 cifras).
+const nf = (v: number) => v.toLocaleString('es-ES', { useGrouping: 'always' })
 
 // "1 min 32 s" / "45 s" para la duración media de sesión.
 const fmtSeg = (seg: number) => {

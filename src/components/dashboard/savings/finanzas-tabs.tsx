@@ -13,6 +13,7 @@ import { Modal } from '@/components/ui/modal'
 import { NumberField } from '@/components/ui/fields'
 import type { YearSummary } from '@/lib/finance'
 import { createYear, deleteYear, updateYear } from '@/app/app/finance/actions'
+import { BotonPrivado, MASCARA, useOculto } from './privado'
 import { btnIcon, btnOutline, btnPrimary, eur } from './comun'
 
 export function FinanzasTabs({ years, selected }: {
@@ -21,6 +22,7 @@ export function FinanzasTabs({ years, selected }: {
   selected: number | null
 }) {
   const router = useRouter()
+  const oculto = useOculto()
   const [pending, startTransition] = useTransition()
   const [abierto, setAbierto] = useState(false)
   // Fila en edición (uuid), confirmación de borrado (uuid) y borradores.
@@ -77,7 +79,8 @@ export function FinanzasTabs({ years, selected }: {
   return (
     <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
       {/* Pestañas: Resumen + años (scroll horizontal si no caben) */}
-      <div className="flex max-w-full gap-0.5 overflow-x-auto rounded-lg border border-border bg-card/50 p-0.5">
+      {/* overflow-y-hidden: que un píxel de más nunca haga scrollear en vertical */}
+      <div className="flex max-w-full gap-0.5 overflow-x-auto overflow-y-hidden rounded-lg border border-border bg-card/50 p-0.5">
         <button type="button" className={tabClass(selected === null)} onClick={() => router.push('/app/finance')}>
           Resumen
         </button>
@@ -92,9 +95,12 @@ export function FinanzasTabs({ years, selected }: {
         ))}
       </div>
 
-      <button type="button" className={cn(btnOutline, 'w-full shrink-0 sm:w-auto')} onClick={abrir}>
-        <Settings2 className="size-4" /> Gestionar años
-      </button>
+      <div className="flex shrink-0 gap-2">
+        <BotonPrivado />
+        <button type="button" className={cn(btnOutline, 'flex-1 sm:flex-none')} onClick={abrir}>
+          <Settings2 className="size-4" /> Gestionar años
+        </button>
+      </div>
 
       {abierto && (
         <Modal
@@ -147,21 +153,19 @@ export function FinanzasTabs({ years, selected }: {
                   <span className="min-w-0 truncate text-sm">
                     <span className="font-semibold">{y.year}</span>
                     <span className="ml-2.5 text-[13px] text-muted-foreground">
-                      {y.goal !== null ? `Objetivo ${eur(y.goal)}` : 'Sin objetivo'}
+                      {/* El modal queda fuera del difuminado: se enmascara aquí */}
+                      {y.goal !== null ? `Objetivo ${oculto ? MASCARA : eur(y.goal)}` : 'Sin objetivo'}
                     </span>
                   </span>
                   <span className="flex flex-none items-center gap-0.5">
-                    {/* Descarga del Excel del año (route handler protegido).
-                        Navegación programática: el <a> directo al adjunto
-                        disparaba la descarga dos veces en Chrome. */}
-                    <button
-                      type="button"
+                    {/* Descarga del Excel del año (route handler protegido) */}
+                    <a
                       className={btnIcon}
+                      href={`/app/finance/exportar?year=${y.year}`}
                       title="Descargar Excel"
-                      aria-label={`Descargar Excel de ${y.year}`}
-                      onClick={() => window.location.assign(`/app/finance/exportar?year=${y.year}`)}>
+                      aria-label={`Descargar Excel de ${y.year}`}>
                       <FileDown className="size-3.5" />
-                    </button>
+                    </a>
                     <button
                       type="button"
                       className={btnIcon}

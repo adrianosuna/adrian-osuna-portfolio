@@ -111,10 +111,15 @@ Rellenar TODO:
 ## 6 · Construir y arrancar
 
 ```bash
-docker compose --env-file .env.production build
-docker compose --env-file .env.production --profile setup run --rm migrate   # solo la 1.ª vez
+docker compose --env-file .env.production --profile setup build
+docker compose --env-file .env.production --profile setup run --rm migrate   # 1.ª vez y con migraciones nuevas
 docker compose --env-file .env.production up -d
 ```
+
+⚠ El build lleva `--profile setup` a propósito: sin él, compose **no
+reconstruye el servicio `migrate`** (los servicios de perfiles inactivos se
+saltan) y el `run migrate` usaría una imagen vieja sin las migraciones nuevas
+("No pending migrations" con la BD desactualizada — pasó el 26/08/2026).
 
 El paso `migrate` crea las tablas (BD vacía) y asegura `ADMIN_EMAIL` como
 admin activo. Comprobar que responde:
@@ -195,8 +200,17 @@ docker compose --env-file .env.production build
 docker compose --env-file .env.production up -d
 ```
 
-(Si hubiera migraciones nuevas de BD: ejecutar antes el paso `migrate` del
-punto 6. Los datos sobreviven: viven en el volumen `db-data`.)
+Si hay **migraciones nuevas de BD**, el build debe llevar el perfil (para
+reconstruir también la imagen de `migrate`) y ejecutarse el paso `migrate`
+antes del `up`:
+
+```bash
+docker compose --env-file .env.production --profile setup build
+docker compose --env-file .env.production --profile setup run --rm migrate
+docker compose --env-file .env.production up -d
+```
+
+(Los datos sobreviven: viven en el volumen `db-data`.)
 
 ## Copias de seguridad
 

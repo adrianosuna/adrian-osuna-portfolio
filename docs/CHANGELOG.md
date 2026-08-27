@@ -8,6 +8,98 @@ cuando algo se termina, se cuenta aquí con su porqué y desaparece de allí.
 
 ## 26/08/2026
 
+### KPIs del Resumen de finanzas, y mantenimiento más limpio
+
+- **KPIs del Resumen rehechos**: los de antes eran agregados históricos que no
+  hacían pensar nada (total ahorrado, media anual, mejor año...). Ahora miran
+  el **año en curso**: lo ahorrado con lo que falta para el objetivo,
+  **proyección a cierre** con veredicto ("a este ritmo se queda a 1.950 €"),
+  **comparación con el año anterior a la misma altura del calendario** (±€ con
+  su contexto) y **ritmo mensual** frente al del año pasado, con la tasa de
+  ahorro. Los agregados históricos siguen en la tabla y la gráfica de abajo, y
+  vuelven como tarjetas solo si no hay año en curso. `YearSummary` gana
+  `generalPorMes` (12 valores) para poder comparar y proyectar.
+- **Fuera el botón "Probar correo"** de Mantenimiento (se pulsaba sin querer;
+  el SMTP ya quedó verificado en producción) y con él su server action.
+- **Lista de mantenimiento legible en móvil**: tarjeta en bloque con el chip de
+  estado junto al título, las notas recortadas a dos líneas y las acciones en
+  su propia fila con el botón "Hecha" etiquetado; desde `sm`, la fila de
+  siempre. "Nueva tarea" a ancho completo en móvil. Con un título largo el
+  chip se aplastaba: le faltaba `shrink-0` a su envoltorio (y `min-w-0` al
+  título, que ahora es el que se ajusta).
+- **Las tareas de mantenimiento se leen en lenguaje natural**: "cada 1 mes ·
+  vence el 25/09/2026 · última vez el 25/08/2026" obligaba a restar fechas de
+  cabeza. Ahora el **chip dice cuándo** (con su color de urgencia: "Hace 6
+  días", "Vence hoy", "En 3 días", "En 1 año") y la línea de detalle es
+  "Mensual · hecha hace un mes"; las fechas exactas quedan en el tooltip.
+  Helpers `periodicidad`/`cuando`/`antiguedad` con tests (161 en total).
+- **Los tabs del Panel scrolleaban también en vertical**: `overflow-x-auto`
+  deja `overflow-y` en `auto`, y el `-mb-px` de los enlaces dejaba el
+  contenido 1px más alto que la caja (38 en 37) — de ahí el temblor vertical.
+  Arreglado moviendo la línea inferior al envoltorio y el `-mb-px` al propio
+  scroller, con `overflow-y-hidden` de seguro (también en la barra de años de
+  Finanzas). Ahora solo hay scroll horizontal.
+
+### Inicio del dashboard: de folleto a centro de mando
+
+El inicio era una portada: de sus tres KPIs uno estaba vacío ("Gastos del
+mes — En desarrollo") y otro era inútil ("Módulos activos: 3"), y media
+página la ocupaban una "Hoja de ruta" con cinco filas de *Disponible* y un
+"Tu cuenta" que repetía datos ya sabidos — documentación de proyecto en un
+panel privado al que solo entra su dueño. Rehecho alrededor de una pregunta:
+**¿qué requiere mi atención hoy?**
+
+- **Franja "Requiere tu atención"** al principio, con avisos accionables que
+  enlazan a su módulo: seguimientos del pipeline vencidos (rojo), tareas de
+  mantenimiento vencidas o de esta semana, y meses de ahorro ya cerrados sin
+  rellenar. Sin nada pendiente, un estado "Todo al día" en verde. Es el mismo
+  conocimiento que ya mandaba el cron por correo, ahora también al entrar.
+- **KPIs con dato real**: ahorro del año con barra de progreso del objetivo,
+  valor del pipeline abierto con nº de oportunidades vivas, y pulso de
+  visitas de 7 días con su tendencia. Los importes respetan el modo privado.
+- **Actividad reciente**: los últimos movimientos del historial del pipeline
+  ("Conversación → Propuesta · hace 2 h"), y los módulos como lista compacta
+  en vez de cuatro tarjetas que duplicaban el menú superior.
+- **Eficiencia**: los datos salen de `lib/inicio.ts` en cuatro consultas
+  acotadas y paralelas — antes se traía `listYears()` (todos los años con sus
+  meses, extras y viajes) para pintar una cifra. El pulso de visitas usa un
+  informe nuevo de GA (`pulsoVisitas`, uno en vez de los doce del panel) y va
+  en Suspense: la red externa no retrasa el pintado. Piezas visuales
+  separadas en `components/dashboard/inicio.tsx`.
+
+### Modo privado en Finanzas, tabs con scroll y miles con punto
+
+- **Modo privado**: los importes de Finanzas salen **ocultos por defecto**
+  (difuminados y sin poder tocarse: editar sin ver sería un error fácil) y se
+  revelan con el botón del ojo de la barra de pestañas, que queda fuera del
+  difuminado para poder navegar. El modal de «Gestionar años» enmascara los
+  objetivos (`••••`) al quedar fuera, y la tarjeta de ahorro del inicio del
+  dashboard respeta la misma elección. Estado en `sessionStorage` vía
+  `useSyncExternalStore` (almacén de módulo, sin contexto ni `setState` en
+  efecto): se mantiene al navegar y cada sesión nueva empieza oculta.
+- **Tabs con scroll en móvil**: la barra del Panel de control se cortaba con
+  sus 4 pestañas en 375px — ahora scrollea (`overflow-x-auto` + `shrink-0` y
+  `whitespace-nowrap`, el patrón que ya usaba Finanzas).
+- **Separador de miles siempre**: `es-ES` no agrupa los números de 4 cifras
+  (daba "3950 €" junto a "12.750 €"), así que todos los formateadores de
+  dinero y de visitas llevan `useGrouping: 'always'`.
+- De paso, el botón de descarga del Excel vuelve a ser un `<a href>` (lo
+  canónico, y sin el aviso de lint de `location.assign`): el doble de
+  descargas era la herramienta de vista responsive, no el enlace.
+
+### 🚀 Desplegado en producción todo el trabajo del 25-26/08
+
+Pipeline v2, Panel de control completo, finanzas reformadas, avisos por
+correo, GEO y paleta unificada — todo en adrianosuna.com. Extras del
+despliegue: migración consolidada `modulos_post_lanzamiento` aplicada +
+seed, `.env.production` con el `AUTH_GOOGLE_SECRET` rotado (el login de
+producción estuvo roto con el viejo desde el 25/08) y las variables nuevas
+de GA y SMTP; todas las sesiones pidieron relogin (a propósito). Tropiezo
+cazado y documentado: `docker compose build` **no reconstruye los servicios
+de perfiles inactivos** — la imagen de `migrate` se quedó en la del
+lanzamiento y decía "No pending migrations"; el build con migraciones debe
+llevar `--profile setup` (corregido en DESPLIEGUE.md y TAREAS).
+
 ### Migraciones consolidadas y verificadas desde cero
 
 Las 8 migraciones del 25-26/08 nunca llegaron a producción, así que se

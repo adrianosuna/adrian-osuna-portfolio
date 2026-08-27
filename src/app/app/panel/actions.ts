@@ -11,7 +11,6 @@ import { AppError } from '@/lib/errors'
 import { prisma } from '@/lib/prisma'
 import { visitantesAhora } from '@/lib/ga'
 import { snapshotServidor, type ServidorSnapshot } from '@/lib/infra'
-import { correoConfigurado, enviarCorreo } from '@/lib/correo'
 import { hoyMadrid, sumarMeses } from '@/lib/mantenimiento'
 
 export async function leerUsuariosAhora(): Promise<number | null> {
@@ -203,24 +202,5 @@ export async function deleteMaintenance(uuid: string): Promise<Result> {
   })
 }
 
-// Correo de prueba: verifica el SMTP sin esperar a que venza nada.
-export async function sendTestEmail(): Promise<Result> {
-  return guarded(async () => {
-    if (!correoConfigurado()) {
-      return fail('SMTP sin configurar: faltan SMTP_HOST/USER/PASS y ALERT_EMAIL en el entorno')
-    }
-    try {
-      await enviarCorreo(
-        '✅ Prueba de avisos de mantenimiento',
-        `<p style="margin:0 0 10px">El correo del panel funciona: por aquí llegarán los avisos de
-         tareas de mantenimiento vencidas (revisión diaria a las 8:00, reaviso semanal).</p>
-         <p style="margin:0">Consejo: crea un filtro en tu correo con la regla
-         <em>"el asunto contiene [Panel AO]"</em> para archivarlos en su carpeta.</p>`,
-      )
-      return ok
-    } catch (e) {
-      console.error('[mantenimiento] correo de prueba fallido:', e)
-      return fail('El envío falló: revisa host, puerto y credenciales SMTP')
-    }
-  })
-}
+// (El 26/08/2026 se retiró la acción del botón "Probar correo": el SMTP ya
+// quedó verificado en producción y el botón se pulsaba sin querer.)

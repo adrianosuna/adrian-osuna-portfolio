@@ -6,14 +6,14 @@
 // correo de las vencidas (diario a las 8:00, reaviso semanal).
 import { useState, useTransition } from 'react'
 import {
-  CalendarClock, Check, Mail, Pencil, Plus, Trash2, X,
+  CalendarClock, Check, Pencil, Plus, Trash2, X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Modal } from '@/components/ui/modal'
 import { NumberField, TextField, TextareaField, DateField } from '@/components/ui/fields'
 import {
-  completeMaintenance, createMaintenance, deleteMaintenance, sendTestEmail, updateMaintenance,
+  completeMaintenance, createMaintenance, deleteMaintenance, updateMaintenance,
 } from '@/app/app/panel/actions'
 
 export interface MaintenanceRow {
@@ -39,6 +39,51 @@ const estadoDe = (nextDue: string, hoy: string): keyof typeof ESTADO_TAREA => {
 }
 
 const fmt = (iso: string) => iso.split('-').reverse().join('/')
+
+const dias = (desde: string, hasta: string) =>
+  Math.round((Date.parse(`${hasta}T00:00:00Z`) - Date.parse(`${desde}T00:00:00Z`)) / 86_400_000)
+
+/** Periodicidad en una palabra: "cada 1 mes" no lo dice nadie. */
+export function periodicidad(meses: number): string {
+  const nombres: Record<number, string> = {
+    1: 'Mensual', 2: 'Bimestral', 3: 'Trimestral', 4: 'Cuatrimestral',
+    6: 'Semestral', 12: 'Anual', 24: 'Cada 2 años',
+  }
+  if (nombres[meses]) return nombres[meses]
+  return meses % 12 === 0 ? `Cada ${meses / 12} años` : `Cada ${meses} meses`
+}
+
+/** Cuándo toca, en relativo: lo que se quiere saber es cuánto falta (o cuánto
+ *  se lleva de retraso), no una fecha que hay que restar de cabeza. */
+export function cuando(nextDue: string, hoy: string): string {
+  const d = dias(hoy, nextDue)
+  if (d === 0) return 'Vence hoy'
+  if (d < 0) {
+    const atraso = Math.abs(d)
+    if (atraso === 1) return 'Venció ayer'
+    if (atraso < 30) return `Hace ${atraso} días`
+    const meses = Math.round(atraso / 30)
+    return meses === 1 ? 'Hace un mes' : `Hace ${meses} meses`
+  }
+  if (d === 1) return 'Mañana'
+  if (d < 60) return `En ${d} días`
+  const meses = Math.round(d / 30)
+  return meses >= 12 && meses % 12 === 0
+    ? `En ${meses / 12} ${meses === 12 ? 'año' : 'años'}`
+    : `En ${meses} meses`
+}
+
+/** Antigüedad de la última vez que se hizo ("hace 6 días", "hace un mes"). */
+export function antiguedad(lastDone: string, hoy: string): string {
+  const d = dias(lastDone, hoy)
+  if (d <= 0) return 'hecha hoy'
+  if (d === 1) return 'hecha ayer'
+  if (d < 30) return `hecha hace ${d} días`
+  const meses = Math.round(d / 30)
+  if (meses < 12) return meses === 1 ? 'hecha hace un mes' : `hecha hace ${meses} meses`
+  const años = Math.round(meses / 12)
+  return años === 1 ? 'hecha hace un año' : `hecha hace ${años} años`
+}
 
 const btnPrimary =
   'inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-3.5 py-1.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50'
@@ -116,14 +161,7 @@ export function MantenimientoTab({
           </span>
         )}
         <span className="flex-1" />
-        <button
-          type="button"
-          className={btnOutline}
-          disabled={pending || !smtpListo}
-          onClick={() => run(sendTestEmail(), 'Correo de prueba enviado: revisa tu bandeja')}>
-          <Mail className="size-4" /> Probar correo
-        </button>
-        <button type="button" className={btnPrimary} onClick={abrirNueva}>
+        <button type="button" className={cn(btnPrimary, 'w-full sm:w-auto')} onClick={abrirNueva}>
           <Plus className="size-4" /> Nueva tarea
         </button>
       </div>
@@ -138,32 +176,49 @@ export function MantenimientoTab({
         <div className="flex flex-col divide-y divide-border/60 rounded-xl border border-border bg-card">
           {rows.map((t) => {
             const estado = ESTADO_TAREA[estadoDe(t.nextDue, hoy)]
+            // El chip dice CUÁNDO (y el color, la urgencia): más útil que
+            // repetir "Vencida" y dejar la fecha para calcular a mano.
+            const chip = (
+              <span
+                className={cn('shrink-0 rounded-md px-2 py-0.5 text-xs font-semibold', estado.className)}
+                title={`${estado.label} · vence el ${fmt(t.nextDue)}`}>
+                {cuando(t.nextDue, hoy)}
+              </span>
+            )
             return (
-              <div key={t.uuid} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+              // Móvil: tarjeta en bloque (chip junto al título, acciones en su
+              // propia fila con "Hecha" etiquetada). Desde sm, la fila de antes.
+              <div key={t.uuid} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold">
-                    {t.title}
-                    <span className="ml-2 font-normal text-muted-foreground">
-                      · cada {t.intervalMonths} {t.intervalMonths === 1 ? 'mes' : 'meses'}
-                    </span>
+                  <div className="flex items-start justify-between gap-2">
+                    {/* min-w-0 en el título y shrink-0 en el chip: con títulos
+                        largos el chip no se aplasta, el texto se ajusta. */}
+                    <p className="min-w-0 text-sm font-semibold">{t.title}</p>
+                    <span className="shrink-0 sm:hidden">{chip}</span>
+                  </div>
+                  <p className="text-[12.5px] text-muted-foreground" title={`Vence el ${fmt(t.nextDue)}`}>
+                    {periodicidad(t.intervalMonths)}
+                    {t.lastDone && ` · ${antiguedad(t.lastDone, hoy)}`}
                   </p>
-                  <p className="text-[12.5px] text-muted-foreground">
-                    Vence el {fmt(t.nextDue)}
-                    {t.lastDone && ` · última vez el ${fmt(t.lastDone)}`}
-                    {t.notes && <span className="text-muted-foreground/70"> · {t.notes}</span>}
-                  </p>
+                  {t.notes && (
+                    <p className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-muted-foreground/70">
+                      {t.notes}
+                    </p>
+                  )}
                 </div>
-                <span className={cn('rounded-md px-2 py-0.5 text-xs font-semibold', estado.className)}>
-                  {estado.label}
-                </span>
-                <span className="flex items-center gap-0.5">
+                <span className="hidden shrink-0 sm:block">{chip}</span>
+                <span className="flex items-center justify-end gap-0.5 border-t border-border/60 pt-2 sm:border-0 sm:pt-0">
                   <button
                     type="button"
-                    className={cn(btnIcon, 'text-success hover:bg-success-bg hover:text-success')}
+                    className={cn(
+                      btnIcon,
+                      'mr-auto flex items-center gap-1 text-success hover:bg-success-bg hover:text-success sm:mr-0',
+                    )}
                     disabled={pending}
                     title="Marcar como hecha (encadena el siguiente vencimiento)"
                     onClick={() => run(completeMaintenance(t.uuid), 'Hecha: siguiente vencimiento programado')}>
                     <Check className="size-4" />
+                    <span className="text-xs font-semibold sm:hidden">Hecha</span>
                   </button>
                   <button type="button" className={btnIcon} aria-label="Editar" disabled={pending} onClick={() => abrirEdicion(t)}>
                     <Pencil className="size-3.5" />

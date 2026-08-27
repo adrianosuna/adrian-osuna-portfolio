@@ -212,6 +212,38 @@ export async function visitantesAhora(): Promise<number | null> {
   }
 }
 
+/** Pulso de visitas para el inicio del dashboard: usuarios de los últimos 7
+ *  días y de los 7 anteriores, en UN solo informe (el snapshot completo del
+ *  panel lanza doce: aquí solo hace falta la cifra y su tendencia). */
+let cachePulso: { ts: number; datos: { usuarios: number; previos: number } | null } | null = null
+
+export async function pulsoVisitas(): Promise<{ usuarios: number; previos: number } | null> {
+  if (cachePulso && Date.now() - cachePulso.ts < CACHE_MS) return cachePulso.datos
+  const cfg = config()
+  if (!cfg) return null
+  try {
+    const token = await tokenAcceso(cfg.email, cfg.key)
+    // Dos rangos en la misma petición: la API añade la dimensión dateRange
+    // (date_range_0 = últimos 7 días, date_range_1 = los 7 anteriores).
+    const datos = (await llamada(cfg.propertyId, token, 'runReport', {
+      dateRanges: [
+        { startDate: '6daysAgo', endDate: 'today' },
+        { startDate: '13daysAgo', endDate: '7daysAgo' },
+      ],
+      metrics: [{ name: 'activeUsers' }],
+    })) as { rows?: FilaInforme[] }
+    const de = (i: number) =>
+      num(datos.rows?.find((f) => dim(f, 0) === `date_range_${i}`), 0)
+    const pulso = { usuarios: de(0), previos: de(1) }
+    cachePulso = { ts: Date.now(), datos: pulso }
+    return pulso
+  } catch (e) {
+    console.error('[ga] pulso de visitas fallido:', e)
+    cachePulso = { ts: Date.now(), datos: null } // no reintentar en ráfaga
+    return null
+  }
+}
+
 // Caché corto por rango: cambiar de pestaña o refrescar en ráfaga no repite
 // los 12 informes contra Google (y la cuota de la Data API lo agradece).
 const cacheVisitas = new Map<RangoDias, { ts: number; snap: VisitasSnapshot }>()

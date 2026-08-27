@@ -7,29 +7,13 @@ en `CHANGELOG.md` y se retira de aquí.
 > **Flujo de actualización en producción** (cada vez que se suba un commit):
 > `cd /var/www/adrian-osuna-portfolio && git pull && docker compose --env-file
 > .env.production build && docker compose --env-file .env.production up -d`
-> (añadir el paso `migrate` solo si hay migraciones nuevas de BD).
+> Con migraciones nuevas: el build lleva `--profile setup` (si no, la imagen
+> de `migrate` no se reconstruye) y se ejecuta `migrate` antes del `up` — ver
+> "Actualizaciones" en DESPLIEGUE.md.
 
 ---
 
-## 1 · Ahora: el gran despliegue
-
-- [ ] **Desplegar todo el trabajo del 25–26/08** (pipeline v2, Panel de
-      control completo, paleta unificada, modal común, mantenimiento, GEO,
-      tests...). Este despliegue tiene extras respecto al flujo normal:
-      1. **Paso `migrate` obligatorio**: una única migración nueva,
-         `modulos_post_lanzamiento` (las 8 individuales del 25-26/08 se
-         consolidaron el 26/08 al no haber llegado a producción; incluye el
-         seed de las 5 tareas de mantenimiento). Verificada desde cero contra
-         un MySQL 8.4 limpio: baseline + consolidada + seed, todo OK.
-      2. **`.env.production` del VPS**: actualizar `AUTH_GOOGLE_SECRET` (el
-         secret se rotó el 25/08 — ⚠ con el viejo, el login de producción
-         falla) y añadir las variables nuevas: `GA_PROPERTY_ID`,
-         `GA_SA_CLIENT_EMAIL`, `GA_SA_PRIVATE_KEY`, `SMTP_HOST/PORT/USER/PASS`
-         y `ALERT_EMAIL` (valores ya probados en el `.env` local).
-      3. Tras desplegar, **todas las sesiones piden relogin** (los JWT sin
-         registro de sesión se invalidan a propósito).
-
-## 2 · Operación recurrente (una vez al mes, 10 min)
+## 1 · Operación recurrente (una vez al mes, 10 min)
 
 - [ ] `pnpm deps` + `pnpm audit` en local; actualizar lo que toque y redesplegar.
       Dependencias retenidas a propósito (revisar si ya se pueden subir):
@@ -43,7 +27,7 @@ en `CHANGELOG.md` y se retira de aquí.
 - [ ] Vistazo a los backups (`ls -lh ~/backups/`) y al estado de los
       contenedores (`docker compose ps` — db healthy, web up).
 
-## 3 · Siguiente feature: tab de Gastos en Finanzas
+## 2 · Siguiente feature: tab de Gastos en Finanzas
 
 La feature estrella del backlog — registro de movimientos por categorías y
 resumen mensual en `/app/finance`.
@@ -60,7 +44,7 @@ resumen mensual en `/app/finance`.
 - [ ] Al terminar: actualizar la tarjeta "Gastos del mes" del inicio del
       dashboard (hoy muestra "—" / "En desarrollo").
 
-## 4 · Backlog (sin prisa, por orden sugerido)
+## 3 · Backlog (sin prisa, por orden sugerido)
 
 - [ ] **Ajustar la fecha de la tarea "Renovar dominio"** a su caducidad real
       en OVH (Panel de control → Mantenimiento → editar la tarea). Solo puede

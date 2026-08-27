@@ -4,16 +4,26 @@
 // globales, tabla comparativa (cada año enlaza a su pestaña) y la curva de
 // ahorro acumulado. Solo lectura: los datos se editan en el tab de cada año.
 import Link from 'next/link'
-import { BarChart3, Compass, Percent, TrendingUp, Trophy } from 'lucide-react'
+import { BarChart3, Compass, LineChart, Percent, Target, TrendingDown, TrendingUp, Trophy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { YearSummary } from '@/lib/finance'
 import { AcumuladoChart } from './charts'
-import { ahorroAnualDe, cardClass, eur, pct, tasaAhorroDe } from './comun'
+import { ahorroAnualDe, cardClass, eur, pct, proyeccionDe, tasaAhorroDe } from './comun'
 
 const thClass = 'px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground'
 const tdClass = 'px-3 py-1.5'
 
-export function ResumenGeneral({ years }: { years: YearSummary[] }) {
+/** Media de ahorro general por mes relleno (null si no hay ninguno). */
+const ritmoDe = (y: YearSummary) => {
+  const rellenos = y.generalPorMes.filter((v): v is number => v !== null)
+  return rellenos.length ? rellenos.reduce((s, v) => s + v, 0) / rellenos.length : null
+}
+
+/** Ahorro general acumulado hasta un mes (para comparar años a la misma altura). */
+const hastaMes = (y: YearSummary, mes: number) =>
+  y.generalPorMes.slice(0, mes).reduce<number>((s, v) => s + (v ?? 0), 0)
+
+export function ResumenGeneral({ years, hoy }: { years: YearSummary[]; hoy: string }) {
   if (!years.length) {
     return (
       <div className={cn(cardClass, 'py-16 text-center text-muted-foreground')}>
@@ -25,13 +35,86 @@ export function ResumenGeneral({ years }: { years: YearSummary[] }) {
   const mejor = years.reduce((max, y) => (ahorroAnualDe(y) > ahorroAnualDe(max) ? y : max), years[0])
   const totalAhorro = years.reduce((s, y) => s + ahorroAnualDe(y), 0)
   const totalIngresos = years.reduce((s, y) => s + y.incomeTotal, 0)
-  const kpis = [
-    { label: 'Ahorro total histórico', valor: eur(totalAhorro), Icon: TrendingUp },
-    { label: 'Tasa de ahorro histórica', valor: pct(totalIngresos > 0 ? totalAhorro / totalIngresos : null), Icon: Percent },
-    { label: 'Media anual de ahorro', valor: eur(totalAhorro / years.length), Icon: BarChart3 },
-    { label: 'Ahorrado para viajes (histórico)', valor: eur(years.reduce((s, y) => s + y.monthsTravel, 0)), Icon: Compass },
-    { label: 'Mejor año de ahorro', valor: `${mejor.year} · ${eur(ahorroAnualDe(mejor))}`, Icon: Trophy },
-  ]
+  const tasaHistorica = totalIngresos > 0 ? totalAhorro / totalIngresos : null
+
+  // KPIs útiles = los del año EN CURSO comparados con su objetivo, su ritmo y
+  // el año anterior. Los agregados históricos (total, mejor año) ya están en la
+  // tabla y la gráfica de abajo: como tarjetas no hacían pensar nada.
+  const añoActual = Number(hoy.slice(0, 4))
+  const mesActual = Number(hoy.slice(5, 7))
+  const actual = years.find((y) => y.year === añoActual)
+  const previo = years.find((y) => y.year === añoActual - 1)
+
+  let kpis: Array<{ label: string; valor: string; pie?: React.ReactNode; Icon: typeof TrendingUp }>
+
+  if (actual) {
+    const ahorro = ahorroAnualDe(actual)
+    const fijos = actual.extrasTotal + (actual.monthsTravel - actual.travelsTotal)
+    const proy = proyeccionDe(
+      actual.generalPorMes.map((valor, i) => ({ month: i + 1, savingGeneral: valor })),
+      fijos,
+      actual.goal,
+      mesActual,
+    )
+    const ritmo = ritmoDe(actual)
+    const ritmoPrevio = previo ? ritmoDe(previo) : null
+    // Comparación justa: mismo número de meses del calendario.
+    const mismaAltura = previo ? hastaMes(previo, mesActual) : null
+    const deltaAltura = mismaAltura === null ? null : hastaMes(actual, mesActual) - mismaAltura
+    const tasaActual = tasaAhorroDe(actual)
+
+    kpis = [
+      {
+        label: `Ahorrado en ${añoActual}`,
+        valor: eur(ahorro),
+        Icon: TrendingUp,
+        pie: actual.goal
+          ? ahorro >= actual.goal
+            ? '🎉 objetivo cumplido'
+            : `faltan ${eur(actual.goal - ahorro)} para el objetivo`
+          : 'sin objetivo fijado',
+      },
+      {
+        label: 'Proyección a cierre de año',
+        valor: proy.proyeccion === null ? '—' : eur(proy.proyeccion),
+        Icon: LineChart,
+        pie:
+          proy.proyeccion === null
+            ? 'sin meses rellenos'
+            : actual.goal
+              ? proy.proyeccion >= actual.goal
+                ? 'a este ritmo, da para el objetivo'
+                : `a este ritmo se queda a ${eur(actual.goal - proy.proyeccion)}`
+              : 'a ritmo de los meses rellenos',
+      },
+      {
+        label: `Frente a ${añoActual - 1} a estas alturas`,
+        valor: deltaAltura === null ? '—' : `${deltaAltura >= 0 ? '+' : '−'}${eur(Math.abs(deltaAltura))}`,
+        Icon: deltaAltura !== null && deltaAltura < 0 ? TrendingDown : TrendingUp,
+        pie:
+          deltaAltura === null
+            ? 'sin año anterior con el que comparar'
+            : `${eur(hastaMes(actual, mesActual))} frente a ${eur(mismaAltura!)} en ${mesActual} meses`,
+      },
+      {
+        label: 'Ritmo mensual',
+        valor: ritmo === null ? '—' : `${eur(ritmo)}/mes`,
+        Icon: BarChart3,
+        pie:
+          ritmoPrevio === null || ritmo === null
+            ? `tasa de ahorro ${pct(tasaActual)}`
+            : `en ${añoActual - 1}: ${eur(ritmoPrevio)}/mes · tasa ${pct(tasaActual)}`,
+      },
+    ]
+  } else {
+    // Sin año en curso (o solo histórico): los agregados sí son lo útil.
+    kpis = [
+      { label: 'Ahorro total histórico', valor: eur(totalAhorro), Icon: TrendingUp },
+      { label: 'Media anual de ahorro', valor: eur(totalAhorro / years.length), Icon: BarChart3 },
+      { label: 'Tasa de ahorro histórica', valor: pct(tasaHistorica), Icon: Percent },
+      { label: 'Mejor año de ahorro', valor: `${mejor.year} · ${eur(ahorroAnualDe(mejor))}`, Icon: Trophy },
+    ]
+  }
 
   // Curva de ahorro acumulado: suma corrida del ahorro anual, año a año.
   const acumulado = years.reduce<Array<{ year: number; valor: number }>>((acc, y) => {
@@ -41,14 +124,15 @@ export function ResumenGeneral({ years }: { years: YearSummary[] }) {
 
   return (
     <div>
-      {/* KPIs globales */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      {/* KPIs: el año en curso frente a su objetivo, su ritmo y el año pasado */}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {kpis.map((k) => (
-          <div key={k.label} className={cn(cardClass, 'p-5')}>
-            <p className="mb-1 flex items-center gap-1.5 text-[13.5px] text-muted-foreground">
-              <k.Icon className="size-4 text-primary" /> {k.label}
+          <div key={k.label} className={cn(cardClass, 'p-4')}>
+            <p className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
+              <k.Icon className="size-4 shrink-0 text-primary" /> {k.label}
             </p>
-            <p className="text-2xl font-semibold">{k.valor}</p>
+            <p className="mt-1.5 text-2xl font-semibold tabular-nums">{k.valor}</p>
+            {k.pie && <p className="mt-1 text-[12px] leading-snug text-muted-foreground">{k.pie}</p>}
           </div>
         ))}
       </div>

@@ -147,20 +147,26 @@ export default async function PanelPage({
         Salud del despliegue, visitas, usuarios y mantenimiento del servidor.
       </p>
 
-      <div className="mb-5 flex gap-1 border-b border-border">
-        {TABS.map((t) => (
-          <Link
-            key={t.id}
-            href={t.href}
-            className={cn(
-              '-mb-px border-b-2 px-3.5 py-2 text-sm font-semibold transition-colors',
-              activa === t.id
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground',
-            )}>
-            {t.label}
-          </Link>
-        ))}
+      {/* Scroll SOLO horizontal en móvil: con 4 pestañas no caben en 375px.
+          La línea inferior va en el envoltorio y el `-mb-px` en el scroller
+          (no en los enlaces): así el contenido no sobresale 1px hacia abajo,
+          que era lo que hacía scrollear la barra también en vertical. */}
+      <div className="mb-5 border-b border-border">
+        <div className="-mb-px flex gap-1 overflow-x-auto overflow-y-hidden">
+          {TABS.map((t) => (
+            <Link
+              key={t.id}
+              href={t.href}
+              className={cn(
+                'shrink-0 whitespace-nowrap border-b-2 px-3.5 py-2 text-sm font-semibold transition-colors',
+                activa === t.id
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground',
+              )}>
+              {t.label}
+            </Link>
+          ))}
+        </div>
       </div>
 
       <Suspense key={`${activa}-${dias}`} fallback={<Esqueleto />}>
