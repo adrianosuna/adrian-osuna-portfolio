@@ -18,7 +18,7 @@ import { archiveOpportunity, deleteOpportunity, updateOpportunity } from '@/app/
 import { OportunidadModal } from './oportunidad-modal'
 import { TablaOportunidades } from './tabla-oportunidades'
 import {
-  CLASE_URGENCIA, COLUMNAS, TERMINALES, btnIcon, btnPrimary, eur, fmtFecha, urgenciaSeguimiento,
+  CLASE_URGENCIA, cuandoSeguimiento, COLUMNAS, TERMINALES, btnIcon, btnPrimary, eur, fmtFecha, urgenciaSeguimiento,
   type EstadoOportunidad, type OpportunityRow,
 } from './comun'
 
@@ -74,13 +74,18 @@ function Tarjeta({
       {o.nextActionDate && (
         <p
           className={cn(
-            'mt-1.5 flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium',
+            'mt-1.5 flex items-start gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium',
             CLASE_URGENCIA[urgenciaSeguimiento(o.nextActionDate, hoy)],
-          )}>
-          <CalendarClock className="size-3 shrink-0" />
-          <span className="truncate">
-            {fmtFecha(o.nextActionDate)}
-            {o.nextAction ? ` · ${o.nextAction}` : ''}
+          )}
+          title={`${fmtFecha(o.nextActionDate)}${o.nextAction ? ` · ${o.nextAction}` : ''}`}>
+          <CalendarClock className="mt-px size-3 shrink-0" />
+          <span className="min-w-0">
+            {/* La urgencia primero (es la señal) y la acción debajo: con la
+                fecha delante, en 130px no se llegaba a leer qué hay que hacer. */}
+            <span className="block">{cuandoSeguimiento(o.nextActionDate, hoy)}</span>
+            {o.nextAction && (
+              <span className="mt-0.5 block line-clamp-2 font-normal opacity-90">{o.nextAction}</span>
+            )}
           </span>
         </p>
       )}
@@ -123,7 +128,7 @@ function Tarjeta({
             <>
               <button
                 type="button"
-                className="rounded-md bg-danger px-2 py-1 text-xs font-semibold text-white"
+                className="rounded-md bg-danger px-2 py-1 text-xs font-semibold text-white max-sm:px-3 max-sm:py-2"
                 onClick={() => {
                   setConfirming(null)
                   run(deleteOpportunity(o.uuid), 'Oportunidad eliminada')
@@ -202,7 +207,7 @@ export function PipelineBoard({
         <Metrica label="Abiertas" valor={String(metricas.abiertas)} />
         <Metrica
           label="Tasa de cierre"
-          valor={metricas.tasaCierre === null ? '—' : `${metricas.tasaCierre} %`}
+          valor={metricas.tasaCierre === null ? '—' : `${metricas.tasaCierre} %`}
         />
         <Metrica
           label="Cierre medio"

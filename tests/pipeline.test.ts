@@ -133,3 +133,32 @@ describe('avisarSeguimientos', () => {
     })
   })
 })
+
+// ─────────── cuandoSeguimiento (texto corto del chip de la tarjeta) ───────────
+
+const { cuandoSeguimiento } = await import('@/components/dashboard/pipeline/comun')
+
+describe('cuandoSeguimiento', () => {
+  const hoy = '2026-08-27'
+
+  it('vencidos: ayer y hace N días', () => {
+    expect(cuandoSeguimiento('2026-08-26', hoy)).toBe('venció ayer')
+    expect(cuandoSeguimiento('2026-08-23', hoy)).toBe('venció hace 4 días')
+  })
+
+  it('hoy y mañana tienen su propio texto', () => {
+    expect(cuandoSeguimiento('2026-08-27', hoy)).toBe('vence hoy')
+    expect(cuandoSeguimiento('2026-08-28', hoy)).toBe('vence mañana')
+  })
+
+  it('dentro de dos semanas cuenta los días; más lejos, la fecha', () => {
+    expect(cuandoSeguimiento('2026-09-03', hoy)).toBe('vence en 7 días')
+    expect(cuandoSeguimiento('2026-09-10', hoy)).toBe('vence en 14 días')
+    expect(cuandoSeguimiento('2026-09-11', hoy)).toBe('vence el 11/09/2026')
+  })
+
+  it('cruza el cambio de mes sin desviarse', () => {
+    expect(cuandoSeguimiento('2026-09-01', '2026-08-31')).toBe('vence mañana')
+    expect(cuandoSeguimiento('2026-08-31', '2026-09-01')).toBe('venció ayer')
+  })
+})

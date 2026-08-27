@@ -90,7 +90,7 @@ const btnPrimary =
 const btnOutline =
   'inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3.5 py-1.5 text-sm font-semibold transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50'
 const btnIcon =
-  'rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40'
+  'rounded-md p-2 max-sm:p-2.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40'
 
 interface Borrador {
   title: string
@@ -200,8 +200,13 @@ export function MantenimientoTab({
                     {periodicidad(t.intervalMonths)}
                     {t.lastDone && ` · ${antiguedad(t.lastDone, hoy)}`}
                   </p>
+                  {/* La nota ES la instrucción de la tarea: en móvil se muestra
+                      entera (con 2 líneas se perdía entre un tercio y la mitad
+                      del texto, sin forma de leerlo salvo editando). En
+                      escritorio caben en 1-2 líneas y el clamp queda de red por
+                      si alguna nota fuera larguísima. */}
                   {t.notes && (
-                    <p className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-muted-foreground/70">
+                    <p className="mt-0.5 text-[12px] leading-snug text-muted-foreground/70 max-sm:line-clamp-none sm:line-clamp-2">
                       {t.notes}
                     </p>
                   )}
@@ -227,7 +232,7 @@ export function MantenimientoTab({
                     <>
                       <button
                         type="button"
-                        className="rounded-md bg-danger px-2 py-1 text-xs font-semibold text-white"
+                        className="rounded-md bg-danger px-2 py-1 text-xs font-semibold text-white max-sm:px-3 max-sm:py-2"
                         onClick={() => {
                           setConfirming(null)
                           run(deleteMaintenance(t.uuid), 'Tarea eliminada')

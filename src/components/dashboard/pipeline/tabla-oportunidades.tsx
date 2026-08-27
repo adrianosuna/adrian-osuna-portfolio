@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils'
 import { SelectField, TextField } from '@/components/ui/fields'
 import { archiveOpportunity, deleteOpportunity } from '@/app/app/pipeline/actions'
 import {
-  CLASE_URGENCIA, COLUMNAS, TERMINALES, btnIcon, eur, fmtFecha, urgenciaSeguimiento,
+  CLASE_URGENCIA, cuandoSeguimiento, COLUMNAS, TERMINALES, btnIcon, eur, fmtFecha, urgenciaSeguimiento,
   type EstadoOportunidad, type OpportunityRow,
 } from './comun'
 
@@ -62,17 +62,21 @@ export function TablaOportunidades({
 
   const seguimiento = (o: OpportunityRow) => {
     if (o.nextActionDate) {
+      // Igual que la tarjeta del tablero: la urgencia primero y la acción
+      // debajo. Con la fecha delante, en 245px de columna la acción se cortaba.
       return (
         <span
           className={cn(
-            'inline-flex max-w-full items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium',
+            'inline-flex max-w-full items-start gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium',
             CLASE_URGENCIA[urgenciaSeguimiento(o.nextActionDate, hoy)],
           )}
-          title={o.nextAction ?? undefined}>
-          <CalendarClock className="size-3 shrink-0" />
-          <span className="truncate">
-            {fmtFecha(o.nextActionDate)}
-            {o.nextAction ? ` · ${o.nextAction}` : ''}
+          title={`${fmtFecha(o.nextActionDate)}${o.nextAction ? ` · ${o.nextAction}` : ''}`}>
+          <CalendarClock className="mt-px size-3 shrink-0" />
+          <span className="min-w-0">
+            <span className="block">{cuandoSeguimiento(o.nextActionDate, hoy)}</span>
+            {o.nextAction && (
+              <span className="mt-0.5 block line-clamp-2 font-normal opacity-90">{o.nextAction}</span>
+            )}
           </span>
         </span>
       )
@@ -112,7 +116,7 @@ export function TablaOportunidades({
         <>
           <button
             type="button"
-            className="rounded-md bg-danger px-2 py-1 text-xs font-semibold text-white"
+            className="rounded-md bg-danger px-2 py-1 text-xs font-semibold text-white max-sm:px-3 max-sm:py-2"
             onClick={() => {
               setConfirming(null)
               run(deleteOpportunity(o.uuid), 'Oportunidad eliminada')

@@ -56,7 +56,9 @@ export function Modal({
           </div>
           <button
             type="button"
-            className="-mr-1.5 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            // En móvil es el control con el que se sale del modal: 28px era
+            // un objetivo escaso, p-2.5 lo deja en 36.
+            className="-mr-1.5 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground max-sm:p-2.5"
             aria-label="Cerrar"
             onClick={onClose}>
             <X className="size-4" />

@@ -51,15 +51,44 @@ describe('ahorroAnualDe', () => {
 const { proyeccionDe, esperadoHoy, tasaAhorroDe, pct } = await import('@/components/dashboard/savings/comun')
 
 describe('tasaAhorroDe', () => {
-  it('tasa = ahorro anual (con sobrante) entre ingresos', () => {
-    // 7.800 / 26.000 = 0,3
-    expect(tasaAhorroDe(año())).toBeCloseTo(0.3, 6)
-    expect(pct(tasaAhorroDe(año()))).toBe('30%')
+  it('tasa = ahorro anual (con sobrante) entre TODO lo ingresado', () => {
+    // 7.800 / (26.000 + 1.500 de extras) = 0,2836
+    expect(tasaAhorroDe(año())).toBeCloseTo(7_800 / 27_500, 6)
+    expect(pct(tasaAhorroDe(año()))).toBe('28 %')
+  })
+
+  it('los extras cuentan también como ingresos: la tasa no pasa del 100%', () => {
+    // Un año en que TODO lo ingresado se ahorra: nómina 1.000 + extra 9.000,
+    // ahorro 10.000 → 100%, nunca más (antes daba 1.000%).
+    const limite = año({
+      incomeTotal: 1_000, monthsGeneral: 1_000, extrasTotal: 9_000,
+      monthsTravel: 0, travelsTotal: 0,
+    })
+    expect(pct(tasaAhorroDe(limite))).toBe('100 %')
   })
 
   it('sin ingresos no hay tasa (null, no división por cero)', () => {
-    expect(tasaAhorroDe(año({ incomeTotal: 0 }))).toBeNull()
+    expect(tasaAhorroDe(año({ incomeTotal: 0, extrasTotal: 0 }))).toBeNull()
     expect(pct(null)).toBe('—')
+  })
+})
+
+describe('formato de porcentaje', () => {
+  // La app escribe el porcentaje con espacio (norma RAE) y ese espacio es
+  // IRROMPIBLE: la cifra y el símbolo nunca se separan al final de una línea.
+  it('lleva espacio entre la cifra y el símbolo', () => {
+    expect(pct(0.35)).toBe('35 %')
+  })
+
+  it('el espacio es irrompible, no un espacio normal', () => {
+    expect(pct(0.35)).not.toContain(' %')
+    expect(pct(0.35).charCodeAt(2)).toBe(0x00a0)
+  })
+
+  it('redondea a entero (sin decimales sueltos)', () => {
+    expect(pct(0.3549)).toBe('35 %')
+    expect(pct(1)).toBe('100 %')
+    expect(pct(0)).toBe('0 %')
   })
 })
 

@@ -3,6 +3,8 @@
 // Gráficas SVG del sistema de ahorro (sin librerías de charts, para no engordar
 // el bundle): barras mensuales apiladas y línea de ahorro acumulado por años.
 // Los colores salen de los tokens del tema (funcionan en claro y oscuro).
+import { cn } from '@/lib/utils'
+import { useAncho } from '@/components/ui/use-ancho'
 import type { MonthRow } from '@/lib/finance'
 
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
@@ -11,13 +13,15 @@ const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'S
 const eurCorto = (v: number) =>
   v.toLocaleString('es-ES', { maximumFractionDigits: 0, useGrouping: 'always' }) + ' €'
 
-// Barras apiladas por mes: ahorro general + ahorro para viajes. La variante
-// `compacto` cabe en una pantalla de móvil sin scroll: lienzo estrecho,
-// meses a una letra, eje abreviado (1,2k) y menos guías.
-export function MonthlyChart({ months, compacto = false }: { months: MonthRow[]; compacto?: boolean }) {
-  const W = compacto ? 360 : 760
-  const H = compacto ? 185 : 220
-  const padL = compacto ? 36 : 56
+// Barras apiladas por mes: ahorro general + ahorro para viajes. El lienzo se
+// ajusta al hueco; por debajo de ~420px va apretado (meses a una letra, eje
+// abreviado en "1,2k" y menos guías) para caber en un móvil sin scroll.
+export function MonthlyChart({ months }: { months: MonthRow[] }) {
+  const [ref, ancho] = useAncho()
+  const compacto = ancho > 0 && ancho < 420
+  const W = ancho || 760
+  const H = compacto ? 185 : Math.min(280, Math.max(220, Math.round(W * 0.26)))
+  const padL = compacto ? 36 : 60
   const padB = compacto ? 22 : 26
   const padT = compacto ? 10 : 14
   const padR = compacto ? 6 : 12
@@ -44,11 +48,12 @@ export function MonthlyChart({ months, compacto = false }: { months: MonthRow[];
   const fuente = compacto ? 10 : 10.5
 
   return (
-    // min-w en móvil (solo la variante grande): por debajo de ~560px el SVG
-    // escala hasta textos ilegibles; mejor que scrollee en su contenedor.
+    <div ref={ref} className="w-full" style={{ minHeight: H }}>
+      {ancho > 0 && (
     <svg
       viewBox={`0 0 ${W} ${H}`}
-      className={compacto ? 'block h-auto w-full' : 'block h-auto w-full min-w-140 sm:min-w-0'}
+      className="mx-auto block h-auto w-full"
+      style={{ maxHeight: H }}
       role="img"
       aria-label="Ahorro por mes">
       {guides.map((g) => (
@@ -85,24 +90,38 @@ export function MonthlyChart({ months, compacto = false }: { months: MonthRow[];
         )
       })}
     </svg>
+      )}
+    </div>
   )
 }
 
 // Donut con la composición del ahorro anual: qué peso tienen el ahorro
 // mensual, los ingresos extraordinarios y el sobrante de viajes. Cada parte
 // se pinta como arco de circunferencia (dasharray sobre un círculo girado).
-export function DonutAhorro({ partes }: {
+export function DonutAhorro({
+  partes, centro = 'ahorro anual', vacio = 'Sin datos de ahorro todavía.',
+  titulo = 'Composición del ahorro anual',
+}: {
   partes: Array<{ label: string; valor: number; color: string }>
+  /** Etiqueta bajo el total del centro. */
+  centro?: string
+  /** Texto cuando no hay nada que repartir. */
+  vacio?: string
+  /** Título accesible del SVG (se reutiliza en los desgloses de gastos). */
+  titulo?: string
 }) {
   const positivas = partes.filter((p) => p.valor > 0)
   const total = positivas.reduce((s, p) => s + p.valor, 0)
   if (total <= 0) {
-    return <p className="py-6 text-center text-[13px] text-muted-foreground">Sin datos de ahorro todavía.</p>
+    return <p className="py-6 text-center text-[13px] text-muted-foreground">{vacio}</p>
   }
 
   const R = 62
   const C = 2 * Math.PI * R
-  const HUECO = 0.012 // separación entre arcos (fracción de la circunferencia)
+  // Separación entre arcos. Con muchas categorías (los desgloses de gastos
+  // llegan a más de diez) un hueco fijo se come las porciones del 1%: se
+  // reduce a partir de seis partes para que ninguna desaparezca.
+  const HUECO = positivas.length > 6 ? 0.004 : 0.012
   const arcos = positivas.reduce<Array<{ p: (typeof positivas)[number]; desde: number; frac: number }>>(
     (acc, p) => {
       const desde = acc.length ? acc[acc.length - 1].desde + acc[acc.length - 1].frac : 0
@@ -112,8 +131,8 @@ export function DonutAhorro({ partes }: {
   )
 
   return (
-    <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3">
-      <svg viewBox="0 0 180 180" className="size-44" role="img" aria-label="Composición del ahorro anual">
+    <div className="flex flex-col items-center gap-x-6 gap-y-4 sm:flex-row sm:justify-center">
+      <svg viewBox="0 0 180 180" className="size-44 shrink-0" role="img" aria-label={titulo}>
         {arcos.map(({ p, desde, frac }) => (
           <circle
             key={p.label}
@@ -121,29 +140,40 @@ export function DonutAhorro({ partes }: {
             fill="none"
             stroke={p.color}
             strokeWidth="26"
-            strokeDasharray={`${Math.max(0, (frac - (positivas.length > 1 ? HUECO : 0)) * C)} ${C}`}
+            // Suelo de 1,5px: una parte diminuta junto a otra dominante (una
+            // propina frente a la nómina) se vería como un hueco, no como dato.
+            strokeDasharray={`${Math.max(1.5, (frac - (positivas.length > 1 ? HUECO : 0)) * C)} ${C}`}
             strokeDashoffset={-desde * C}
             transform="rotate(-90 90 90)">
-            <title>{`${p.label}: ${eurCorto(p.valor)} (${Math.round(frac * 100)}%)`}</title>
+            <title>{`${p.label}: ${eurCorto(p.valor)} (${Math.round(frac * 100)} %)`}</title>
           </circle>
         ))}
         <text x="90" y="86" textAnchor="middle" fontSize="17" fontWeight="700" fill="var(--foreground)">
           {eurCorto(total)}
         </text>
         <text x="90" y="103" textAnchor="middle" fontSize="10.5" fill="var(--muted-foreground)">
-          ahorro anual
+          {centro}
         </text>
       </svg>
 
-      <div className="flex flex-col gap-2">
+      {/* Una sola columna, siempre al lado del donut (debajo solo en móvil).
+          Las filas se aprietan cuando hay muchas categorías para que la
+          leyenda no doble la altura del donut. */}
+      <div
+        className={cn(
+          'flex w-full min-w-0 flex-col sm:w-auto sm:max-w-90 sm:flex-1',
+          positivas.length > 8 ? 'gap-1' : 'gap-2',
+        )}>
         {partes.map((p) => (
-          <div key={p.label} className="flex items-center gap-2 text-[13px]">
-            <span className="inline-block size-2.5 shrink-0 rounded-[3px]" style={{ background: p.color }} />
-            <span className="text-muted-foreground">{p.label}</span>
-            <span className="ml-auto pl-4 font-semibold">
+          <div
+            key={p.label}
+            className={cn('flex items-center gap-2', positivas.length > 8 ? 'text-[12.5px]' : 'text-[13px]')}>
+            <span className="inline-block size-2.5 shrink-0 rounded-xs" style={{ background: p.color }} />
+            <span className="min-w-0 flex-1 truncate text-muted-foreground" title={p.label}>{p.label}</span>
+            <span className="shrink-0 pl-3 font-semibold tabular-nums">
               {eurCorto(Math.max(0, p.valor))}
               <span className="ml-1.5 font-normal text-muted-foreground">
-                {total > 0 ? `${Math.round((Math.max(0, p.valor) / total) * 100)}%` : ''}
+                {total > 0 ? `${Math.round((Math.max(0, p.valor) / total) * 100)} %` : ''}
               </span>
             </span>
           </div>
@@ -155,8 +185,13 @@ export function DonutAhorro({ partes }: {
 
 // Línea de ahorro acumulado por años (suma corrida del ahorro anual).
 export function AcumuladoChart({ puntos }: { puntos: Array<{ year: number; valor: number }> }) {
-  const W = 760
-  const H = 190
+  const [ref, ancho] = useAncho()
+  // Con pocos años no tiene sentido ocupar todo el ancho: una línea de mil
+  // píxeles entre dos puntos se ve vacía. El lienzo crece ~200px por tramo
+  // hasta el hueco disponible, y el dibujo queda centrado en la tarjeta.
+  const ideal = 88 + 200 * Math.max(1, puntos.length - 1)
+  const W = Math.min(ancho || 760, ideal)
+  const H = Math.min(240, Math.max(190, Math.round(W * 0.22)))
   const padL = 64
   const padB = 26
   const padT = 16
@@ -175,7 +210,14 @@ export function AcumuladoChart({ puntos }: { puntos: Array<{ year: number; valor
   const area = `${x(0)},${y(min)} ${points} ${x(values.length - 1)},${y(min)}`
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full min-w-140 sm:min-w-0" role="img" aria-label="Ahorro acumulado por año">
+    <div ref={ref} className="w-full" style={{ minHeight: H }}>
+      {ancho > 0 && (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      className="mx-auto block h-auto w-full"
+      style={{ maxHeight: H }}
+      role="img"
+      aria-label="Ahorro acumulado por año">
       {[0.5, 1].map((g) => (
         <line
           key={g}
@@ -200,5 +242,7 @@ export function AcumuladoChart({ puntos }: { puntos: Array<{ year: number; valor
         </g>
       ))}
     </svg>
+      )}
+    </div>
   )
 }

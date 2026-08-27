@@ -5,6 +5,7 @@
 import 'server-only'
 import { prisma } from '@/lib/prisma'
 import { mesesSinRellenar } from '@/lib/finance'
+import { gastadoEnMesDe } from '@/lib/gastos'
 import { estadoDe, hoyMadrid } from '@/lib/mantenimiento'
 import { metricasPipeline } from '@/lib/pipeline'
 
@@ -33,6 +34,8 @@ export interface ActividadItem {
 export interface ResumenInicio {
   avisos: Aviso[]
   ahorro: { year: number; total: number; goal: number | null } | null
+  /** Gastado en el mes en curso (control de gastos). */
+  gastadoMes: number
   pipeline: { abiertas: number; valorAbierto: number }
   actividad: ActividadItem[]
 }
@@ -42,7 +45,7 @@ export async function resumenInicio(hoyIso = hoyMadrid()): Promise<ResumenInicio
   const year = Number(hoyIso.slice(0, 4))
   const mesActual = Number(hoyIso.slice(5, 7))
 
-  const [anio, oportunidades, tareas, eventos] = await Promise.all([
+  const [anio, oportunidades, tareas, eventos, gastadoMes] = await Promise.all([
     // Solo el año en curso (no todos, como hacía el inicio anterior).
     prisma.savingYear.findUnique({
       where: { year },
@@ -63,6 +66,7 @@ export async function resumenInicio(hoyIso = hoyMadrid()): Promise<ResumenInicio
       orderBy: [{ createTs: 'desc' }, { id: 'desc' }],
       select: { uuid: true, type: true, detail: true, createTs: true, opportunity: { select: { title: true } } },
     }),
+    gastadoEnMesDe(hoyIso),
   ])
 
   // ── Ahorro del año en curso (misma semántica que el módulo) ──
@@ -154,6 +158,7 @@ export async function resumenInicio(hoyIso = hoyMadrid()): Promise<ResumenInicio
     // Urgentes primero, manteniendo el orden de detección dentro de cada nivel.
     avisos: avisos.sort((a, b) => Number(b.gravedad === 'urgente') - Number(a.gravedad === 'urgente')),
     ahorro,
+    gastadoMes,
     pipeline: { abiertas: metricas.abiertas, valorAbierto: metricas.valorAbierto },
     actividad: eventos.map((e) => ({
       uuid: e.uuid,

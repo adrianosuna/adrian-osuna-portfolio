@@ -5,7 +5,7 @@
 #          sitemap son estáticos); el resto de variables son de runtime.
 
 FROM node:24-alpine AS base
-RUN npm install -g pnpm@11.10.0
+RUN npm install -g pnpm@11.24.0
 WORKDIR /app
 
 # ── Dependencias (capa cacheable) ──────────────────────────────────────────

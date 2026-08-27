@@ -164,7 +164,10 @@ export function OportunidadModal({
               />
             </Field>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          {/* La acción es texto libre ("Enviar la propuesta revisada"): a media
+              fila se queda en 145px y no se lee lo que escribes. En móvil va a
+              lo ancho y la fecha debajo; desde sm, las dos en una fila. */}
+          <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Próxima acción">
               <TextField
                 ariaLabel="Próxima acción"
@@ -196,17 +199,26 @@ export function OportunidadModal({
 
 // ─────────── Timeline de actividad ───────────
 
-function Timeline({ uuid }: { uuid: string }) {
+/** Exportado para tests/pipeline-timeline.dom: la actividad se pide al abrir
+ *  el detalle, así que su carga (y su fallo) solo se pueden probar aislados. */
+export function Timeline({ uuid }: { uuid: string }) {
   const [pending, startTransition] = useTransition()
   // null = cargando (se pide al abrir el detalle, no viaja con el tablero).
   const [eventos, setEventos] = useState<EventoRow[] | null>(null)
   const [tipo, setTipo] = useState('NOTA')
   const [detalle, setDetalle] = useState('')
 
+  // Si la carga falla, el toast se va y la sección se quedaba en "Cargando…"
+  // para siempre: se marca el error y se ofrece reintentar.
+  const [error, setError] = useState(false)
+
   const cargar = () =>
     getOpportunityEvents(uuid).then((res) => {
       if (res.ok && res.events) setEventos(res.events)
-      else toast.error(res.message ?? 'Error')
+      else {
+        setError(true)
+        toast.error(res.message ?? 'Error')
+      }
     })
 
   useEffect(() => {
@@ -261,7 +273,23 @@ function Timeline({ uuid }: { uuid: string }) {
         </button>
       </div>
 
-      {eventos === null && <p className="py-2 text-xs text-muted-foreground">Cargando…</p>}
+      {error && (
+        <p className="flex flex-wrap items-center gap-1.5 py-2 text-xs text-muted-foreground">
+          No se pudo cargar la actividad.
+          <button
+            type="button"
+            className="py-2 font-semibold text-primary hover:underline"
+            onClick={() => {
+              setError(false)
+              void cargar()
+            }}>
+            Reintentar
+          </button>
+        </p>
+      )}
+      {!error && eventos === null && (
+        <p className="py-2 text-xs text-muted-foreground">Cargando…</p>
+      )}
       {eventos !== null && eventos.length === 0 && (
         <p className="py-2 text-xs text-muted-foreground">Sin actividad todavía.</p>
       )}

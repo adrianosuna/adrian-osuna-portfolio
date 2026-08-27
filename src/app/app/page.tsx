@@ -7,7 +7,7 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import {
-  ArrowUpRight, Briefcase, CalendarDays, Euro, ExternalLink, Gauge,
+  ArrowUpRight, Briefcase, CalendarDays, Euro, ExternalLink, Gauge, Receipt,
   TrendingDown, TrendingUp,
 } from 'lucide-react'
 import { auth } from '@/auth'
@@ -56,7 +56,7 @@ async function TileVisitas() {
         ) : (
           <span className={cn('inline-flex items-center gap-1', sube ? 'text-success' : 'text-danger')}>
             {sube ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
-            {sube ? '+' : ''}{delta}% frente a los 7 previos
+            {sube ? '+' : ''}{delta}&nbsp;% frente a los 7 previos
           </span>
         )
       }
@@ -115,11 +115,11 @@ export default async function HomePage() {
     )
   }
 
-  const { avisos, ahorro, pipeline, actividad } = resumen
+  const { avisos, ahorro, gastadoMes, pipeline, actividad } = resumen
   const pctObjetivo = ahorro && ahorro.goal ? Math.round((ahorro.total / ahorro.goal) * 100) : null
 
   const accesos = [
-    { title: 'Finanzas', desc: 'Ahorro anual', icon: <Euro className="size-4" />, chip: 'bg-primary/10 text-primary', to: '/app/finance' },
+    { title: 'Finanzas', desc: 'Ahorro anual y gastos', icon: <Euro className="size-4" />, chip: 'bg-primary/10 text-primary', to: '/app/finance' },
     { title: 'Oportunidades', desc: 'Pipeline y seguimientos', icon: <Briefcase className="size-4" />, chip: 'bg-warning-bg text-warning', to: '/app/pipeline' },
     { title: 'Panel de control', desc: 'Servidor, visitas y usuarios', icon: <Gauge className="size-4" />, chip: 'bg-success-bg text-success', to: '/app/panel' },
   ]
@@ -135,7 +135,7 @@ export default async function HomePage() {
       <Atencion avisos={avisos} />
 
       {/* KPIs con dato real */}
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Tile
           label={ahorro ? `Ahorro en ${ahorro.year}` : 'Ahorro'}
           valor={ahorro ? <ImporteDeSesion valor={eur(ahorro.total)} /> : '—'}
@@ -155,10 +155,18 @@ export default async function HomePage() {
                     style={{ width: `${Math.min(100, pctObjetivo)}%` }}
                   />
                 </span>
-                <span className="shrink-0 tabular-nums">{pctObjetivo}% del objetivo</span>
+                <span className="shrink-0 tabular-nums">{pctObjetivo}&nbsp;% del objetivo</span>
               </span>
             )
           }
+        />
+        <Tile
+          label="Gastos del mes"
+          valor={<ImporteDeSesion valor={eur(gastadoMes)} />}
+          icon={<Receipt className="size-4" />}
+          chip="bg-success-bg text-success"
+          to={`/app/finance?mes=${new Date().toISOString().slice(0, 7)}`}
+          pie={gastadoMes === 0 ? 'nada registrado todavía' : 'control de gastos'}
         />
         <Tile
           label="Pipeline abierto"

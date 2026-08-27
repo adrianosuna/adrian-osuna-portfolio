@@ -4,7 +4,7 @@
 // globales, tabla comparativa (cada año enlaza a su pestaña) y la curva de
 // ahorro acumulado. Solo lectura: los datos se editan en el tab de cada año.
 import Link from 'next/link'
-import { BarChart3, Compass, LineChart, Percent, Target, TrendingDown, TrendingUp, Trophy } from 'lucide-react'
+import { BarChart3, LineChart, Percent, TrendingDown, TrendingUp, Trophy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { YearSummary } from '@/lib/finance'
 import { AcumuladoChart } from './charts'
@@ -34,7 +34,9 @@ export function ResumenGeneral({ years, hoy }: { years: YearSummary[]; hoy: stri
 
   const mejor = years.reduce((max, y) => (ahorroAnualDe(y) > ahorroAnualDe(max) ? y : max), years[0])
   const totalAhorro = years.reduce((s, y) => s + ahorroAnualDe(y), 0)
-  const totalIngresos = years.reduce((s, y) => s + y.incomeTotal, 0)
+  // Los extras también son ingresos (ver tasaAhorroDe): si no, la tasa
+  // histórica se infla igual que se inflaba la de cada año.
+  const totalIngresos = years.reduce((s, y) => s + y.incomeTotal + y.extrasTotal, 0)
   const tasaHistorica = totalIngresos > 0 ? totalAhorro / totalIngresos : null
 
   // KPIs útiles = los del año EN CURSO comparados con su objetivo, su ritmo y
@@ -125,7 +127,7 @@ export function ResumenGeneral({ years, hoy }: { years: YearSummary[]; hoy: stri
   return (
     <div>
       {/* KPIs: el año en curso frente a su objetivo, su ritmo y el año pasado */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {kpis.map((k) => (
           <div key={k.label} className={cn(cardClass, 'p-4')}>
             <p className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
@@ -163,7 +165,7 @@ export function ResumenGeneral({ years, hoy }: { years: YearSummary[]; hoy: stri
                   <td className={cn(tdClass, 'text-right')}>{eur(ahorroAnualDe(y))}</td>
                   <td className={cn(tdClass, 'text-right')}>{pct(tasaAhorroDe(y))}</td>
                   <td className={cn(tdClass, 'text-right')}>
-                    {y.goal ? `${Math.round((ahorroAnualDe(y) / y.goal) * 100)}% de ${eur(y.goal)}` : '—'}
+                    {y.goal ? `${Math.round((ahorroAnualDe(y) / y.goal) * 100)} % de ${eur(y.goal)}` : '—'}
                   </td>
                   <td className={cn(tdClass, 'text-right')}>{eur(y.monthsTravel)}</td>
                   <td className={cn(tdClass, 'text-right font-semibold text-primary')}>{eur(acumulado[i].valor)}</td>
@@ -195,7 +197,7 @@ export function ResumenGeneral({ years, hoy }: { years: YearSummary[]; hoy: stri
               <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground">
                 <span>
                   {y.goal
-                    ? `Objetivo: ${Math.round((ahorroAnualDe(y) / y.goal) * 100)}% de ${eur(y.goal)}`
+                    ? `Objetivo: ${Math.round((ahorroAnualDe(y) / y.goal) * 100)} % de ${eur(y.goal)}`
                     : 'Sin objetivo'}
                 </span>
                 <span>Tasa {pct(tasaAhorroDe(y))}</span>

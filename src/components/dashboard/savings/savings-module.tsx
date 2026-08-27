@@ -19,7 +19,7 @@ import {
   saveMonths, updateExtra, updateTravel,
 } from '@/app/app/finance/actions'
 import { DonutAhorro, MonthlyChart } from '@/components/dashboard/savings/charts'
-import { btnIcon, btnPrimary, cardClass, esperadoHoy, eur, proyeccionDe } from './comun'
+import { btnIcon, btnPrimary, cardClass, esperadoHoy, eur, pct, proyeccionDe } from './comun'
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
 
@@ -164,7 +164,7 @@ function ConceptList({ items, onDelete, onUpdate, emptyText }: {
                   <>
                     <button
                       type="button"
-                      className="rounded-md bg-danger px-2 py-1 text-xs font-semibold text-white"
+                      className="rounded-md bg-danger px-2 py-1 text-xs font-semibold text-white max-sm:px-3 max-sm:py-2"
                       onClick={() => { setConfirming(null); onDelete(it.uuid) }}>
                       Sí
                     </button>
@@ -272,14 +272,20 @@ export function SavingsModule({
     ? [
         {
           label: 'Tasa de ahorro',
-          value: resumen.totalIngresos > 0 ? `${Math.round((resumen.ahorroAnual / resumen.totalIngresos) * 100)}%` : '—',
+          // Los extras son ahorro Y son ingresos: van en los dos lados de la
+          // división (si no, la tasa se infla y puede pasar del 100%).
+          value: pct(
+            resumen.totalIngresos + resumen.extrasTotal > 0
+              ? resumen.ahorroAnual / (resumen.totalIngresos + resumen.extrasTotal)
+              : null,
+          ),
           Icon: Percent,
         },
         { label: 'Ahorro mensual medio', value: eur(resumen.kpiMedioMensual), Icon: TrendingUp },
-        { label: 'Meses con ahorro', value: `${Math.round(resumen.kpiMesesAhorro * 100)}%`, Icon: CalendarCheck },
-        { label: 'Dependencia de extras', value: resumen.kpiDependenciaExtras === null ? '—' : `${Math.round(resumen.kpiDependenciaExtras * 100)}%`, Icon: Gift },
+        { label: 'Meses con ahorro', value: pct(resumen.kpiMesesAhorro), Icon: CalendarCheck },
+        { label: 'Dependencia de extras', value: pct(resumen.kpiDependenciaExtras), Icon: Gift },
         { label: 'Margen personal medio', value: eur(resumen.kpiMargenMedio), Icon: Wallet },
-        { label: 'Ritmo de viajes', value: resumen.kpiRitmoViajes === null ? '—' : `${Math.round(resumen.kpiRitmoViajes * 100)}%`, Icon: Compass },
+        { label: 'Ritmo de viajes', value: pct(resumen.kpiRitmoViajes), Icon: Compass },
       ]
     : []
 
@@ -295,7 +301,7 @@ export function SavingsModule({
       ) : (
         <>
           {/* Resumen del año: todo gira alrededor del ahorro (sin capital) */}
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {[
               { title: 'Ingresos del año', value: resumen.totalIngresos, Icon: Landmark },
               { title: 'Ahorro anual (con sobrante)', value: resumen.ahorroAnual, Icon: TrendingUp, color: 'text-success', bold: true },
@@ -352,7 +358,7 @@ export function SavingsModule({
                   )}
                 </div>
                 <div className="mt-1.5 flex justify-between text-[12.5px] text-muted-foreground">
-                  <span>{eur(resumen.ahorroAnual)} de {eur(goal)} ({goalPct}%)</span>
+                  <span>{eur(resumen.ahorroAnual)} de {eur(goal)} ({goalPct}&nbsp;%)</span>
                   <span>{goalPct >= 100 ? '🎉 Objetivo cumplido' : `Faltan ${eur(goal - resumen.ahorroAnual)}`}</span>
                 </div>
               </>
@@ -403,7 +409,13 @@ export function SavingsModule({
           {/* min-w-0 en las columnas: sin él, el ancho mínimo de la tabla
               mensual (560px) se propaga al grid y desborda la página en móvil
               en vez de quedarse en su scroller. */}
-          <div className="mt-4 grid gap-4 xl:grid-cols-[15fr_9fr]">
+          {/* Aquí la pareja sí espera a xl: la columna de 15fr solo da 600px
+              en lg y la gráfica mensual (lienzo de 760) se encogería a 0,79 —
+              apilada a todo lo ancho se ve mejor que emparejada y pequeña. */}
+          {/* La pareja se forma desde lg: la gráfica mensual ya se ajusta al
+              hueco, así que emparejar no la encoge — y apilada, la tabla de
+              12×4 se estiraba a 1085px con las cifras desparramadas. */}
+          <div className="mt-4 grid gap-4 lg:grid-cols-[15fr_9fr]">
             {/* Control mensual + evolución */}
             <div className="min-w-0">
               <div className={cardClass}>
@@ -544,17 +556,14 @@ export function SavingsModule({
                 <div className="flex items-center justify-between border-b border-border px-5 py-3">
                   <h3 className="font-semibold">Evolución mensual</h3>
                   <span className="text-[12.5px] text-muted-foreground">
-                    <span className="mr-1.5 inline-block size-2.5 rounded-[3px] bg-primary" />General
-                    <span className="ml-3.5 mr-1.5 inline-block size-2.5 rounded-[3px] bg-viajes" />Viajes
+                    <span className="mr-1.5 inline-block size-2.5 rounded-xs bg-primary" />General
+                    <span className="ml-3.5 mr-1.5 inline-block size-2.5 rounded-xs bg-viajes" />Viajes
                   </span>
                 </div>
-                {/* Escritorio: gráfica ancha; móvil: variante compacta que
-                    cabe entera en pantalla (sin scroll horizontal a ciegas) */}
-                <div className="hidden overflow-x-auto px-4 py-3 md:block">
+                {/* Una sola gráfica: mide su hueco y se pinta a escala 1:1
+                    (apretándose sola en móvil), así que sobran las variantes. */}
+                <div className="px-4 py-3">
                   <MonthlyChart months={monthsDraft} />
-                </div>
-                <div className="px-3 py-3 md:hidden">
-                  <MonthlyChart months={monthsDraft} compacto />
                 </div>
               </div>
 

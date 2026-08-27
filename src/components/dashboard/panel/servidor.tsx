@@ -128,7 +128,7 @@ export function ServidorTab({ infra, maquina }: { infra: InfraSnapshot; maquina:
           icon={<Cpu className="size-4" />}
           title="CPU"
           estado={cpu.estado}
-          value={`${cpu.usoPct} % de uso`}
+          value={`${cpu.usoPct} % de uso`}
           barPct={cpu.usoPct}
           lines={[
             `${cpu.nucleos} ${cpu.nucleos === 1 ? 'núcleo lógico' : 'núcleos lógicos'} · ${cpu.modelo}`,
@@ -141,7 +141,7 @@ export function ServidorTab({ infra, maquina }: { infra: InfraSnapshot; maquina:
           icon={<MemoryStick className="size-4" />}
           title="Memoria"
           estado={memoria.estado}
-          value={`${memoria.usadaPct} % usada`}
+          value={`${memoria.usadaPct} % usada`}
           barPct={memoria.usadaPct}
           lines={[
             `${fmtBytes(memoria.usadaBytes)} de ${fmtBytes(memoria.totalBytes)}`,
@@ -153,7 +153,7 @@ export function ServidorTab({ infra, maquina }: { infra: InfraSnapshot; maquina:
             icon={<Layers className="size-4" />}
             title="Swap"
             estado={swap.estado}
-            value={`${swap.usadaPct} % usada`}
+            value={`${swap.usadaPct} % usada`}
             barPct={swap.usadaPct}
             lines={[
               `${fmtBytes(swap.usadaBytes)} de ${fmtBytes(swap.totalBytes)}`,
@@ -172,7 +172,7 @@ export function ServidorTab({ infra, maquina }: { infra: InfraSnapshot; maquina:
           icon={<HardDrive className="size-4" />}
           title="Disco"
           estado={disco.estado}
-          value={disco.usadoPct === null ? '—' : `${disco.usadoPct} % usado`}
+          value={disco.usadoPct === null ? '—' : `${disco.usadoPct} % usado`}
           barPct={disco.usadoPct ?? undefined}
           lines={[
             disco.libresBytes !== null && disco.totalBytes !== null

@@ -30,6 +30,26 @@ export function urgenciaSeguimiento(fechaIso: string, hoyIso: string): 'vencido'
   return dias <= 7 ? 'proximo' : 'aldia'
 }
 
+/** 'YYYY-MM-DD' (o un ISO completo) → 'DD/MM/YYYY'. */
+export const fmtFecha = (iso: string) => iso.slice(0, 10).split('-').reverse().join('/')
+
+/**
+ * Cuándo toca la próxima acción, en lenguaje natural y CORTO: en la tarjeta del
+ * tablero el chip solo tiene ~130px, y la fecha completa (10 caracteres) no
+ * dejaba sitio para leer la acción. La fecha exacta va en el title.
+ */
+export function cuandoSeguimiento(fechaIso: string, hoyIso: string): string {
+  const dias = Math.round(
+    (Date.parse(`${fechaIso}T00:00:00Z`) - Date.parse(`${hoyIso}T00:00:00Z`)) / 86_400_000,
+  )
+  if (dias === 0) return 'vence hoy'
+  if (dias === -1) return 'venció ayer'
+  if (dias < 0) return `venció hace ${-dias} días`
+  if (dias === 1) return 'vence mañana'
+  if (dias <= 14) return `vence en ${dias} días`
+  return `vence el ${fmtFecha(fechaIso)}`
+}
+
 export const CLASE_URGENCIA = {
   vencido: 'bg-danger-bg text-danger',
   proximo: 'bg-warning-bg text-warning',
@@ -58,13 +78,10 @@ export const eur = (v: number) =>
     useGrouping: 'always',
   })
 
-/** 'YYYY-MM-DD' (o un ISO completo) → 'DD/MM/YYYY'. */
-export const fmtFecha = (iso: string) => iso.slice(0, 10).split('-').reverse().join('/')
-
 export const btnPrimary =
   'inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-3.5 py-1.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50'
 export const btnOutline =
   'inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3.5 py-1.5 text-sm font-semibold transition-colors hover:border-primary hover:text-primary'
 // p-2 (36px con icono): target táctil suficiente en móvil.
 export const btnIcon =
-  'rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40'
+  'rounded-md p-2 max-sm:p-2.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40'

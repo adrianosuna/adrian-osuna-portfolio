@@ -71,7 +71,7 @@ export function CheckCard({
     <div className="rounded-xl border border-border bg-card p-5">
       <div className="flex items-center justify-between gap-3">
         <span className="flex items-center gap-2.5 text-sm font-semibold">
-          <span className="grid size-8 shrink-0 place-items-center rounded-[10px] bg-primary/10 text-primary">
+          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
             {icon}
           </span>
           {title}

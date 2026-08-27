@@ -44,6 +44,8 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  /* 30px: el redondeo del retrato de la landing (y su marco) */
+  --radius-5xl: calc(var(--radius) * 3);
   /* Tokens extra de la paleta pública (landing + login) */
   --color-body: var(--pf-body);
   --color-accent-teal: var(--pf-accent);

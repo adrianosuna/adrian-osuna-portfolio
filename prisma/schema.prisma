@@ -226,3 +226,50 @@ model TravelExpense {
   @@index([yearUuid], map: "fk_travel_expense_year")
   @@map("travel_expense")
 }
+
+// ─────────── CONTROL DE GASTOS E INGRESOS (personal del admin) ───────────
+// Réplica del Excel "Control de gastos": cada MOVIMIENTO es un ingreso o un
+// gasto, con fecha propia (no cuelga del año de ahorro), su categoría y su
+// importe. Las categorías son libres, editables y propias de cada tipo (las
+// de gasto no se ofrecen para un ingreso); la migración siembra las del Excel.
+// Borrar una categoría NO borra sus movimientos: quedan "sin categoría"
+// (onDelete: SetNull), porque el historial del dinero no se tira.
+
+enum MovementType {
+  INGRESO @map("ingreso")
+  GASTO   @map("gasto")
+}
+
+model ExpenseCategory {
+  id       Int           @id @default(autoincrement())
+  uuid     String        @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
+  name     String        @db.VarChar(100)
+  /// Si la categoría es de ingreso o de gasto.
+  type     MovementType
+  /// Color del chip y del donut, en hexadecimal (#rrggbb).
+  color    String        @db.VarChar(9)
+  createTs DateTime      @default(now()) @map("create_ts") @db.Timestamp(0)
+  updateTs DateTime      @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
+  expenses Expense[]
+
+  @@index([type], map: "idx_expense_category_type")
+  @@map("expense_category")
+}
+
+model Expense {
+  id           Int              @id @default(autoincrement())
+  uuid         String           @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
+  categoryUuid String?          @map("category_uuid") @db.VarChar(36)
+  /// Ingreso o gasto (el "Tipo" de la hoja mensual del Excel).
+  type         MovementType
+  concept      String           @db.VarChar(255)
+  amount       Decimal          @default(0.00) @db.Decimal(12, 2)
+  expenseDate  DateTime         @map("expense_date") @db.Date
+  createTs     DateTime         @default(now()) @map("create_ts") @db.Timestamp(0)
+  updateTs     DateTime         @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
+  category     ExpenseCategory? @relation(fields: [categoryUuid], references: [uuid], onDelete: SetNull, onUpdate: NoAction, map: "fk_expense_category")
+
+  @@index([expenseDate], map: "idx_expense_date")
+  @@index([categoryUuid], map: "fk_expense_category")
+  @@map("expense")
+}

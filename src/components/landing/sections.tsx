@@ -132,7 +132,7 @@ export function Hero({ t }: { t: Content }) {
           <div className="relative">
             <div
               aria-hidden="true"
-              className="absolute inset-0 translate-x-3 translate-y-3 rounded-[30px] border-2 border-accent-teal/60"
+              className="absolute inset-0 translate-x-3 translate-y-3 rounded-5xl border-2 border-accent-teal/60"
             />
             <Image
               src="/img/adrian.webp"
@@ -143,7 +143,7 @@ export function Hero({ t }: { t: Content }) {
               // Tamaños reales renderizados (size-44/56/85/100): sin esto, el
               // móvil descargaba la variante de 828px para pintar 176px.
               sizes="(max-width: 640px) 11rem, (max-width: 768px) 14rem, (max-width: 1024px) 21.25rem, 25rem"
-              className="relative size-44 rounded-[30px] border border-border object-cover shadow-[0_18px_50px_var(--pf-shadow)] sm:size-56 md:size-85 lg:size-100"
+              className="relative size-44 rounded-5xl border border-border object-cover shadow-[0_18px_50px_var(--pf-shadow)] sm:size-56 md:size-85 lg:size-100"
             />
           </div>
         </Reveal>

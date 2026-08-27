@@ -49,7 +49,7 @@ const btnOutline =
   'inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3.5 py-1.5 text-sm font-semibold transition-colors hover:border-primary hover:text-primary'
 // p-2 (36px con icono): target táctil suficiente en móvil.
 const btnIcon =
-  'rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground'
+  'rounded-md p-2 max-sm:p-2.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground'
 
 function Avatar({ row }: { row: UserRow }) {
   if (row.picture) {
@@ -143,7 +143,7 @@ export function UsersTable({ rows, meUuid }: { rows: UserRow[]; meUuid: string }
           <>
             <button
               type="button"
-              className="rounded-md bg-danger px-2 py-1 text-xs font-semibold text-white"
+              className="rounded-md bg-danger px-2 py-1 text-xs font-semibold text-white max-sm:px-3 max-sm:py-2"
               onClick={() => {
                 setConfirming(null)
                 run(removeUser(row.uuid), 'Usuario eliminado')

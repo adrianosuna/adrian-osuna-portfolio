@@ -1,9 +1,9 @@
 'use client'
 
-// Pestañas del módulo de finanzas (Resumen + un tab por año) y el modal
-// "Gestionar años": el ÚNICO sitio desde el que se crean años, se cambian
-// sus objetivos, se renombran o se eliminan — lista con edición inline
-// (patrón de ConceptList) y alta al pie.
+// Navegación del módulo de finanzas en dos niveles: la barra de SECCIONES
+// (Panel · Ahorro · Gastos) y, dentro de Ahorro, sus pestañas (Resumen + un
+// tab por año) con el modal "Gestionar años" — el ÚNICO sitio desde el que se
+// crean años, se cambian sus objetivos, se renombran o se eliminan.
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, FileDown, Pencil, Plus, Settings2, Trash2, X } from 'lucide-react'
@@ -16,9 +16,40 @@ import { createYear, deleteYear, updateYear } from '@/app/app/finance/actions'
 import { BotonPrivado, MASCARA, useOculto } from './privado'
 import { btnIcon, btnOutline, btnPrimary, eur } from './comun'
 
-export function FinanzasTabs({ years, selected }: {
+/** Barra de secciones del módulo (nivel 1) + el ojo del modo privado. */
+export function FinanzasNav({ seccion }: { seccion: 'panel' | 'ahorro' | 'gastos' }) {
+  const router = useRouter()
+  const mesActual = new Date().toISOString().slice(0, 7)
+  const secciones = [
+    { id: 'panel' as const, label: 'Panel', href: '/app/finance' },
+    { id: 'ahorro' as const, label: 'Ahorro', href: '/app/finance?s=ahorro' },
+    { id: 'gastos' as const, label: 'Gastos', href: `/app/finance?s=gastos&mes=${mesActual}` },
+  ]
+  return (
+    <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex max-w-full gap-0.5 overflow-x-auto overflow-y-hidden rounded-lg border border-border bg-card/50 p-0.5">
+        {secciones.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            className={cn(
+              'flex-1 shrink-0 rounded-md px-4 py-1 text-sm font-semibold transition-colors sm:flex-none',
+              seccion === s.id ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
+            )}
+            onClick={() => router.push(s.href)}>
+            {s.label}
+          </button>
+        ))}
+      </div>
+      <BotonPrivado />
+    </div>
+  )
+}
+
+/** Pestañas de la sección Ahorro (nivel 2): Resumen + un tab por año. */
+export function AhorroTabs({ years, selected }: {
   years: YearSummary[]
-  /** Año activo, o null si está abierta la pestaña Resumen. */
+  /** Año activo, o null si está abierto el Resumen histórico. */
   selected: number | null
 }) {
   const router = useRouter()
@@ -51,7 +82,7 @@ export function FinanzasTabs({ years, selected }: {
     run(updateYear(y.uuid, { year: fila.year, goal: fila.goal }), 'Año actualizado', () => {
       setEditando(null)
       // Si se renombró el año activo, la URL vieja ya no existe: se sigue al nuevo.
-      if (selected === y.year && fila.year !== y.year) router.push(`/app/finance?year=${fila.year}`)
+      if (selected === y.year && fila.year !== y.year) router.push(`/app/finance?s=ahorro&year=${fila.year}`)
     })
   }
 
@@ -59,7 +90,7 @@ export function FinanzasTabs({ years, selected }: {
     setConfirmando(null)
     run(deleteYear(y.uuid), `Año ${y.year} eliminado`, () => {
       // Si era el año activo, su pestaña desaparece: al Resumen.
-      if (selected === y.year) router.push('/app/finance')
+      if (selected === y.year) router.push('/app/finance?s=ahorro')
     })
   }
 
@@ -78,10 +109,13 @@ export function FinanzasTabs({ years, selected }: {
 
   return (
     <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-      {/* Pestañas: Resumen + años (scroll horizontal si no caben) */}
-      {/* overflow-y-hidden: que un píxel de más nunca haga scrollear en vertical */}
+      {/* Resumen histórico + un tab por año (scroll horizontal si no caben).
+          overflow-y-hidden: que un píxel de más nunca scrollee en vertical. */}
       <div className="flex max-w-full gap-0.5 overflow-x-auto overflow-y-hidden rounded-lg border border-border bg-card/50 p-0.5">
-        <button type="button" className={tabClass(selected === null)} onClick={() => router.push('/app/finance')}>
+        <button
+          type="button"
+          className={tabClass(selected === null)}
+          onClick={() => router.push('/app/finance?s=ahorro')}>
           Resumen
         </button>
         {years.map((y) => (
@@ -89,18 +123,15 @@ export function FinanzasTabs({ years, selected }: {
             key={y.uuid}
             type="button"
             className={tabClass(selected === y.year)}
-            onClick={() => router.push(`/app/finance?year=${y.year}`)}>
+            onClick={() => router.push(`/app/finance?s=ahorro&year=${y.year}`)}>
             {y.year}
           </button>
         ))}
       </div>
 
-      <div className="flex shrink-0 gap-2">
-        <BotonPrivado />
-        <button type="button" className={cn(btnOutline, 'flex-1 sm:flex-none')} onClick={abrir}>
-          <Settings2 className="size-4" /> Gestionar años
-        </button>
-      </div>
+      <button type="button" className={cn(btnOutline, 'shrink-0')} onClick={abrir}>
+        <Settings2 className="size-4" /> Gestionar años
+      </button>
 
       {abierto && (
         <Modal
@@ -181,7 +212,7 @@ export function FinanzasTabs({ years, selected }: {
                       <>
                         <button
                           type="button"
-                          className="rounded-md bg-danger px-2 py-1 text-xs font-semibold text-white"
+                          className="rounded-md bg-danger px-2 py-1 text-xs font-semibold text-white max-sm:px-3 max-sm:py-2"
                           disabled={pending}
                           onClick={() => eliminarFila(y)}>
                           Sí

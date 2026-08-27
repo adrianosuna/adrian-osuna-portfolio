@@ -27,7 +27,8 @@ export default function PrivacidadPage() {
       <main className="mx-auto w-full max-w-190 px-[6%] py-14 sm:py-18">
         <Link
           href="/"
-          className="mb-8 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
+          // py-2: zona táctil suficiente para el pulgar sin cambiar el aspecto.
+          className="mb-6 inline-flex items-center gap-1.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
           <ArrowLeft className="size-4" />
           Volver al portfolio
         </Link>

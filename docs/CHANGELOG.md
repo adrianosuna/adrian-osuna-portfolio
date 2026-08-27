@@ -6,7 +6,468 @@ cuando algo se termina, se cuenta aquí con su porqué y desaparece de allí.
 
 ---
 
+## 27/08/2026
+
+### El panel de control en móvil
+
+Las cuatro pestañas y sus dos modales a 375px. Casi todo estaba bien: la barra
+de pestañas scrollea **solo en horizontal** (387px de contenido en 343, sin el
+scroll vertical de 1px que se arregló en su día), la gráfica de visitas pinta a
+escala 1, el mapa de calor de 169 celdas no desborda, y los modales de invitar
+(343×324) y de tarea de mantenimiento (343×420) caben enteros con sus campos a
+301px.
+
+- **El selector de rango de visitas (7 / 30 / 90 días) medía 24px de alto**, y
+  es el control que más se toca de esa pestaña: `py-2` en móvil lo deja en 32,
+  igual que antes desde `sm`.
+
+### El historial de una oportunidad podía quedarse "Cargando…" para siempre
+
+Salió revisando el pipeline en móvil. La actividad de una oportunidad se pide
+al abrir su detalle (no viaja con el tablero) y, **si esa carga fallaba, la
+sección se quedaba en "Cargando…" indefinidamente**: el toast del error
+desaparecía a los segundos y no quedaba ninguna forma de reintentar sin cerrar
+y volver a abrir el modal. Ahora muestra "No se pudo cargar la actividad" con
+un botón **Reintentar**.
+
+Va con seis tests nuevos (`tests/pipeline-timeline.dom.test.tsx`) que cubren los
+tres estados —cargando, con eventos, error—, que el reintento vuelve a pedir la
+actividad y la pinta, y que los cambios de estado (los que apunta el sistema)
+no ofrecen botón de borrado. El timeline solo se puede verificar así: sin
+sesión no se renderiza, y es justo lo que hacía falta para provocar el fallo.
+
+- **"Próxima acción" ocupaba media fila (145px) en el modal**, y es texto libre
+  ("Enviar la propuesta revisada"): en móvil pasa a lo ancho, con la fecha de
+  seguimiento debajo. Desde `sm`, las dos siguen en una fila. La pareja
+  "Origen + Importe" se queda a medias, que ahí sí caben.
+- El botón **Reintentar** nació con 16px de alto; `py-2` lo deja en 32.
+
+Lo demás del pipeline en móvil estaba correcto: el tablero no se renderiza (se
+trabaja desde Tabla), las métricas y las tarjetas caben sin desborde, el
+Histórico lista las archivadas con su fecha de cierre y su importe, y los
+botones de icono ya miden 34px.
+
+### Finanzas en móvil: el repaso de los detalles pequeños
+
+Recorrido completo del módulo a 375px (las tres secciones, sus pestañas y los
+dos modales). El modo privado sale activo por defecto y enmascara también los
+importes de los modales ("Objetivo ••••"), y ningún scroller se desmadra.
+Cuatro arreglos, todos del mismo tipo: cosas que en móvil no se leen o no se
+pueden tocar bien.
+
+- **El enlace "Ir a gastos" se partía en dos líneas**, con la flecha suelta
+  debajo: el título largo de esa cabecera ("En qué se va el dinero en Agosto")
+  lo comprimía a 72px. Con `min-w-0` en el título y `shrink-0` +
+  `whitespace-nowrap` en el enlace, los dos enlaces gemelos del panel miden ya
+  lo mismo (27px de alto, una línea).
+- **Los nombres de categoría se cortaban en el modal de gestión** — cuatro de
+  diecinueve ("Comer fuera / Café…", "Móvil y teléfo…") — y ahí hay que poder
+  leer qué categoría se edita o se borra. En móvil el contador de usos baja a
+  su propia línea y el nombre se ve entero.
+- **Los botones de icono medían 30×30.** En móvil van de tres en tres por fila
+  (Excel / Editar / Eliminar) y uno de ellos borra: `max-sm:p-2.5` los deja en
+  34px. Aplicado a los cuatro `btnIcon` del dashboard (finanzas, pipeline,
+  mantenimiento y usuarios).
+- **El ✕ de los modales medía 28×28**, y es el control con el que se sale en
+  móvil: pasa a 36.
+
+### Repaso de la landing, el login y la privacidad
+
+Las tres páginas públicas a 375, 753 y 1425px. La landing no necesitó ningún
+cambio: sin porcentajes (el cambio de formato no la toca), radios coherentes
+(retratos 30px con su marco alineado, tarjetas de caso 18px) y las capturas de
+los proyectos las recorta la tarjeta con su `overflow: hidden`, así que sus
+esquinas cuadradas no asoman. Login y privacidad, un arreglo:
+
+- **"Volver al portfolio" tenía 20px de zona táctil** en las dos páginas (es un
+  enlace de texto y el único control secundario de ambas). Con `py-2` sube a
+  36px sin cambiar el aspecto ni el espaciado total (el margen superior se
+  compensa). Los enlaces de correo dentro de los párrafos se dejan como están:
+  ampliarlos rompería el interlineado del texto corrido.
+
+Dos comprobaciones que NO eran fallos, aunque lo parecían:
+
+- **El banner de cookies no aparece en local** y GA no carga, con
+  `NEXT_PUBLIC_GA_ID` presente en `.env` y React hidratando bien (verificado por
+  `__reactFiber$`, sin errores). La variable está declarada **vacía** con un
+  comentario al lado: sin ID no se renderiza nada, que es el comportamiento
+  documentado. En producción, donde se hornea con valor, el banner sale.
+- **El botón "Cambiar mi elección de cookies"** se pinta siempre, también sin
+  GA. Se deja así: en producción siempre hay GA, y condicionarlo dejaría la
+  sección 7 de la política con su texto y sin botón.
+
+### Repaso del panel de control
+
+Las cuatro pestañas a 375 y 1150px. Servidor estaba impecable (12 tarjetas en
+tres columnas, nada recortado) y Usuarios también (en móvil la tabla pasa a
+tarjetas). Dos arreglos:
+
+- **La gráfica de visitas escalaba ×1,38** (lienzo de 760 pintado en 1045px):
+  el mismo defecto de las otras tres. Con esto, las **cuatro gráficas del
+  dashboard** miden ya su hueco y se pintan a escala 1,000 — así que el hook
+  `useAncho` se saca a `src/components/ui/use-ancho.ts` (lo usaban finanzas,
+  gastos y ahora el panel; importarlo del módulo de ahorro ya no tenía
+  sentido). Cae otra pareja de variantes por breakpoint.
+- **Las notas de mantenimiento se cortaban en móvil**, y la nota ES la
+  instrucción de la tarea: con `line-clamp-2` se perdía entre un tercio y la
+  mitad del texto en 5 de 6 tareas ("Un backup no probado no es un backup:
+  restaur…"), sin `title` ni forma de leerlo salvo abrir la edición. En
+  escritorio no se cortaba ninguna, así que el clamp se retira solo en móvil:
+  la lista crece de 824 a 1005px y no se pierde una palabra.
+
+### Repaso del pipeline: los seguimientos no se leían
+
+Con siete oportunidades en el tablero salió que **el chip de seguimiento se
+cortaba en todas las tarjetas**: en una columna de 211px el chip tiene ~130px y
+la fecha completa ("23/08/2026 · ") se comía el sitio, así que la acción —lo
+único accionable— nunca se llegaba a leer. Lo mismo en la vista Tabla, donde la
+columna de 245px cortaba dos de ocho filas.
+
+Ahora el chip pone **la urgencia primero, en lenguaje natural, y la acción
+debajo**: "venció hace 4 días / Enviar la propuesta revisada", con la fecha
+exacta en el `title`. El helper `cuandoSeguimiento` es compartido por el
+tablero y la tabla (misma lectura en las dos vistas) y lleva cuatro tests, con
+el cruce de mes incluido.
+
+- **El botón de confirmar un borrado medía 27×24px en móvil.** Aparece ocho
+  veces en el dashboard (pipeline, gastos, años, mantenimiento, usuarios) y
+  siempre confirma algo destructivo: pasa a 35×32 en móvil, igual en escritorio.
+  Lo que ya estaba bien resuelto: al pedir confirmación, el "Sí" sale a la
+  IZQUIERDA y bajo el punto que se acaba de tocar queda *Cancelar*, así que un
+  clic duplicado (como los que produce el visor móvil) cancela, no borra.
+- Verificado también: el tablero **no se renderiza en móvil** (se trabaja desde
+  Tabla, con su selector de estado de 144×38), el Histórico lista las
+  archivadas con su fecha de cierre, y las métricas cuadran (40.200 € abiertos,
+  5 abiertas, cierre medio de 26 días).
+
+**Porcentajes unificados con espacio, como prescribe la RAE** ("67 %"): la
+app mezclaba las dos formas —el panel de control y el pipeline con espacio,
+finanzas sin él—. Ahora van los 26 con espacio **irrompible** (el que usa
+`Intl` en es-ES), así que la cifra y el símbolo no se separan nunca en un salto
+de línea. En finanzas lo centraliza `pct()`, que pasa a formatear con `Intl` en
+vez de concatenar; los KPIs de la vista de año y los desgloses también lo usan
+ya. Tres tests fijan el formato (espacio presente, irrompible y sin decimales)
+para que no vuelva a divergir.
+
+De paso salió **una cuarta tasa de ahorro** que se había quedado fuera de la
+corrección del denominador: la del bloque de KPIs de la vista de año la
+calculaba a mano sin los extras, así que podía pasar del 100% igual que las
+otras. Ahora comparte fórmula y formato con el resto.
+
+### Repaso del panel de finanzas y del inicio
+
+Las rejillas y las tarjetas estaban bien a 375 y 1150px (cuatro KPIs en fila,
+bloques gemelos de 543×298, cero desborde), y el modo privado también: los
+importes llegan **ya difuminados desde el servidor**, sin el flash que sospeché.
+Tres cosas sí salieron:
+
+- **Un aviso del inicio se cortaba en su propio título.** En móvil el hueco es
+  de ~250px y `truncate` dejaba "2 seguimientos del pipeline venci…", que es
+  justo lo primero que hay que leer. Ahora título y detalle se reparten en dos
+  líneas en móvil (el aviso pasa de 63 a 102px de alto) y siguen con ellipsis
+  desde `sm`.
+- **"Ingresos de Agosto · 32 movimientos apuntados"** contaba TODOS los
+  movimientos del mes, no los ingresos: bajo ese título se leía como 32
+  ingresos cuando eran 3. Ahora cuenta solo los de su tipo.
+- **El panel listaba las doce categorías de gasto**, con la tarjeta a 568px de
+  alto en móvil. Un panel es un resumen: van las **cinco principales y el resto
+  agrupado** ("Otras 7 categorías"), que baja la tarjeta a 456px sin perder el
+  total ni los porcentajes (48+20+8+5+4+15 = 100). El desglose completo sigue
+  entero en la sección Gastos, a un clic.
+
+Para poder revisar la franja de avisos y el KPI del pipeline, que en local
+estaban a cero: **siete oportunidades inventadas** (dos con el seguimiento
+vencido, tres abiertas, una cerrada y una descartada → 40.200 € de pipeline
+abierto y el aviso de seguimientos). Se borran con
+`DELETE FROM opportunity WHERE origin = 'Datos de prueba';`.
+
+### La tasa de ahorro podía pasar del 100%
+
+Salió al revisar el Resumen con dos años en la base: 2026 marcaba **101%**, que
+es imposible. La fórmula sumaba los ingresos extraordinarios al ahorro (lo son)
+pero no a los ingresos (también lo son), así que el numerador crecía sin que el
+denominador se enterara. Ahora los extras cuentan en **ambos lados**, en la
+tasa de cada año y en la histórica del pie de tabla: 2025 pasa de 41% a 35%,
+2026 de 101% a 79% y el total a 51%. Un test nuevo fija el límite (un año en
+que todo lo ingresado se ahorra da 100%, nunca más).
+
+### Las dos gráficas del ahorro, también a escala 1:1
+
+El mismo tratamiento que las barras de Gastos, porque tenían el mismo defecto:
+«Ahorro por mes» pintaba su lienzo de 760 en 1053px (**escala 1,39**) y «Ahorro
+acumulado por año» en 1068 (**1,41**), agrandando sus fuentes un 40%. Las dos
+miden ahora su hueco con el hook compartido `useAncho` y se pintan a **escala
+1,000** (verificado a 375 y 1135px), apretándose solas por debajo de 420px — lo
+que retira otra pareja de variantes por breakpoint y el `min-w-140` que las
+hacía scrollear en móvil.
+
+Dos ajustes que vinieron con esto:
+
+- **La gráfica de acumulado se adapta al número de años.** Con dos años pintaba
+  una línea de mil píxeles entre dos puntos pegados a los bordes; ahora el
+  lienzo crece ~200px por tramo hasta el hueco disponible y el dibujo queda
+  centrado (288px con dos años).
+- **La vista de un año vuelve a emparejarse desde `lg`.** Se había dejado en
+  `xl` justo porque la gráfica mensual se encogía al emparejar; ya no aplica.
+  A 1135px: tabla de 667px y gráfica de 635px a escala 1, en vez de una tabla
+  de 12×4 estirada a 1085px.
+
+Para poder revisarlo con datos: **2025 de ahorro relleno** (12 meses cerrados,
+dos pagas extra, una devolución y dos viajes → 8.805 € sobre un objetivo de
+9.500). Se borra con `DELETE FROM saving_year WHERE year = 2025;` (las filas
+hijas caen por cascada).
+
+### Editar un movimiento desde el móvil (desbordaba la página)
+
+Repaso de la vista de mes tras los cambios de la gráfica. Todo lo demás salió
+bien (32 movimientos con las cuatro columnas alineadas a 375, 753, 1135 y
+1410px; desgloses gemelos sin romper línea), pero **la edición de una fila
+nunca se había adaptado al móvil**: sus seis campos son `shrink-0` y suman
+609px, así que en 309px de fila **desbordaban la página 234px** y el concepto
+quedaba en un hueco de 22px.
+
+Ahora la fila en edición se apila igual que el alta: tipo, concepto y categoría
+a lo ancho, fecha e importe a mitades, y **Guardar / Cancelar como botones de
+40px con texto** (dos iconos de 30px para confirmar una edición eran poco).
+Desde `sm` sigue siendo la fila compacta de una sola línea.
+
+De paso, **las flechas ▲▼ del importe** medían 16×14px en móvil: impulsables
+con el pulgar y fáciles de tocar sin querer al ir al campo. Suben a 24×18 en
+móvil y se quedan igual desde `sm`.
+
+### La gráfica del año mide su hueco y pinta a escala 1:1
+
+«Mes a mes» a todo el ancho y las barras **en su propia fila**, también a todo
+el ancho (como se pidió). Lo que hacía falta para que eso se viera bien es que
+la gráfica dejara de estirar un lienzo fijo: un SVG de 520px con `w-full`
+escala TODO con él, y a 1085px la fuente de 10,5 se pintaba a 21px.
+
+Ahora un `ResizeObserver` mide el hueco y el lienzo se genera con ese ancho
+exacto, así que **la escala es 1,000 a cualquier ancho** (medido a 375, 753,
+1135 y 1425px: fuente real 11,5px y barras de 22px en todos). El alto crece
+con el ancho (200–260px) y por debajo de 420px sigue la variante apretada
+(iniciales de mes, eje en "1,5k"). Se cayeron con esto las dos variantes por
+breakpoint y todos los `max-w` de emergencia.
+
+Detalles que costaron un par de vueltas:
+
+- **La medida no puede depender solo del observer.** Un `ResizeObserver` solo
+  avisa cuando el navegador vuelve a componer, y hay contextos (una pestaña de
+  fondo, un panel oculto) donde ese aviso no llega nunca: la gráfica se quedaba
+  **en blanco**. Ahora se mide de forma síncrona al montar y el observer (más
+  el evento `resize`) solo sirve para los cambios posteriores.
+- **Ni `width` fijo en píxeles.** Con `width={W}` la gráfica no encogía al
+  estrechar la ventana y **desbordaba la página 406px**. Con `w-full` sobre el
+  lienzo medido no puede desbordar, y un tope de `max-height` hace que una
+  medida que se quedara vieja se pinte a su tamaño **centrada** en vez de
+  estirarse (un lienzo de 309 en 1053px llegaba a escalar ×3,4).
+- **Cuatro tests nuevos** (`tests/gastos-grafica.dom.test.tsx`) cubren las dos
+  vías de medida —la síncrona del montaje y el aviso del observer, que repinta
+  a `0 0 640 200`—, la variante apretada y el hueco reservado antes de la
+  primera medida. El navegador de pruebas no entrega avisos de
+  `ResizeObserver`, así que esa parte solo se puede verificar así.
+
+### El breakpoint estaba mal puesto: `xl` llegaba demasiado tarde
+
+La causa real de "la tabla ocupa todo el ancho y la gráfica debajo también".
+Las parejas y las rejillas de KPIs del dashboard se formaban desde `xl`
+(1280px), así que **en una ventana de 1150px nada se emparejaba**: «Mes a mes»
+se estiraba a 1085px y la gráfica pintaba su lienzo de 520 en 1053px —
+**escala ×2, fuente de 21px y barras enormes**.
+
+- Las rejillas del módulo pasan a `lg` (1024px), que es exactamente donde ya
+  caben: a 1024px la gráfica queda a **escala 0,99** (1:1) y a 1150px a 1,14,
+  con la tabla en 444px y los desgloses en dos tarjetas de 536px.
+- **Por debajo de `lg`, apiladas, ambas limitan su contenido**: la gráfica no
+  pasa de 640px (escala 1,23) y la tabla de 672px. Estirarse a todo lo ancho
+  era justamente lo que se veía mal.
+- **La vista de años se queda en `xl` a propósito**: su columna de 15fr solo
+  da 600px en `lg` y la gráfica mensual (lienzo de 760) se encogería a 0,79 —
+  ahí apilada a todo lo ancho se ve mejor que emparejada y pequeña.
+
+Comprobado a 375, 760, 1000, 1024 y 1150px: sin desborde de página ni scroll
+interno en ninguno.
+
+### La vista de mes, aguantando un mes de verdad (32 movimientos)
+
+Con once movimientos al mes todo parecía correcto; con treinta y dos —lo que
+tiene un mes real— salieron tres cosas:
+
+- **El desglose rompía la línea.** En una tarjeta de 566px, la leyenda de doce
+  categorías (481px en dos columnas) no cabía junto al donut y flex-wrap la
+  tiraba **debajo**: esa tarjeta se iba a 345px de alto mientras su hermana
+  (tres categorías) medía 176, una con la gráfica arriba y la otra al lado.
+  Ahora el donut y la leyenda van **siempre al lado** (leyenda a una sola
+  columna, filas más apretadas a partir de ocho categorías, nombres largos con
+  ellipsis y su nombre completo en el título) y **solo se apilan en móvil**.
+  Las dos tarjetas miden ya lo mismo (352px) y el desglose corto **centra su
+  donut** en vez de dejarlo pegado arriba.
+- **La categoría zigzagueaba.** Iba pegada al importe, así que su posición
+  dependía del largo del concepto: en 32 filas, 19 posiciones distintas. Con
+  anchos fijos desde `sm` todas las columnas caen en la misma vertical
+  (fecha · concepto · categoría · importe).
+- **En móvil se perdían conceptos.** Con ~120px para el concepto, cinco de los
+  treinta y dos se cortaban ("Reparación del portáti…"). Ahora en móvil el
+  concepto se reparte en **dos líneas** (la fila crece a 58px solo cuando hace
+  falta) y desde `sm` sigue con ellipsis.
+
+### Las gráficas de Gastos, revisadas con un año entero de datos
+
+Con doce meses rellenos salieron a la luz cosas que con dos movimientos no se
+veían:
+
+- **"Ingresos y gastos por mes"** pintaba un lienzo de 760px en una columna de
+  629 (escala 0,83): el navegador encogía la fuente de 10,5px a **8,7px reales**
+  y las barras a 14px. Ahora el lienzo mide 520 y hay **dos variantes**: la de
+  escritorio (escala 1,21 → fuente real 12,7px) y una **compacta para móvil**
+  (340×180, iniciales de mes, eje abreviado "1,5k") que cabe entera en 375px
+  sin scroll interno.
+- **Los donuts perdían las porciones pequeñas.** La separación entre arcos era
+  fija (1,2% de la circunferencia), así que una categoría del 1% se restaba a
+  sí misma y desaparecía: con trece categorías de gasto había arcos
+  invisibles. Ahora el hueco se **reduce a partir de seis partes** y todo arco
+  tiene un **mínimo de 1,5px** — una propina junto a la nómina (0,5% frente al
+  99%) se sigue viendo.
+- **Leyenda a dos columnas** desde ocho categorías: con trece crecía en una
+  sola tira interminable.
+- Los donuts reutilizados en Gastos anunciaban "Composición del ahorro anual"
+  a los lectores de pantalla; ahora cada uno lleva **su propio título**.
+- **"0% frente a…" ya no se pinta de color.** Repetir el mismo gasto (o cobrar
+  la misma nómina) que el mes anterior salía en rojo o verde según el signo de
+  un cero; ahora dice "igual que el mes anterior", en gris.
+
+### Radios: fuera los valores arbitrarios
+
+Había dieciséis `rounded-[Npx]` repartidos por el proyecto. Los seis con
+equivalente EXACTO en la escala del tema pasaron a su clase (`rounded` = 4px,
+`rounded-lg` = 10px, `rounded-2xl` = 18px) — ojo, aquí `rounded-lg` son **10px**,
+no los 8 de Tailwind por defecto, porque `globals.css` redefine la escala sobre
+`--radius: 0.625rem`.
+
+Los otros diez se alinearon a la clase más próxima: los siete de 3px (los
+cuadraditos de color de las leyendas) a `rounded-xs` (2px) y el de 5px a
+`rounded-sm` (6px). Para los retratos de la landing, que estaban en 30px, se
+añadió **un paso más a la escala** (`--radius-5xl`, `--radius` × 3 = 30px) en
+lugar de bajarlos a los 26 de `4xl`: se querían en 30 y así el valor deja de
+ser arbitrario. El marco decorativo y la foto siguen compartiendo radio exacto,
+que era el riesgo del cambio.
+
+### La versión de pnpm, fijada en `package.json`
+
+Añadido `"packageManager": "pnpm@11.10.0"`, el campo estándar que Corepack lee
+para activar esa versión exacta. pnpm no puede ser una dependencia del
+proyecto —es justamente quien lee el `package.json`—, así que su versión solo
+estaba escrita en el `Dockerfile` (`npm install -g pnpm@11.10.0`): en local
+dependía de lo que tuviera instalada la máquina. Ahora los dos entornos
+declaran la misma, y al actualizar pnpm hay que subir el número en ambos.
+
+### Dependencias al día (solo patch y minor)
+
+Aplicado lo compatible que sacó `pnpm deps`: **Next 16.3.3** (con
+`eslint-config-next` a la par, van siempre juntas), **Prisma 7.10.0** (los tres
+paquetes + `prisma generate`), **lucide-react 1.34.0** y `@types/react-dom`
+19.2.5. Comprobado con los 177 tests, lint y build.
+
+**pnpm, a 11.24.0 en los tres sitios que hay que mover juntos**: el binario
+global de la máquina (`pnpm self-update 11.24.0` — está instalado en modo
+standalone, no por npm), el campo `packageManager` y el `Dockerfile`. Ojo al
+orden: mientras el campo declare una versión, pnpm la respeta y se descarga esa
+aunque el global sea otro, así que actualizar solo el global no cambia nada
+dentro del proyecto. El lockfile no se tocó ("Already up to date").
+
+**Fuera a propósito**: los *major* (`eslint` 10, `typescript` 7, `@types/node`
+26), que piden revisión propia.
+
+`pnpm audit` deja una moderada: `uuid <11.1.1` que entra por `exceljs`
+(GHSA-w5hq-g745-h8pq). **No aplica aquí** — el fallo está en el bounds check de
+`v3/v5/v6` cuando se les pasa un `buf`, y exceljs solo llama a `v4()` sin
+argumentos. Se deja sin override para no arriesgar el export a Excel por una
+vulnerabilidad que el código no puede alcanzar.
+
+---
+
 ## 26/08/2026
+
+### La tabla "mes a mes" del año, legible
+
+Tenía dos problemas a la vez: en escritorio se estiraba a 1150px (cuatro
+cifras cortas repartidas por toda la pantalla, con el ojo viajando de columna
+a columna) y en móvil scrolleaba en horizontal. Ahora **comparte fila con la
+gráfica de barras** (`xl:grid-cols-[5fr_7fr]`: tabla ~470px, gráfica ~630px,
+que es quien agradece el ancho) y en móvil **cabe entera sin scroll** (341px)
+con los meses abreviados (Ene, Feb…), padding y texto más ajustados.
+
+### Apuntar un gasto, pensado para el móvil
+
+El módulo se va a usar sobre todo desde el teléfono, así que el alta se
+rediseñó para el pulgar en vez de encoger la fila de escritorio:
+
+- **El formulario va arriba**, antes de la lista: en el móvil se apunta sobre
+  la marcha y bajar hasta el final para encontrarlo no valía.
+- **Apilado en cinco filas claras**: tipo como **segmentado Gasto/Ingreso**
+  (con su color: rojo/verde — para algo binario un select sobra), concepto a
+  lo ancho, importe y fecha compartiendo fila, categoría a lo ancho, y el
+  botón **"Añadir gasto" / "Añadir ingreso"** a ancho completo y con texto
+  (antes era un "+" de 36px). Desde `sm`, la fila compacta de siempre.
+- **La fecha viene con hoy** cuando se está viendo el mes en curso (antes
+  proponía el día 1 del mes, que casi nunca es lo que quieres).
+- Alturas de target táctil igualadas (~40px en los controles del alta).
+
+### Finanzas en tres secciones, con panel principal
+
+La barra de Finanzas mezclaba conceptos: "Resumen" era del ahorro, los años
+también, y "Gastos" era otro mundo entero colgando del mismo nivel. Ahora la
+navegación tiene dos niveles:
+
+- **Panel** (`/app/finance`, por defecto): lo importante de las dos secciones
+  en una pantalla — cuatro cifras (ahorro del año con su barra de objetivo,
+  ingresos, gastos y balance del mes en curso, con comparativa), un bloque de
+  **ahorro** (ahorrado, objetivo, desvío frente a lo que tocaría hoy,
+  proyección a cierre, ritmo y tasa) y otro de **gastos** (el donut de "en qué
+  se va el dinero" este mes). Cada bloque enlaza a su sección.
+- **Ahorro** (`?s=ahorro`): sus pestañas propias (Resumen histórico + un tab
+  por año) y «Gestionar años».
+- **Gastos** (`?s=gastos`): el mes o el año, con «Gestionar categorías».
+
+El ojo del modo privado vive en la barra de secciones, así que vale para las
+tres. Componentes: `FinanzasNav` + `AhorroTabs` en `finanzas-tabs.tsx` y el
+panel nuevo en `panel-finanzas.tsx`; la página orquesta las tres secciones
+con un componente async por cada una.
+
+### 💸 Control de gastos e ingresos: el módulo que faltaba
+
+La feature estrella del backlog, cerrada — y alineada con el Excel "Control de
+gastos" de Adrián, que se revisó para copiar su semántica: no es solo gastos,
+es un **libro de movimientos** donde cada apunte es un **ingreso o un gasto**.
+
+**Modelo**: los movimientos tienen **fecha propia** (no cuelgan del año de
+ahorro) porque son un flujo continuo, así el mes se deriva de la fecha y no
+hace falta que el año exista. Las **categorías son libres y propias de cada
+tipo** (a un ingreso no se le ofrece "Supermercado"); la migración
+`control_de_gastos` siembra las 19 del Excel — 15 de gasto y 4 de ingreso.
+Borrar una categoría **no borra sus movimientos**: quedan "sin categoría" (FK
+con SET NULL), porque el historial del dinero no se tira.
+
+- **Vista del mes** (`?mes=2026-08`), navegable: KPIs de **ingresos, gastos,
+  balance y gasto medio al día**, con comparativa contra el mes anterior y el
+  color puesto donde toca (subir ingresos es bueno, subir gastos no); lista de
+  movimientos con signo (+/−), edición inline y alta rápida de una línea
+  (tipo · concepto · categoría · fecha · importe); y los **dos desgloses** del
+  Excel en donut: "En qué se va el dinero" y "De dónde viene el dinero".
+- **Vista del año** (`&vista=anio`): ingresos, gastos, balance y gasto medio
+  al mes (que, como el Excel, solo cuenta los meses con algo apuntado), tabla
+  **mes a mes** con su balance y cada mes clicable, gráfica de barras
+  ingresos/gastos por mes, y los desgloses de todo el año.
+- **Modal "Gestionar categorías"**: las dos listas separadas, con crear,
+  renombrar, recolorear (paleta de 8) y borrar, mostrando cuántos movimientos
+  usa cada una. El nombre solo debe ser único dentro de su tipo, así "Regalos"
+  puede existir como gasto y como ingreso.
+- **"Gastos del mes" del inicio ya tiene dato real** (llevaba desde el
+  lanzamiento en "En desarrollo") y enlaza al mes en curso; respeta el modo
+  privado como el resto de importes.
+- Con tests (173 en total): saneado y whitelist de tipos en las actions,
+  duplicados de categoría por tipo, colores inválidos, y la capa de datos del
+  mes y del año (rangos con cruce de año, balance, media diaria y desgloses).
 
 ### KPIs del Resumen de finanzas, y mantenimiento más limpio
 

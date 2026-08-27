@@ -22,12 +22,22 @@ export const eur = (v: number | null | undefined) =>
 export const ahorroAnualDe = (y: YearSummary) =>
   y.monthsGeneral + y.extrasTotal + (y.monthsTravel - y.travelsTotal)
 
-/** Tasa de ahorro: qué parte de lo ingresado se ahorra (null sin ingresos). */
-export const tasaAhorroDe = (y: YearSummary) =>
-  y.incomeTotal > 0 ? ahorroAnualDe(y) / y.incomeTotal : null
+/**
+ * Tasa de ahorro: qué parte de lo ingresado se ahorra (null sin ingresos).
+ * Los ingresos extraordinarios cuentan en AMBOS lados: son ahorro, pero
+ * también son ingresos. Dejándolos solo arriba la tasa se inflaba y podía
+ * pasar del 100% (imposible: no se ahorra más de lo que entra).
+ */
+export const tasaAhorroDe = (y: YearSummary) => {
+  const ingresos = y.incomeTotal + y.extrasTotal
+  return ingresos > 0 ? ahorroAnualDe(y) / ingresos : null
+}
 
-/** Formato de tasa: '34%' o '—'. */
-export const pct = (v: number | null) => (v === null ? '—' : `${Math.round(v * 100)}%`)
+/** Formato de tasa: '34 %' o '—'. El porcentaje va con espacio (norma RAE) y
+ *  lo pone Intl, que en es-ES usa un espacio IRROMPIBLE: la cifra y el símbolo
+ *  nunca se separan en un salto de línea. */
+export const pct = (v: number | null) =>
+  v === null ? '—' : v.toLocaleString('es-ES', { style: 'percent', maximumFractionDigits: 0 })
 
 // ─────────── proyección del año en curso (fórmulas puras) ───────────
 
@@ -104,7 +114,7 @@ export const btnOutline =
 export const btnDanger =
   'inline-flex items-center justify-center gap-1.5 rounded-md border border-danger/40 px-3.5 py-1.5 text-sm font-semibold text-danger transition-colors hover:bg-danger-bg'
 // p-2 (36px con icono): target táctil suficiente en móvil.
-export const btnIcon = 'rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+export const btnIcon = 'rounded-md p-2 max-sm:p-2.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
 
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

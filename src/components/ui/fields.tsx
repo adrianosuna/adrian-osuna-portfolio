@@ -207,8 +207,11 @@ export function NumberField({
     onChange(nuevo)
   }
 
+  // En móvil el target táctil sube a 18px de alto (14 era impulsable con el
+  // pulgar y se pulsaba sin querer al ir al campo); desde sm, el tamaño
+  // minimalista de siempre.
   const flecha =
-    'flex h-3.5 items-center rounded-sm px-0.5 text-muted-foreground/60 transition-colors hover:text-foreground'
+    'flex h-4.5 items-center rounded-sm px-1.5 text-muted-foreground/60 transition-colors hover:text-foreground sm:h-3.5 sm:px-0.5'
 
   return (
     <div

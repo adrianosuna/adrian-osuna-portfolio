@@ -85,6 +85,11 @@ Proyecto Next.js App Router con `src/`. **Paleta única en todo el sitio**
   actividad reciente; sus datos salen de `src/lib/inicio.ts` en una pasada
   paralela de consultas acotadas (nunca traer módulos enteros para pintar
   cifras) y el pulso de visitas va en Suspense.
+  **Las gráficas son SVG a mano y miden su contenedor** con
+  `useAncho` (`src/components/ui/use-ancho.ts`): un lienzo fijo estirado con
+  `w-full` escala también las fuentes (un lienzo de 760 en 1053px las agranda
+  un 39%), así que el lienzo se genera con el ancho real y se pinta a 1:1 — sin
+  variantes por breakpoint.
   Los modales usan siempre `src/components/ui/modal.tsx` (cabecera y pie
   fijos, cuerpo con scroll); los popovers de `fields.tsx` (select, calendario)
   se renderizan en un portal con posición fija — nunca los recorta un
@@ -140,12 +145,15 @@ Semántica del ahorro anual: **mensual + ingresos extra + sobrante de viajes**
 (ahorrado − gastado: lo no gastado se suma al cierre y los viajes del año
 siguiente empiezan de cero; gastar de más resta). **Sin capital
 inicial/final** ni fecha en los gastos de viaje (retirados el 26/08/2026,
-columnas eliminadas: el módulo controla solo el ahorro). Organización en
-pestañas por URL: sin `?year` se abre **Resumen** (`resumen-general.tsx`,
-KPIs históricos + tabla + capital acumulado, solo lectura) y `?year=2026`
-abre ese año (`savings-module.tsx`); TODA la gestión de años (crear,
-renombrar, objetivo, eliminar) vive en el modal «Gestionar años» de la barra
-`finanzas-tabs.tsx` — en ningún otro sitio — y las utilidades comunes en
+columnas eliminadas: el módulo controla solo el ahorro). Organización en TRES
+secciones por URL (`?s=`): **Panel** (por defecto, `panel-finanzas.tsx`: lo
+importante del ahorro y del mes de movimientos en una pantalla), **Ahorro**
+(`?s=ahorro`: sin `year` el Resumen histórico de `resumen-general.tsx`, con
+`&year=2026` ese año en `savings-module.tsx`) y **Gastos** (ver más abajo).
+La nav de secciones y las pestañas de años son `FinanzasNav` y `AhorroTabs`;
+TODA la gestión de años (crear, renombrar, objetivo, eliminar) vive en el
+modal «Gestionar años» de `finanzas-tabs.tsx` — en ningún otro sitio — y las
+utilidades comunes en
 `savings/comun.tsx` (incluidas las fórmulas puras del asistente del año en
 curso: `proyeccionDe` y `esperadoHoy` — proyección a fin de año, necesario
 mensual y objetivo prorrateado a hoy). KPIs, "restante" y proyecciones se
@@ -155,6 +163,21 @@ cerrados sin rellenar (`avisarMesSinRellenar`, reaviso semanal vía
 `saving_year.last_reminded`). Cada año se exporta a Excel desde «Gestionar
 años» (`GET /app/finance/exportar?year=`, exceljs, guarda de admin propia:
 los route handlers no los protege el layout).
+
+### Control de gastos e ingresos (`src/lib/gastos.ts` + `/app/finance?mes=`)
+
+Dentro de Finanzas, pestaña **Gastos**: réplica del Excel "Control de gastos"
+de Adrián — cada movimiento es un **ingreso o un gasto** (`MovementType`) con
+**fecha propia** (no cuelga de `saving_year`), así que el mes se deriva de la
+fecha. Dos sub-vistas: **mes** (`?mes=2026-08`: ingresos/gastos/balance/gasto
+medio al día, lista con alta rápida y los dos desgloses "en qué se va" / "de
+dónde viene") y **año** (`&vista=anio`: mes a mes con balance, barras y
+desgloses anuales). Las **categorías son libres y propias de cada tipo**
+(tabla `expense_category`, 19 sembradas en la migración) y se gestionan en el
+modal «Gestionar categorías»; su nombre es único DENTRO del tipo y borrarlas
+NO borra sus movimientos (FK `SetNull`: quedan "sin categoría"). Los donuts
+reutilizan `DonutAhorro` con `centro`/`vacio`; la tarjeta "Gastos del mes"
+del inicio sale de `gastadoEnMesDe`.
 
 ### Pipeline de oportunidades (`src/lib/pipeline.ts` + `/app/pipeline`)
 
@@ -194,6 +217,11 @@ completa: `docs/DESPLIEGUE.md` (procedimiento validado en local el 25/08/2026).
 Todo el texto de la UI, comentarios de código, mensajes y documentación de este
 proyecto están en **español**. El sitio es monolingüe (el multiidioma ES/EN se
 retiró antes del lanzamiento).
+**Porcentajes con espacio, como prescribe la RAE** ("67 %", no "67%") y con
+espacio **irrompible** (` ` / `&nbsp;`), para que la cifra y el símbolo no
+se separen en un salto de línea. En finanzas lo pone `pct()` de `savings/comun`
+(vía `Intl`, que en es-ES ya usa ese espacio) — usarlo siempre que se pueda en
+lugar de componer el texto a mano.
 **Sin ejemplos enumerados en labels ni placeholders** — nada de "Concepto
 (vuelos, hotel...)" o "Título (rol, encargo...)": etiquetas escuetas
 ("Concepto", "Título"). Los placeholders solo si son funcionales ("Buscar...",

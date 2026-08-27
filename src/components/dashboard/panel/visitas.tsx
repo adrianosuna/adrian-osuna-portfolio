@@ -5,6 +5,7 @@
 // conversiones de la landing (eventos clic_*), geografía, tecnología y mapa
 // horario. Gráficas SVG a mano, como las del módulo de ahorro.
 import { useEffect, useState } from 'react'
+import { useAncho } from '@/components/ui/use-ancho'
 import Link from 'next/link'
 import {
   BarChart3, ExternalLink, Eye, MousePointerClick, Radio, Target, TriangleAlert,
@@ -38,7 +39,7 @@ function Tendencia({ m, dias }: { m: Metrica; dias: number }) {
   if (pct === 0) return <span className="text-[11.5px] text-muted-foreground/70">= vs. {dias} días previos</span>
   return (
     <span className={cn('text-[11.5px] font-semibold', pct > 0 ? 'text-success' : 'text-danger')}>
-      {pct > 0 ? '↑' : '↓'} {Math.abs(pct)} % vs. {dias} días previos
+      {pct > 0 ? '↑' : '↓'} {Math.abs(pct)}&nbsp;% vs. {dias} días previos
     </span>
   )
 }
@@ -52,7 +53,9 @@ function SelectorRango({ dias }: { dias: RangoDias }) {
           key={r}
           href={`/app/panel?tab=visitas&dias=${r}`}
           className={cn(
-            'rounded-md px-2.5 py-1 text-xs font-semibold transition-colors',
+            // py-2 en móvil (24px de alto era escaso para el pulgar, y es el
+            // control que más se toca de esta pestaña); py-1 desde sm.
+            'rounded-md px-2.5 py-2 text-xs font-semibold transition-colors sm:py-1',
             dias === r ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground',
           )}>
           {r} días
@@ -72,7 +75,7 @@ function Kpi({
 }) {
   return (
     <div className="flex items-center gap-3.5 rounded-xl border border-border bg-card p-5">
-      <span className="grid size-11 shrink-0 place-items-center rounded-[10px] bg-primary/10 text-primary">
+      <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
         {icon}
       </span>
       <div className="min-w-0">
@@ -94,17 +97,18 @@ function Tarjeta({ titulo, children }: { titulo: string; children: React.ReactNo
 }
 
 // Barras diarias de usuarios activos. `paso`: cada cuántos días va etiqueta.
-// `compacto`: viewBox estrecho para móvil — a escala ~1:1 el texto se lee bien,
-// sin scroll horizontal ni letras microscópicas.
+// El lienzo se ajusta al ancho real del hueco (escala 1:1 a cualquier ancho);
+// por debajo de ~420px se aprieta solo: eje más estrecho y menos etiquetas.
 function SerieChart({
-  serie, paso, compacto = false,
+  serie, paso,
 }: {
   serie: VisitasSnapshot['serie']
   paso: number
-  compacto?: boolean
 }) {
-  const W = compacto ? 360 : 760
-  const H = compacto ? 170 : 200
+  const [ref, ancho] = useAncho()
+  const compacto = ancho > 0 && ancho < 420
+  const W = ancho || 760
+  const H = compacto ? 170 : Math.min(260, Math.max(200, Math.round(W * 0.24)))
   const padL = compacto ? 28 : 34
   const padB = 24
   const padT = 12
@@ -130,7 +134,9 @@ function SerieChart({
 
   return (
     <div
-      className="relative"
+      ref={ref}
+      className="relative w-full"
+      style={{ minHeight: H }}
       onPointerLeave={(e) => {
         if (e.pointerType === 'mouse') setSel(null)
       }}>
@@ -145,7 +151,13 @@ function SerieChart({
         </div>
       )}
 
-      <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" role="img" aria-label="Usuarios activos por día">
+      {ancho > 0 && (
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="mx-auto block h-auto w-full"
+        style={{ maxHeight: H }}
+        role="img"
+        aria-label="Usuarios activos por día">
         {[0.5, 1].map((g) => (
           <g key={g}>
             <line
@@ -190,6 +202,7 @@ function SerieChart({
           </g>
         ))}
       </svg>
+      )}
     </div>
   )
 }
@@ -258,7 +271,7 @@ function MapaHorario({ horario }: { horario: number[][] }) {
               <div
                 key={h}
                 title={tituloCelda(d, h, v)}
-                className="h-5 rounded-[4px]"
+                className="h-5 rounded"
                 style={{ background: colorCelda(v, max) }}
               />
             ))}
@@ -289,7 +302,7 @@ function MapaHorario({ horario }: { horario: number[][] }) {
               <div
                 key={d}
                 title={tituloCelda(d, h, fila[h])}
-                className="h-3.5 rounded-[3px]"
+                className="h-3.5 rounded-xs"
                 style={{ background: colorCelda(fila[h], max) }}
               />
             ))}
@@ -331,7 +344,7 @@ export function VisitasTab({ snapshot }: { snapshot: VisitasSnapshot }) {
     return (
       <div className="rounded-xl border border-border bg-card p-6">
         <h2 className="flex items-center gap-2.5 text-[15px] font-semibold">
-          <span className="grid size-8 place-items-center rounded-[10px] bg-warning-bg text-warning">
+          <span className="grid size-8 place-items-center rounded-lg bg-warning-bg text-warning">
             <BarChart3 className="size-4" />
           </span>
           Visitas sin configurar
@@ -414,13 +427,13 @@ export function VisitasTab({ snapshot }: { snapshot: VisitasSnapshot }) {
         <Kpi
           icon={<Target className="size-5" />}
           label="Tasa de interacción"
-          value={`${Math.round(totales.interaccionPct.actual)} %`}
+          value={`${Math.round(totales.interaccionPct.actual)} %`}
           hint={<Tendencia m={totales.interaccionPct} dias={dias} />}
         />
         <Kpi
           icon={<Zap className="size-5" />}
           label="Tasa de conversión"
-          value={usuarios > 0 && clics > 0 ? `${Math.round((clics / usuarios) * 100)} %` : '—'}
+          value={usuarios > 0 && clics > 0 ? `${Math.round((clics / usuarios) * 100)} %` : '—'}
           hint={
             <span className="text-[11.5px] text-muted-foreground/70">
               {clics > 0 ? `${nf(clics)} clics / ${nf(usuarios)} usuarios` : 'Sin clics de conversión aún'}
@@ -430,7 +443,7 @@ export function VisitasTab({ snapshot }: { snapshot: VisitasSnapshot }) {
         <Kpi
           icon={<UserPlus className="size-5" />}
           label="Visitantes nuevos"
-          value={totalNuevos > 0 ? `${Math.round((nuevos.nuevos / totalNuevos) * 100)} %` : '—'}
+          value={totalNuevos > 0 ? `${Math.round((nuevos.nuevos / totalNuevos) * 100)} %` : '—'}
           hint={
             <span className="text-[11.5px] text-muted-foreground/70">
               {totalNuevos > 0
@@ -443,13 +456,9 @@ export function VisitasTab({ snapshot }: { snapshot: VisitasSnapshot }) {
 
       <div className="mt-4 rounded-xl border border-border bg-card px-5 py-4">
         <h2 className="mb-3 text-[15px] font-semibold">Usuarios activos por día</h2>
-        {/* Dos variantes del SVG: compacta en móvil, ancha en pantalla grande */}
-        <div className="sm:hidden">
-          <SerieChart serie={snapshot.serie} paso={dias <= 7 ? 1 : dias <= 30 ? 5 : 15} compacto />
-        </div>
-        <div className="hidden sm:block">
-          <SerieChart serie={snapshot.serie} paso={dias <= 7 ? 1 : dias <= 30 ? 5 : 15} />
-        </div>
+        {/* Una sola gráfica: mide su hueco y se pinta a escala 1:1, así que
+            sobran las dos variantes por breakpoint. */}
+        <SerieChart serie={snapshot.serie} paso={dias <= 7 ? 1 : dias <= 30 ? 5 : 15} />
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">

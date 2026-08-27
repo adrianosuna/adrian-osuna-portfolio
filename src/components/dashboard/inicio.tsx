@@ -90,9 +90,14 @@ export function Atencion({ avisos }: { avisos: Aviso[] }) {
             )}>
             {a.gravedad === 'urgente' ? <AlertTriangle className="size-4.5" /> : <Clock className="size-4.5" />}
           </span>
+          {/* En móvil el hueco es de ~250px y el aviso se cortaba en su propio
+              título ("2 seguimientos del pipeline venci…"), que es justo lo
+              primero que hay que leer: ahí se reparte en dos líneas. */}
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold">{a.texto}</p>
-            {a.detalle && <p className="truncate text-[12.5px] text-muted-foreground">{a.detalle}</p>}
+            <p className="text-sm font-semibold max-sm:line-clamp-2 sm:truncate">{a.texto}</p>
+            {a.detalle && (
+              <p className="text-[12.5px] text-muted-foreground max-sm:line-clamp-2 sm:truncate">{a.detalle}</p>
+            )}
           </div>
           <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
         </Link>
