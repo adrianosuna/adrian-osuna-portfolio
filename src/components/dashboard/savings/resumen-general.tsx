@@ -27,7 +27,7 @@ export function ResumenGeneral({ years, hoy }: { years: YearSummary[]; hoy: stri
   if (!years.length) {
     return (
       <div className={cn(cardClass, 'py-16 text-center text-muted-foreground')}>
-        Todavía no hay ningún año. Crea el primero desde «Gestionar años» para empezar a ahorrar.
+        Todavía no hay ningún año. Crea el primero en la sección Ajustes para empezar a ahorrar.
       </div>
     )
   }

@@ -1,14 +1,18 @@
-// Módulo de finanzas personales, en tres secciones (`?s=`):
+// Módulo de finanzas personales, en cuatro secciones (`?s=`):
 //   · Panel  (por defecto)  — lo importante del ahorro y del mes en curso
 //   · Ahorro (?s=ahorro)    — Resumen histórico + un tab por año (?year=)
 //   · Gastos (?s=gastos)    — movimientos del mes (?mes=) o del año (&vista=anio)
+//   · Ajustes (?s=ajustes)  — categorías (y su tope), recurrentes y años
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { Euro } from 'lucide-react'
 import { auth } from '@/auth'
 import { getYearDetail, listYears } from '@/lib/finance'
-import { getAnioMovimientos, getMesMovimientos, listCategorias } from '@/lib/gastos'
+import {
+  getAnioMovimientos, getMesMovimientos, listCategorias, listRecurrentes,
+} from '@/lib/gastos'
 import { hoyMadrid } from '@/lib/mantenimiento'
+import { AjustesTab } from '@/components/dashboard/savings/ajustes'
 import { AhorroTabs, FinanzasNav } from '@/components/dashboard/savings/finanzas-tabs'
 import { GastosTab } from '@/components/dashboard/savings/gastos'
 import { PanelFinanzas } from '@/components/dashboard/savings/panel-finanzas'
@@ -32,7 +36,8 @@ export default async function FinancePage({
 
   const { s, year: yearParam, mes: mesParam, vista } = await searchParams
   const hoy = hoyMadrid()
-  const seccion = s === 'ahorro' ? 'ahorro' : s === 'gastos' ? 'gastos' : 'panel'
+  const seccion =
+    s === 'ahorro' ? 'ahorro' : s === 'gastos' ? 'gastos' : s === 'ajustes' ? 'ajustes' : 'panel'
 
   return (
     <div>
@@ -52,6 +57,8 @@ export default async function FinancePage({
         <SeccionAhorro yearParam={yearParam} hoy={hoy} />
       ) : seccion === 'gastos' ? (
         <SeccionGastos mesParam={mesParam} vista={vista} hoy={hoy} />
+      ) : seccion === 'ajustes' ? (
+        <SeccionAjustes hoy={hoy} />
       ) : (
         <SeccionPanel hoy={hoy} />
       )}
@@ -80,9 +87,7 @@ async function SeccionAhorro({ yearParam, hoy }: { yearParam?: string; hoy: stri
 
   return (
     <>
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <AhorroTabs years={years} selected={selected} />
-      </div>
+      <AhorroTabs years={years} selected={selected} />
       <ContenidoPrivado>
         {selected === null ? (
           <ResumenGeneral years={years} hoy={hoy} />
@@ -91,6 +96,25 @@ async function SeccionAhorro({ yearParam, hoy }: { yearParam?: string; hoy: stri
         )}
       </ContenidoPrivado>
     </>
+  )
+}
+
+/** Ajustes: categorías (con su tope), recurrentes y años de ahorro. */
+async function SeccionAjustes({ hoy }: { hoy: string }) {
+  const [categorias, recurrentes, years] = await Promise.all([
+    listCategorias(),
+    listRecurrentes(),
+    listYears(),
+  ])
+  return (
+    <ContenidoPrivado>
+      <AjustesTab
+        categorias={categorias}
+        recurrentes={recurrentes}
+        years={years}
+        hoy={hoy}
+      />
+    </ContenidoPrivado>
   )
 }
 
@@ -108,9 +132,10 @@ async function SeccionGastos({
       : hoy.slice(0, 7)
   const categorias = await listCategorias()
   // Se calculan mes y año para poder conmutar la vista sin otra consulta.
-  const [movimientos, anio] = await Promise.all([
+  const [movimientos, anio, recurrentes] = await Promise.all([
     getMesMovimientos(mes, categorias),
     getAnioMovimientos(Number(mes.slice(0, 4)), categorias),
+    listRecurrentes(),
   ])
 
   return (
@@ -119,6 +144,7 @@ async function SeccionGastos({
         datos={movimientos}
         anio={anio}
         categorias={categorias}
+        recurrentes={recurrentes}
         mostrarAnio={vista === 'anio'}
         hoy={hoy}
       />

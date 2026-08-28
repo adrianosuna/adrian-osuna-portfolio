@@ -22,7 +22,10 @@ pnpm deps                # lista dependencias desactualizadas (pnpm outdated)
 ```
 
 Los tests (Vitest, `tests/`) cubren la lógica crítica sin BD ni red: fórmulas
-del ahorro, fechas de la experiencia, parsers de GA (API mockeada), umbrales
+del ahorro, fechas de la experiencia, **aritmética de meses** (meses cortos,
+febrero bisiesto, cruce de año) con los **topes** y los **recurrentes** —cargos
+atrasados, ancla del día, apuntar a mano—, el **color automático** de las
+categorías, parsers de GA (API mockeada), umbrales
 del monitor de infraestructura (TLS/fs/reloj simulados), validaciones/guardas
 de todas las server actions, la lógica del pipeline (métricas del embudo y
 aviso de seguimientos), los callbacks de `auth.ts` (la config se exporta
@@ -162,15 +165,17 @@ Semántica del ahorro anual: **mensual + ingresos extra + sobrante de viajes**
 (ahorrado − gastado: lo no gastado se suma al cierre y los viajes del año
 siguiente empiezan de cero; gastar de más resta). **Sin capital
 inicial/final** ni fecha en los gastos de viaje (retirados el 26/08/2026,
-columnas eliminadas: el módulo controla solo el ahorro). Organización en TRES
+columnas eliminadas: el módulo controla solo el ahorro). Organización en CUATRO
 secciones por URL (`?s=`): **Panel** (por defecto, `panel-finanzas.tsx`: lo
 importante del ahorro y del mes de movimientos en una pantalla), **Ahorro**
 (`?s=ahorro`: sin `year` el Resumen histórico de `resumen-general.tsx`, con
-`&year=2026` ese año en `savings-module.tsx`) y **Gastos** (ver más abajo).
-La nav de secciones y las pestañas de años son `FinanzasNav` y `AhorroTabs`;
-TODA la gestión de años (crear, renombrar, objetivo, eliminar) vive en el
-modal «Gestionar años» de `finanzas-tabs.tsx` — en ningún otro sitio — y las
-utilidades comunes en
+`&year=2026` ese año en `savings-module.tsx`), **Gastos** y **Ajustes**
+(`?s=ajustes`: categorías, recurrentes y años — ver más abajo).
+La nav de secciones y las pestañas de años son `FinanzasNav` y `AhorroTabs`, y
+las dos **solo navegan**: TODA la gestión de años (crear, renombrar, objetivo,
+exportar a Excel, eliminar) vive en la **sección Ajustes** — en ningún otro
+sitio. Estuvo en un modal «Gestionar años» de `finanzas-tabs.tsx` hasta el
+28/08/2026. Las utilidades comunes están en
 `savings/comun.tsx` (incluidas las fórmulas puras del asistente del año en
 curso: `proyeccionDe` y `esperadoHoy` — proyección a fin de año, necesario
 mensual y objetivo prorrateado a hoy). KPIs, "restante" y proyecciones se
@@ -181,7 +186,7 @@ cerrados sin rellenar (`avisarMesSinRellenar`, reaviso semanal vía
 años» (`GET /app/finance/exportar?year=`, exceljs, guarda de admin propia:
 los route handlers no los protege el layout).
 
-### Control de gastos e ingresos (`src/lib/gastos.ts` + `/app/finance?mes=`)
+### Control de gastos e ingresos (`src/lib/gastos.ts` + `/app/finance?s=gastos`)
 
 Dentro de Finanzas, pestaña **Gastos**: réplica del Excel "Control de gastos"
 de Adrián — cada movimiento es un **ingreso o un gasto** (`MovementType`) con
@@ -190,11 +195,89 @@ fecha. Dos sub-vistas: **mes** (`?mes=2026-08`: ingresos/gastos/balance/gasto
 medio al día, lista con alta rápida y los dos desgloses "en qué se va" / "de
 dónde viene") y **año** (`&vista=anio`: mes a mes con balance, barras y
 desgloses anuales). Las **categorías son libres y propias de cada tipo**
-(tabla `expense_category`, 19 sembradas en la migración) y se gestionan en el
-modal «Gestionar categorías»; su nombre es único DENTRO del tipo y borrarlas
+(tabla `expense_category`, 19 sembradas en la migración) y se gestionan en la
+sección Ajustes; su nombre es único DENTRO del tipo y borrarlas
 NO borra sus movimientos (FK `SetNull`: quedan "sin categoría"). Los donuts
 reutilizan `GraficaDonut` con `centro`/`vacio`/`titulo`; la tarjeta "Gastos del mes"
 del inicio sale de `gastadoEnMesDe`.
+
+La vista del mes lleva además dos tarjetas que miran hacia DELANTE (los donuts
+solo cuentan lo que ya pasó):
+
+- **Topes por categoría** (`src/lib/topes.ts`): límite mensual opcional por
+  categoría de gasto (`expense_category.budget`, null = sin tope), barras
+  coloreadas por estado y **aviso por correo al 80 % y al pasarse**. Ese aviso
+  **no se repite semanalmente** como los demás: sale una vez por mes y por
+  nivel, recordado en `budget_notified` como `'YYYY-MM:nivel'` — un gasto ya
+  hecho no se puede "marcar como hecho", así que insistir solo enseñaría a
+  ignorarlo. Cambiar el tope limpia esa marca.
+- **Recurrentes** (`src/lib/recurrentes.ts` + tabla `recurring_expense`):
+  alquiler, suscripciones, seguros, la nómina... El cron diario los apunta
+  solos en `expense` y adelanta `next_date`; lo generado es un movimiento
+  normal, editable y borrable. Dos detalles que ya costaron pensarse:
+  `day_anchor` guarda el día original (1-31) para que un recibo del 31 no se
+  quede clavado en el 28 tras pasar por febrero, y `cargosPendientes` recupera
+  TODOS los cargos atrasados (servidor parado) con un freno de `MAX_CARGOS`
+  para que una fecha de alta disparatada no inunde el histórico. La cifra de
+  cabecera es el **equivalente mensual** (un seguro de 600 €/año son 50 €/mes):
+  sumar solo los mensuales dejaría fuera justo los recibos gordos.
+
+`topes.ts` y `recurrentes.ts` NO llevan `server-only` a propósito: sus umbrales
+y cálculos los usan el cron (servidor) y las tarjetas (cliente), y duplicarlos
+es justo cómo se desincronizan — mismo criterio que `fechas.ts`.
+
+**La GESTIÓN vive en la sección Ajustes** (`?s=ajustes`, `savings/ajustes.tsx`),
+no en modales: **tres bloques — Categorías, Recurrentes y Años de ahorro**; los
+dos primeros con buscador —sin tildes ni mayúsculas: "cafe" encuentra "Café"— y
+filtros (los años son cuatro, no necesitan buscador). Es el único sitio de
+configuración del módulo: las demás vistas solo consultan y dan de alta
+movimientos. Lo que aporta la sección sobre los modales que sustituyó:
+
+- **Fusionar** dos categorías del mismo tipo (`fusionarCategorias`): sus
+  movimientos y recurrentes pasan a la de destino en una transacción y la de
+  origen desaparece. Es la salida a los nombres parecidos que se acumulan.
+- **Una categoría en uso NO se borra** (`deleteCategoria` lo rechaza contando
+  movimientos y recurrentes; en la lista el botón sale apagado con el motivo).
+  El FK es `SetNull`, así que técnicamente podría borrarse dejando el historial
+  "sin categoría" — perder la clasificación de años de gasto en un clic no es
+  una opción, y para eso está fusionar. Los `usos` de `CategoriaRow` cuentan
+  las dos cosas (`usosRecurrentes`).
+- **El color lo elige la aplicación** (`src/lib/colores.ts`, `colorLibre`):
+  el tono más alejado de los que ya se usan, con saturación y luminosidad
+  fijas. Elegirlo a mano no aportaba nada y con una paleta de ocho había
+  repetidos desde la novena categoría. La lista va **siempre alfabética**
+  dentro de su tipo (hubo un orden manual el 28/08/2026, retirado el mismo día
+  con su columna: no aportaba).
+- **Altas y ediciones, en el modal común** y con el MISMO formulario (el tipo
+  solo se ofrece al crear: cambiarlo después no tiene sentido). En la fila
+  quedan las acciones de un clic —pausar, fusionar, borrar— y la fusión, que
+  se despliega en línea porque necesita ver la lista de al lado.
+- **Cada recurrente despliega su detalle** (chevron): **apuntar el cargo ya**
+  sin esperar al cron, **duplicarlo** y **ver lo que ha apuntado**. El origen
+  de cada movimiento se guarda en `expense.recurring_uuid` (`SetNull`: borrar
+  el recurrente no borra su gasto real, solo pierde el origen). "Apuntar ahora"
+  y el cron comparten la MISMA rutina (`apuntarCargos`) y apuntan el cargo con
+  **su propia fecha**, no con la de hoy: así no se duplica cuando llegue el
+  día. Duplicar no escribe nada: abre el alta con los valores copiados.
+- **Sin atajos desde la vista de Gastos**: sus tarjetas de topes y recurrentes
+  solo informan; para gestionar se va a Ajustes por la nav.
+
+### Mantenimiento (`src/lib/mantenimiento.ts` + `/app/panel?tab=mantenimiento`)
+
+Tareas recurrentes con periodicidad en meses; "Hecha" encadena el siguiente
+vencimiento y el cron diario avisa por correo de las vencidas (reaviso semanal
+vía `last_notified`). Van separadas por **ÁMBITO**: la ITV, el seguro de casa o
+la revisión de la caldera son el mismo problema que revisar dependencias —algo
+que caduca cada N meses—, así que comparten módulo en vez de tener uno nuevo.
+
+Los ámbitos son una **tabla editable** (`maintenance_scope` + FK `scope_uuid`,
+migración `ambitos_editables`), no una lista fija: nacieron como enum de tres el
+28/08/2026 y pasaron a tabla el mismo día, porque la lista la decide quien usa
+la app. Se gestionan en el modal «Ámbitos» de la pestaña (crear, renombrar,
+borrar) — renombrar es seguro (las tareas apuntan por uuid) y **un ámbito en uso
+no se borra**, igual que las categorías de gastos. El filtro por ámbito **solo
+aparece cuando hay más de uno en uso**; el nombre de cada tarea sale del `include`
+de la relación, y el correo de vencidas abre cada tarjeta con él.
 
 ### Pipeline de oportunidades (`src/lib/pipeline.ts` + `/app/pipeline`)
 
@@ -238,7 +321,11 @@ retiró antes del lanzamiento).
 `DIAS`). Van SIN abreviar y con inicial mayúscula; las abreviaturas se DERIVAN
 (`mesCorto` = las tres primeras letras, `mesInicial` para ejes muy estrechos),
 nunca se duplica la lista. Había diez copias repartidas con cinco nombres
-distintos antes de unificarlas (27/08/2026).
+distintos antes de unificarlas (27/08/2026). En ese mismo fichero vive
+`sumarMeses` (suma meses recortando a fin de mes, con `ancla` opcional para que
+un recibo del 31 no se quede clavado en el 28): la comparten el vencimiento de
+las tareas de mantenimiento y la fecha de los cargos recurrentes, que tuvieron
+una copia cada uno hasta el 28/08/2026.
 **Porcentajes con espacio, como prescribe la RAE** ("67 %", no "67%") y con
 espacio **irrompible** (` ` / `&nbsp;`), para que la cifra y el símbolo no
 se separen en un salto de línea. En finanzas lo pone `pct()` de `savings/comun`

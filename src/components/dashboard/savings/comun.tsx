@@ -106,13 +106,31 @@ export function esperadoHoy(goal: number, año: number, hoyIso: string): number 
   return goal * (dias / total)
 }
 
+// ─────────── piezas del control de gastos ───────────
+// Aquí y no en gastos.tsx porque las comparten la vista de Gastos y la de
+// Ajustes (categorías y recurrentes).
+
+/** 'YYYY-MM-DD' → 'DD/MM'. */
+export const fmtDia = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
+
+/** Fecha con el año SOLO si no es el del periodo que se está viendo: un cargo
+ *  anual cae en otro año y "20/03" a secas no dice cuál. */
+export const fmtDiaAnio = (iso: string, referencia: string) =>
+  iso.slice(0, 4) === referencia.slice(0, 4) ? fmtDia(iso) : `${fmtDia(iso)}/${iso.slice(0, 4)}`
+
+/** Color de "sin categoría" (el gris apagado del tema). */
+export const SIN_CATEGORIA = '#94a3b8'
+
+export const TIPOS: Array<{ value: 'INGRESO' | 'GASTO'; label: string }> = [
+  { value: 'GASTO', label: 'Gasto' },
+  { value: 'INGRESO', label: 'Ingreso' },
+]
+
 export const cardClass = 'rounded-xl border border-border bg-card'
 export const btnPrimary =
   'inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-3.5 py-1.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50'
 export const btnOutline =
   'inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3.5 py-1.5 text-sm font-semibold transition-colors hover:border-primary hover:text-primary'
-export const btnDanger =
-  'inline-flex items-center justify-center gap-1.5 rounded-md border border-danger/40 px-3.5 py-1.5 text-sm font-semibold text-danger transition-colors hover:bg-danger-bg'
 // p-2 (36px con icono): target táctil suficiente en móvil.
 export const btnIcon = 'rounded-md p-2 max-sm:p-2.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
 

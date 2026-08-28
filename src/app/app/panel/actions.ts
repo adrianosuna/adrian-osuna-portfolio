@@ -11,7 +11,8 @@ import { AppError } from '@/lib/errors'
 import { prisma } from '@/lib/prisma'
 import { visitantesAhora } from '@/lib/ga'
 import { snapshotServidor, type ServidorSnapshot } from '@/lib/infra'
-import { hoyMadrid, sumarMeses } from '@/lib/mantenimiento'
+import { hoyMadrid } from '@/lib/mantenimiento'
+import { sumarMeses } from '@/lib/fechas'
 
 export async function leerUsuariosAhora(): Promise<number | null> {
   try {
@@ -123,13 +124,78 @@ export async function closeSession(uuid: string): Promise<Result> {
   })
 }
 
-// ─────────── Tareas de mantenimiento (pestaña Mantenimiento) ───────────
+// ─────────── Mantenimiento: ámbitos y tareas (pestaña Mantenimiento) ───────────
+
+const NOMBRE_AMBITO_MAX = 60
+
+/** Crea un ámbito (servidor, casa, vehículo, moto, salud...). */
+export async function createAmbito(datos: { name?: string }): Promise<Result> {
+  return guarded(async () => {
+    const name = (datos.name ?? '').trim().slice(0, NOMBRE_AMBITO_MAX)
+    if (!name) return fail('El nombre es obligatorio')
+    if (await prisma.maintenanceScope.findFirst({ where: { name } })) {
+      return fail('Ya existe un ámbito con ese nombre')
+    }
+    await prisma.maintenanceScope.create({ data: { name } })
+    refresh()
+    return ok
+  })
+}
+
+/** Renombra un ámbito: sus tareas lo siguen (apuntan por uuid, no por nombre). */
+export async function updateAmbito(uuid: string, datos: { name?: string }): Promise<Result> {
+  return guarded(async () => {
+    const name = (datos.name ?? '').trim().slice(0, NOMBRE_AMBITO_MAX)
+    if (!name) return fail('El nombre es obligatorio')
+    const otro = await prisma.maintenanceScope.findFirst({ where: { name } })
+    if (otro && otro.uuid !== uuid) return fail('Ya existe un ámbito con ese nombre')
+    await prisma.maintenanceScope.update({ where: { uuid }, data: { name } })
+    refresh()
+    return ok
+  })
+}
+
+/**
+ * Borra un ámbito, PERO solo si no lo usa ninguna tarea.
+ *
+ * El FK es SET NULL, así que borrarlo dejaría tareas sin ámbito en silencio.
+ * Con pocas tareas, reasignarlas a mano es trivial; perder la clasificación sin
+ * enterarse, no.
+ */
+export async function deleteAmbito(uuid: string): Promise<Result> {
+  return guarded(async () => {
+    const tareas = await prisma.maintenanceTask.count({ where: { scopeUuid: uuid } })
+    if (tareas > 0) {
+      return fail(
+        `No se puede borrar: lo usa${tareas === 1 ? ' 1 tarea' : `n ${tareas} tareas`}. Cámbialas de ámbito primero.`,
+      )
+    }
+    await prisma.maintenanceScope.delete({ where: { uuid } })
+    refresh()
+    return ok
+  })
+}
+
+// ─────────── Tareas ───────────
 
 // Valida los campos comunes de alta y edición.
 type MantenimientoParse =
   | { error: string }
-  | { error?: never; title: string; notes: string | null; intervalMonths: number; nextDue: Date }
-function parsearTarea(datos: { title?: string; notes?: string | null; intervalMonths?: number; nextDue?: string }): MantenimientoParse {
+  | {
+      error?: never
+      title: string
+      scopeUuid: string
+      notes: string | null
+      intervalMonths: number
+      nextDue: Date
+    }
+async function parsearTarea(datos: {
+  title?: string
+  scopeUuid?: string
+  notes?: string | null
+  intervalMonths?: number
+  nextDue?: string
+}): Promise<MantenimientoParse> {
   const title = (datos.title ?? '').trim().slice(0, 255)
   if (!title) return { error: 'El título es obligatorio' }
   const meses = Number(datos.intervalMonths)
@@ -137,9 +203,16 @@ function parsearTarea(datos: { title?: string; notes?: string | null; intervalMo
     return { error: 'La periodicidad debe ser de 1 a 120 meses' }
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(datos.nextDue ?? '')) return { error: 'Fecha de vencimiento no válida' }
+  // El ámbito tiene que existir: ahora es una fila, no un valor de enum.
+  const scopeUuid = (datos.scopeUuid ?? '').trim()
+  if (!scopeUuid) return { error: 'Elige un ámbito' }
+  if (!(await prisma.maintenanceScope.findUnique({ where: { uuid: scopeUuid } }))) {
+    return { error: 'Ese ámbito no existe' }
+  }
   const notes = (datos.notes ?? '').trim().slice(0, 5000)
   return {
     title,
+    scopeUuid,
     notes: notes === '' ? null : notes,
     intervalMonths: meses,
     nextDue: new Date(`${datos.nextDue}T00:00:00Z`),
@@ -148,12 +221,13 @@ function parsearTarea(datos: { title?: string; notes?: string | null; intervalMo
 
 export async function createMaintenance(datos: {
   title: string
+  scopeUuid?: string
   notes?: string | null
   intervalMonths: number
   nextDue: string
 }): Promise<Result> {
   return guarded(async () => {
-    const parsed = parsearTarea(datos)
+    const parsed = await parsearTarea(datos)
     if (parsed.error !== undefined) return fail(parsed.error)
     await prisma.maintenanceTask.create({ data: parsed })
     refresh()
@@ -163,10 +237,16 @@ export async function createMaintenance(datos: {
 
 export async function updateMaintenance(
   uuid: string,
-  datos: { title: string; notes?: string | null; intervalMonths: number; nextDue: string },
+  datos: {
+    title: string
+    scopeUuid?: string
+    notes?: string | null
+    intervalMonths: number
+    nextDue: string
+  },
 ): Promise<Result> {
   return guarded(async () => {
-    const parsed = parsearTarea(datos)
+    const parsed = await parsearTarea(datos)
     if (parsed.error !== undefined) return fail(parsed.error)
     // Editar el vencimiento a mano resetea el aviso: si vuelve a vencer, avisa.
     await prisma.maintenanceTask.update({ where: { uuid }, data: { ...parsed, lastNotified: null } })

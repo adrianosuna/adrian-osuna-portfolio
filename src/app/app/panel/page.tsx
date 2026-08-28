@@ -20,7 +20,7 @@ import { MantenimientoTab, type MaintenanceRow } from '@/components/dashboard/pa
 import { cn } from '@/lib/utils'
 import { dispositivoDe } from '@/lib/dispositivo'
 import { correoConfigurado } from '@/lib/correo'
-import { hoyMadrid } from '@/lib/mantenimiento'
+import { hoyMadrid, listAmbitos } from '@/lib/mantenimiento'
 
 export const metadata: Metadata = { title: 'Panel de control' }
 
@@ -91,16 +91,28 @@ async function Usuarios({ meUuid, meSessionUuid }: { meUuid: string; meSessionUu
 }
 
 async function Mantenimiento() {
-  const tareas = await prisma.maintenanceTask.findMany({ orderBy: { nextDue: 'asc' } })
+  const [tareas, ambitos] = await Promise.all([
+    prisma.maintenanceTask.findMany({ orderBy: { nextDue: 'asc' }, include: { scope: true } }),
+    listAmbitos(),
+  ])
   const rows: MaintenanceRow[] = tareas.map((t) => ({
     uuid: t.uuid,
     title: t.title,
+    scopeUuid: t.scopeUuid,
+    scopeName: t.scope?.name ?? null,
     notes: t.notes,
     intervalMonths: t.intervalMonths,
     nextDue: t.nextDue.toISOString().slice(0, 10),
     lastDone: t.lastDone ? t.lastDone.toISOString().slice(0, 10) : null,
   }))
-  return <MantenimientoTab rows={rows} hoy={hoyMadrid()} smtpListo={correoConfigurado()} />
+  return (
+    <MantenimientoTab
+      rows={rows}
+      ambitos={ambitos}
+      hoy={hoyMadrid()}
+      smtpListo={correoConfigurado()}
+    />
+  )
 }
 async function Visitas({ dias }: { dias: RangoDias }) {
   return <VisitasTab snapshot={await snapshotVisitas(dias)} />

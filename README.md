@@ -10,7 +10,7 @@
 [![Prisma](https://img.shields.io/badge/Prisma-7-2D3748?logo=prisma&logoColor=white)](https://www.prisma.io)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 [![Auth.js](https://img.shields.io/badge/Auth.js-v5-8B5CF6)](https://authjs.dev)
-[![Vitest](https://img.shields.io/badge/Vitest-191_tests-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev)
+[![Vitest](https://img.shields.io/badge/Vitest-302_tests-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev)
 [![Docker](https://img.shields.io/badge/Docker-multi--stage-2496ED?logo=docker&logoColor=white)](https://www.docker.com)
 
 🌐 [adrianosuna.com](https://adrianosuna.com)
@@ -32,10 +32,10 @@
 
 **Dashboard interno** (`/app`)
 - 🧭 **Inicio: centro de mando** — franja de avisos accionables (seguimientos vencidos, mantenimiento, meses de ahorro sin rellenar), KPIs con dato real (ahorro con progreso del objetivo, valor del pipeline abierto y pulso de visitas en streaming) y actividad reciente del pipeline
-- 💶 **Finanzas** (personal del admin) — **ahorro anual** y **control de gastos** en tres secciones (Panel · Ahorro · Gastos; dentro de Ahorro, el Resumen histórico y un tab por año): control mensual editable, ingresos extraordinarios, gastos de viaje cuyo sobrante engrosa el ahorro, objetivo con desvío frente al día de hoy, **proyección a fin de año a ritmo actual**, tasa de ahorro, donut de composición y gráficas sobre **Chart.js** con los tokens del tema. La pestaña **Gastos** es un libro de movimientos (ingresos y gastos) con vista de mes y de año: balance, gasto medio, alta rápida, categorías libres por tipo y los desgloses de "en qué se va" y "de dónde viene" el dinero. Exportación del año a **Excel**, recordatorio por correo si un mes se queda sin rellenar y **modo privado**: los importes salen ocultos por defecto y se revelan con un clic
+- 💶 **Finanzas** (personal del admin) — **ahorro anual** y **control de gastos** en cuatro secciones (Panel · Ahorro · Gastos · Ajustes; dentro de Ahorro, el Resumen histórico y un tab por año): control mensual editable, ingresos extraordinarios, gastos de viaje cuyo sobrante engrosa el ahorro, objetivo con desvío frente al día de hoy, **proyección a fin de año a ritmo actual**, tasa de ahorro, donut de composición y gráficas sobre **Chart.js** con los tokens del tema. La pestaña **Gastos** es un libro de movimientos (ingresos y gastos) con vista de mes y de año: balance, gasto medio, alta rápida, categorías libres por tipo, **topes de gasto** con aviso por correo al 80 % y al pasarse, **movimientos recurrentes** que el cron apunta solos (alquiler, suscripciones, nómina…) y los desgloses de "en qué se va" y "de dónde viene" el dinero. **Ajustes** reúne toda la configuración del módulo: categorías (fusionar, tope, color automático), recurrentes y años de ahorro. Exportación del año a **Excel**, recordatorio por correo si un mes se queda sin rellenar y **modo privado**: los importes salen ocultos por defecto y se revelan con un clic
 - 📊 **Oportunidades** (admin) — mini-CRM del pipeline: kanban con drag&drop en escritorio (vista de tabla en móvil), seguimientos con fecha y **aviso por correo al vencer**, historial de actividad por tarjeta, métricas del embudo y archivo con histórico
-- 🖥️ **Panel de control** (admin) — cuatro pestañas: **Servidor** (SSL, latencia pública, MySQL a fondo, backups, disco y recursos en vivo), **Visitas** (GA4 vía Data API: tiempo real, comparativas, conversiones, geografía, mapa horario…), **Usuarios** (allowlist + **sesiones activas con cierre remoto**) y **Mantenimiento** (tareas recurrentes con aviso por correo)
-- ⏰ **Cron interno** (node-cron): avisos diarios por correo — mantenimiento vencido, seguimientos del pipeline y meses de ahorro sin rellenar — con plantilla propia y reaviso semanal
+- 🖥️ **Panel de control** (admin) — cuatro pestañas: **Servidor** (SSL, latencia pública, MySQL a fondo, backups, disco y recursos en vivo), **Visitas** (GA4 vía Data API: tiempo real, comparativas, conversiones, geografía, mapa horario…), **Usuarios** (allowlist + **sesiones activas con cierre remoto**) y **Mantenimiento** (tareas recurrentes por ámbito editable —servidor, casa, vehículo…— con aviso por correo)
+- ⏰ **Cron interno** (node-cron): cada día apunta los **movimientos recurrentes** que vencen y avisa por correo — mantenimiento vencido, seguimientos del pipeline, meses de ahorro sin rellenar y topes de gasto alcanzados — con plantilla propia y reaviso semanal
 - 🔐 **Acceso solo con Google** por lista de invitados; registro de sesiones con revocación inmediata
 
 ## 🏗️ Arquitectura
@@ -73,10 +73,10 @@ flowchart LR
 
 - **App Router** con server components: los datos se leen en el servidor y las mutaciones van por **server actions** con validación de sesión/rol, devolviendo siempre `{ ok, message? }`. Al cliente solo llegan mensajes de error controlados (`AppError`); las excepciones internas se registran en servidor.
 - **Autenticación** con Auth.js v5 (JWT, 7 días) y verificación del usuario **y de su sesión registrada** en base de datos en cada petición: deshabilitar a un usuario o cerrar su sesión desde el panel corta el acceso al instante, y los cambios de rol se aplican en vivo. Solo se aceptan correos verificados por Google.
-- **Cron interno** arrancado por `instrumentation.ts` (node-cron, diario a las 8:00 Europe/Madrid): tres avisos por correo (nodemailer, plantilla email-safe propia) que quedan inactivos sin SMTP configurado.
+- **Cron interno** arrancado por `instrumentation.ts` (node-cron, diario a las 8:00 Europe/Madrid): apunta los movimientos recurrentes vencidos y manda cuatro avisos por correo (nodemailer, plantilla email-safe propia); sin SMTP los avisos quedan inactivos, pero los recurrentes se siguen apuntando.
 - **Un solo sistema de diseño** vía CSS custom properties sobre un tema único oscuro, con componentes propios: campos de formulario custom (número, select y calendario con popover en portal) y modal común con cabecera y pie fijos.
 - **Base de datos** MySQL con Prisma 7 (driver adapter de MariaDB): convención `id` autoincremental + `uuid` de negocio, FKs por `uuid`, timestamps automáticos y migraciones generadas con `migrate diff` (schema a schema).
-- **Tests** (Vitest, 191 sin BD ni red): fórmulas de finanzas, proyecciones, parsers de GA contra API simulada, guardas de todas las server actions, callbacks de auth, umbrales del monitor, avisos del cron, superficies GEO, exportación a Excel y componentes de UI en jsdom.
+- **Tests** (Vitest, 302 sin BD ni red): fórmulas de finanzas, proyecciones, aritmética de meses (meses cortos, febrero, cruce de año), topes y recurrentes, color automático de categorías, parsers de GA contra API simulada, guardas de todas las server actions, callbacks de auth, umbrales del monitor, avisos del cron, superficies GEO, exportación a Excel y componentes de UI en jsdom.
 - **Seguridad**: headers HTTP (HSTS, X-Frame-Options, CSP, nosniff), errores internos nunca expuestos al cliente y solo correos verificados por Google en el login.
 
 ## 🚀 Puesta en marcha (desarrollo)
@@ -172,9 +172,13 @@ src/
 │   ├── landing/content.ts    # Contenido de la landing, fuente única
 │   ├── inicio.ts             # Datos del centro de mando (avisos, KPIs, actividad)
 │   ├── finance.ts            # Datos del ahorro + recordatorio de mes sin rellenar
-│   ├── gastos.ts             # Movimientos: mes, año y categorías por tipo
+│   ├── gastos.ts             # Movimientos: mes, año, categorías, recurrentes
+│   ├── topes.ts              # Topes de gasto por categoría (puro, compartido)
+│   ├── recurrentes.ts        # Fechas y cifras de los recurrentes (puro)
+│   ├── colores.ts            # Color automático de categorías, sin repetir
 │   ├── pipeline.ts           # Métricas del embudo + aviso de seguimientos
-│   ├── mantenimiento.ts      # Vencimientos de tareas + aviso de vencidas
+│   ├── mantenimiento.ts      # Tareas por ámbito + aviso de vencidas
+│   ├── fechas.ts             # Meses, días y aritmética de meses (fuente única)
 │   ├── cron.ts               # Planificador interno (node-cron)
 │   ├── correo.ts             # SMTP + plantilla email-safe de la casa
 │   ├── ga.ts                 # GA4 Data API (JWT firmado a mano, sin SDK)
@@ -188,7 +192,7 @@ prisma/
 ├── schema.prisma             # Esquema (User, SavingYear, Opportunity, Expense, …)
 ├── migrations/               # Baseline 0_init + migraciones (migrate diff)
 └── seed.ts                   # Asegura el administrador inicial
-tests/                        # 191 tests (Vitest; jsdom para componentes)
+tests/                        # 302 tests (Vitest; jsdom para componentes)
 docs/
 ├── DESPLIEGUE.md             # Guía de despliegue en OVH (Docker + Caddy + rclone)
 ├── CHANGELOG.md              # Historial de lo hecho, bien contado
@@ -212,7 +216,7 @@ control son personales del administrador**: los usuarios invitados no los ven.
 
 ## 👤 Autor
 
-**Adrián Osuna** — Desarrollador Full-Stack · Responsable de Desarrollo
+**Adrián Osuna** — Desarrollador Full-Stack
 
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Adrián_Osuna-0A66C2?logo=linkedin&logoColor=white)](https://www.linkedin.com/in/adrián-osuna-albalá)
 [![Email](https://img.shields.io/badge/Email-adrianosunaalbala@gmail.com-EA4335?logo=gmail&logoColor=white)](mailto:adrianosunaalbala@gmail.com)

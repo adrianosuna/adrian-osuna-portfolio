@@ -204,7 +204,7 @@ export function PanelFinanzas({
           <div className="px-5 py-3">
             {!actual ? (
               <p className="py-6 text-center text-[13px] text-muted-foreground">
-                Todavía no hay año creado. Créalo desde «Gestionar años» en la sección Ahorro.
+                Todavía no hay año creado. Créalo desde la sección Ajustes.
               </p>
             ) : (
               <>

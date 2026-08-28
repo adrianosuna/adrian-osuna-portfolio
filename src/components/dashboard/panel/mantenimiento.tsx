@@ -1,24 +1,31 @@
 'use client'
 
-// Pestaña "Mantenimiento" del Panel de control: tareas recurrentes del
-// servidor (revisar deps, backups, renovar dominio...) con su periodicidad.
-// "Hecho" encadena el siguiente vencimiento; el cron de la app avisa por
-// correo de las vencidas (diario a las 8:00, reaviso semanal).
+// Pestaña "Mantenimiento" del Panel de control: tareas recurrentes con su
+// periodicidad, separadas por ÁMBITO — servidor (revisar deps, backups,
+// dominio...), casa, vehículo (ITV, seguro, revisión) y los que se añadan: los
+// ámbitos son una tabla editable, no una lista fija. "Hecho" encadena el
+// siguiente vencimiento; el cron de la app avisa por correo de las vencidas
+// (diario a las 8:00, reaviso semanal).
 import { useState, useTransition } from 'react'
 import {
-  CalendarClock, Check, Pencil, Plus, Trash2, X,
+  CalendarClock, Check, Pencil, Plus, Tag, Trash2, X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Modal } from '@/components/ui/modal'
-import { NumberField, TextField, TextareaField, DateField } from '@/components/ui/fields'
+import { NumberField, SelectField, TextField, TextareaField, DateField } from '@/components/ui/fields'
+import type { AmbitoRow } from '@/lib/mantenimiento'
 import {
-  completeMaintenance, createMaintenance, deleteMaintenance, updateMaintenance,
+  completeMaintenance, createAmbito, createMaintenance, deleteAmbito, deleteMaintenance,
+  updateAmbito, updateMaintenance,
 } from '@/app/app/panel/actions'
 
 export interface MaintenanceRow {
   uuid: string
   title: string
+  scopeUuid: string | null
+  /** Nombre de su ámbito (null solo si el ámbito se borró). */
+  scopeName: string | null
   notes: string | null
   intervalMonths: number
   nextDue: string // 'YYYY-MM-DD'
@@ -94,12 +101,15 @@ const btnIcon =
 
 interface Borrador {
   title: string
+  scopeUuid: string
   notes: string
   intervalMonths: number | null
   nextDue: string
 }
 
-const BORRADOR_VACIO: Borrador = { title: '', notes: '', intervalMonths: 1, nextDue: '' }
+const BORRADOR_VACIO: Borrador = {
+  title: '', scopeUuid: '', notes: '', intervalMonths: 1, nextDue: '',
+}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -111,9 +121,10 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 export function MantenimientoTab({
-  rows, hoy, smtpListo,
+  rows, ambitos, hoy, smtpListo,
 }: {
   rows: MaintenanceRow[]
+  ambitos: AmbitoRow[]
   hoy: string // 'YYYY-MM-DD' en horario de Madrid (calculado en el servidor)
   smtpListo: boolean
 }) {
@@ -122,6 +133,12 @@ export function MantenimientoTab({
   const [modal, setModal] = useState<string | null>(null)
   const [borrador, setBorrador] = useState<Borrador>(BORRADOR_VACIO)
   const [confirming, setConfirming] = useState<string | null>(null)
+  // 'todos' o el uuid de un ámbito.
+  const [filtro, setFiltro] = useState<string>('todos')
+  const [gestionAmbitos, setGestionAmbitos] = useState(false)
+
+  const opcionesAmbito = ambitos.map((a) => ({ value: a.uuid, label: a.name }))
+  const nombreAmbito = (uuid: string) => ambitos.find((a) => a.uuid === uuid)?.name ?? ''
 
   const run = (promise: Promise<{ ok: boolean; message?: string }>, success?: string) =>
     startTransition(async () => {
@@ -132,18 +149,26 @@ export function MantenimientoTab({
     })
 
   const abrirNueva = () => {
-    setBorrador({ ...BORRADOR_VACIO, nextDue: hoy })
+    // El primer ámbito por defecto: hay que elegir uno y así no se olvida.
+    setBorrador({ ...BORRADOR_VACIO, scopeUuid: ambitos[0]?.uuid ?? '', nextDue: hoy })
     setModal('nueva')
   }
 
   const abrirEdicion = (t: MaintenanceRow) => {
-    setBorrador({ title: t.title, notes: t.notes ?? '', intervalMonths: t.intervalMonths, nextDue: t.nextDue })
+    setBorrador({
+      title: t.title,
+      scopeUuid: t.scopeUuid ?? ambitos[0]?.uuid ?? '',
+      notes: t.notes ?? '',
+      intervalMonths: t.intervalMonths,
+      nextDue: t.nextDue,
+    })
     setModal(t.uuid)
   }
 
   const guardar = () => {
     const datos = {
       title: borrador.title,
+      scopeUuid: borrador.scopeUuid,
       notes: borrador.notes || null,
       intervalMonths: borrador.intervalMonths ?? 0,
       nextDue: borrador.nextDue,
@@ -151,6 +176,8 @@ export function MantenimientoTab({
     if (modal === 'nueva') run(createMaintenance(datos), 'Tarea creada')
     else if (modal) run(updateMaintenance(modal, datos), 'Tarea actualizada')
   }
+
+  const visibles = filtro === 'todos' ? rows : rows.filter((t) => t.scopeUuid === filtro)
 
   return (
     <div>
@@ -160,21 +187,51 @@ export function MantenimientoTab({
             SMTP sin configurar: los avisos por correo están inactivos
           </span>
         )}
+        {/* Filtro por ámbito: solo con más de uno en uso —con todo en el
+            servidor no filtra nada y sería ruido. */}
+        {new Set(rows.map((t) => t.scopeUuid)).size > 1 && (
+          <div
+            className="flex overflow-x-auto rounded-lg border border-border bg-card/50 p-0.5 max-sm:w-full"
+            role="group"
+            aria-label="Filtrar por ámbito">
+            {[{ uuid: 'todos', name: 'Todos' }, ...ambitos].map((a) => (
+              <button
+                key={a.uuid}
+                type="button"
+                className={cn(
+                  'whitespace-nowrap rounded-md px-2.5 py-1 text-[12.5px] font-semibold transition-colors max-sm:flex-1 max-sm:py-2',
+                  filtro === a.uuid
+                    ? 'bg-muted text-foreground'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+                onClick={() => setFiltro(a.uuid)}>
+                {a.name}
+              </button>
+            ))}
+          </div>
+        )}
         <span className="flex-1" />
+        <button
+          type="button"
+          className={cn(btnOutline, 'max-sm:w-full')}
+          onClick={() => setGestionAmbitos(true)}>
+          <Tag className="size-4" /> Ámbitos
+        </button>
         <button type="button" className={cn(btnPrimary, 'w-full sm:w-auto')} onClick={abrirNueva}>
           <Plus className="size-4" /> Nueva tarea
         </button>
       </div>
 
-      {rows.length === 0 ? (
+      {visibles.length === 0 ? (
         <div className="rounded-xl border border-border bg-card p-6 text-center text-sm text-muted-foreground">
           <CalendarClock className="mx-auto mb-2 size-6 text-muted-foreground/60" />
-          Sin tareas todavía. Ejemplos útiles: revisar dependencias (`pnpm deps`) cada mes,
-          comprobar backups cada mes, renovar el dominio cada 12 meses.
+          {rows.length === 0
+            ? 'Sin tareas todavía. Ejemplos útiles: revisar dependencias cada mes, comprobar backups cada mes, la ITV cada 12 meses o la revisión de la caldera cada año.'
+            : `Ninguna tarea de ${nombreAmbito(filtro).toLowerCase()}.`}
         </div>
       ) : (
         <div className="flex flex-col divide-y divide-border/60 rounded-xl border border-border bg-card">
-          {rows.map((t) => {
+          {visibles.map((t) => {
             const estado = ESTADO_TAREA[estadoDe(t.nextDue, hoy)]
             // El chip dice CUÁNDO (y el color, la urgencia): más útil que
             // repetir "Vencida" y dejar la fecha para calcular a mano.
@@ -196,9 +253,19 @@ export function MantenimientoTab({
                     <p className="min-w-0 text-sm font-semibold">{t.title}</p>
                     <span className="shrink-0 sm:hidden">{chip}</span>
                   </div>
-                  <p className="text-[12.5px] text-muted-foreground" title={`Vence el ${fmt(t.nextDue)}`}>
-                    {periodicidad(t.intervalMonths)}
-                    {t.lastDone && ` · ${antiguedad(t.lastDone, hoy)}`}
+                  <p
+                    className="flex flex-wrap items-center gap-x-1.5 text-[12.5px] text-muted-foreground"
+                    title={`Vence el ${fmt(t.nextDue)}`}>
+                    {/* Ámbito: en la lista mezclada es lo que dice si esto es
+                        del servidor, de casa o del coche. */}
+                    <span className="font-semibold text-foreground/80">
+                      {t.scopeName ?? 'Sin ámbito'}
+                    </span>
+                    <span aria-hidden>·</span>
+                    <span>
+                      {periodicidad(t.intervalMonths)}
+                      {t.lastDone && ` · ${antiguedad(t.lastDone, hoy)}`}
+                    </span>
                   </p>
                   {/* La nota ES la instrucción de la tarea: en móvil se muestra
                       entera (con 2 líneas se perdía entre un tercio y la mitad
@@ -273,7 +340,7 @@ export function MantenimientoTab({
               <button
                 type="button"
                 className={btnPrimary}
-                disabled={pending || !borrador.title.trim() || !borrador.nextDue}
+                disabled={pending || !borrador.title.trim() || !borrador.nextDue || !borrador.scopeUuid}
                 onClick={guardar}>
                 {modal === 'nueva' ? 'Crear' : 'Guardar'}
               </button>
@@ -286,6 +353,16 @@ export function MantenimientoTab({
                   value={borrador.title}
                   autoFocus
                   onChange={(v) => setBorrador((b) => ({ ...b, title: v }))}
+                />
+              </Field>
+              <Field label="Ámbito *">
+                <SelectField
+                  className="w-40"
+                  ariaLabel="Ámbito de la tarea"
+                  placeholder="Elige un ámbito"
+                  value={borrador.scopeUuid}
+                  onChange={(v) => setBorrador((b) => ({ ...b, scopeUuid: v }))}
+                  options={opcionesAmbito}
                 />
               </Field>
               <div className="grid grid-cols-2 gap-3">
@@ -315,6 +392,166 @@ export function MantenimientoTab({
             </div>
         </Modal>
       )}
+
+      {gestionAmbitos && (
+        <AmbitosModal ambitos={ambitos} onClose={() => setGestionAmbitos(false)} />
+      )}
     </div>
+  )
+}
+
+/**
+ * Gestión de los ámbitos: crear, renombrar y borrar.
+ *
+ * En modal y no en una sección propia (como sí hicieron las categorías de
+ * gastos) porque son cuatro o cinco, no diecinueve: no hacen falta buscador ni
+ * filtros. Renombrar es seguro — las tareas apuntan por uuid, no por nombre.
+ */
+function AmbitosModal({ ambitos, onClose }: { ambitos: AmbitoRow[]; onClose: () => void }) {
+  const [pending, startTransition] = useTransition()
+  const [editando, setEditando] = useState<string | null>(null)
+  const [nombre, setNombre] = useState('')
+  const [nuevo, setNuevo] = useState('')
+
+  const run = (promise: Promise<{ ok: boolean; message?: string }>, success: string, luego?: () => void) =>
+    startTransition(async () => {
+      const res = await promise
+      if (!res.ok) return void toast.error(res.message ?? 'Error')
+      toast.success(success)
+      luego?.()
+    })
+
+  const crear = () => {
+    if (!nuevo.trim()) return
+    run(createAmbito({ name: nuevo }), 'Ámbito creado', () => setNuevo(''))
+  }
+
+  return (
+    <Modal
+      title="Ámbitos de mantenimiento"
+      description="Los grupos en los que se reparten las tareas. Renombrar uno no toca sus tareas; borrarlo solo se puede si no lo usa ninguna."
+      onClose={onClose}
+      footer={
+        <button type="button" className={btnOutline} onClick={onClose}>
+          Cerrar
+        </button>
+      }>
+      {ambitos.length === 0 && (
+        <p className="pb-1 text-[13px] text-muted-foreground">
+          Ninguno todavía: crea el primero abajo (servidor, casa, vehículo...).
+        </p>
+      )}
+
+      {ambitos.map((a) => (
+        <div key={a.uuid} className="border-b border-border/60 py-2">
+          {editando === a.uuid ? (
+            <div className="flex items-center gap-2">
+              <TextField
+                className="min-w-0 flex-1"
+                ariaLabel={`Nombre de ${a.name}`}
+                value={nombre}
+                autoFocus
+                onChange={setNombre}
+                onEnter={() =>
+                  run(updateAmbito(a.uuid, { name: nombre }), 'Ámbito actualizado', () =>
+                    setEditando(null),
+                  )
+                }
+              />
+              <span className="flex shrink-0 gap-0.5">
+                <button
+                  type="button"
+                  className={btnIcon}
+                  aria-label="Guardar"
+                  disabled={pending || !nombre.trim()}
+                  onClick={() =>
+                    run(updateAmbito(a.uuid, { name: nombre }), 'Ámbito actualizado', () =>
+                      setEditando(null),
+                    )
+                  }>
+                  <Check className="size-4 text-success" />
+                </button>
+                <button
+                  type="button"
+                  className={btnIcon}
+                  aria-label="Cancelar"
+                  onClick={() => setEditando(null)}>
+                  <X className="size-4" />
+                </button>
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 truncate text-sm font-semibold">{a.name}</span>
+              <span className="shrink-0 text-[12px] text-muted-foreground">
+                {a.tareas === 0 ? 'sin tareas' : `${a.tareas} ${a.tareas === 1 ? 'tarea' : 'tareas'}`}
+              </span>
+              <span className="flex shrink-0 items-center gap-0.5">
+                <button
+                  type="button"
+                  className={btnIcon}
+                  aria-label={`Renombrar ${a.name}`}
+                  onClick={() => {
+                    setNombre(a.name)
+                    setEditando(a.uuid)
+                  }}>
+                  <Pencil className="size-3.5" />
+                </button>
+                {/* Un ámbito en uso no se borra: sus tareas se quedarían sin
+                    clasificar en silencio. Primero se cambian de ámbito. */}
+                <button
+                  type="button"
+                  className={cn(
+                    btnIcon,
+                    a.tareas > 0
+                      ? 'cursor-not-allowed opacity-40 hover:bg-transparent hover:text-muted-foreground'
+                      : 'hover:bg-danger-bg hover:text-danger',
+                  )}
+                  aria-label={`Eliminar ${a.name}`}
+                  aria-disabled={a.tareas > 0}
+                  title={
+                    a.tareas > 0
+                      ? `No se puede borrar: lo usa${a.tareas === 1 ? ' 1 tarea' : `n ${a.tareas} tareas`}. Cámbialas de ámbito primero.`
+                      : 'Eliminar'
+                  }
+                  onClick={() => {
+                    if (a.tareas > 0) {
+                      toast.error(
+                        `«${a.name}» no se puede borrar: lo usa${a.tareas === 1 ? ' 1 tarea' : `n ${a.tareas} tareas`}. Cámbialas de ámbito primero.`,
+                      )
+                      return
+                    }
+                    run(deleteAmbito(a.uuid), `Ámbito ${a.name} eliminado`)
+                  }}>
+                  <Trash2 className="size-3.5" />
+                </button>
+              </span>
+            </div>
+          )}
+        </div>
+      ))}
+
+      <div className="mt-4 border-t border-border pt-3">
+        <p className="mb-1.5 text-[13px] text-muted-foreground">Nuevo ámbito</p>
+        <div className="flex items-center gap-2">
+          <TextField
+            className="min-w-0 flex-1"
+            ariaLabel="Nombre del ámbito nuevo"
+            placeholder="Nombre"
+            value={nuevo}
+            onChange={setNuevo}
+            onEnter={crear}
+          />
+          <button
+            type="button"
+            className={cn(btnPrimary, 'shrink-0 px-2.5 max-sm:py-2.5')}
+            aria-label="Añadir ámbito"
+            disabled={pending || !nuevo.trim()}
+            onClick={crear}>
+            <Plus className="size-4" />
+          </button>
+        </div>
+      </div>
+    </Modal>
   )
 }

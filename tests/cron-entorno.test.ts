@@ -9,6 +9,8 @@ const { cronMock, avisosMock } = vi.hoisted(() => ({
     avisarVencidas: vi.fn(async () => 0),
     avisarSeguimientos: vi.fn(async () => 0),
     avisarMesSinRellenar: vi.fn(async () => 0),
+    avisarTopes: vi.fn(async () => 0),
+    generarRecurrentes: vi.fn(async () => 0),
   },
 }))
 
@@ -17,6 +19,10 @@ vi.mock('@/lib/correo', () => ({ correoConfigurado: () => true }))
 vi.mock('@/lib/mantenimiento', () => ({ avisarVencidas: avisosMock.avisarVencidas }))
 vi.mock('@/lib/pipeline', () => ({ avisarSeguimientos: avisosMock.avisarSeguimientos }))
 vi.mock('@/lib/finance', () => ({ avisarMesSinRellenar: avisosMock.avisarMesSinRellenar }))
+vi.mock('@/lib/gastos', () => ({
+  avisarTopes: avisosMock.avisarTopes,
+  generarRecurrentes: avisosMock.generarRecurrentes,
+}))
 
 const entornoOriginal = { ...process.env }
 
@@ -52,6 +58,8 @@ describe('iniciarCron: guarda de entorno', () => {
     expect(avisosMock.avisarVencidas).not.toHaveBeenCalled()
     expect(avisosMock.avisarSeguimientos).not.toHaveBeenCalled()
     expect(avisosMock.avisarMesSinRellenar).not.toHaveBeenCalled()
+    expect(avisosMock.avisarTopes).not.toHaveBeenCalled()
+    expect(avisosMock.generarRecurrentes).not.toHaveBeenCalled()
   })
 
   it('en producción programa el diario y dispara la pasada de arranque', async () => {
@@ -63,6 +71,8 @@ describe('iniciarCron: guarda de entorno', () => {
     expect(avisosMock.avisarVencidas).toHaveBeenCalledOnce()
     expect(avisosMock.avisarSeguimientos).toHaveBeenCalledOnce()
     expect(avisosMock.avisarMesSinRellenar).toHaveBeenCalledOnce()
+    expect(avisosMock.generarRecurrentes).toHaveBeenCalledOnce()
+    expect(avisosMock.avisarTopes).toHaveBeenCalledOnce()
   })
 
   it('CRON_EN_DEV=1 fuerza los avisos en desarrollo', async () => {

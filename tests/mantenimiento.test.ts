@@ -1,14 +1,34 @@
-// Fechas del sistema de mantenimiento: el encadenado de vencimientos al
-// completar (con recorte a fin de mes), la clasificación vencida/próxima/al
-// día y los textos en lenguaje natural de la lista (periodicidad y relativos).
-import { describe, expect, it, vi } from 'vitest'
+// Sistema de mantenimiento: el encadenado de vencimientos al completar (con
+// recorte a fin de mes), la clasificación vencida/próxima/al día, los textos en
+// lenguaje natural de la lista (periodicidad y relativos) y los ÁMBITOS, que
+// son una tabla editable: su alta/renombrado/borrado y la validación de que la
+// tarea apunta a uno que existe.
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { sumarMeses } from '@/lib/fechas'
 
-// mantenimiento.ts arrastra Prisma y el correo; aquí solo se prueban las puras.
-vi.mock('@/lib/prisma', () => ({ prisma: {} }))
+// mantenimiento.ts arrastra Prisma y el correo; aquí solo se prueban las puras
+// (y las actions, con la BD simulada).
+const { requireAdminMock, prismaMock } = vi.hoisted(() => ({
+  requireAdminMock: vi.fn(),
+  prismaMock: {
+    maintenanceTask: {
+      create: vi.fn(), update: vi.fn(), delete: vi.fn(), findUnique: vi.fn(), count: vi.fn(),
+    },
+    maintenanceScope: {
+      create: vi.fn(), update: vi.fn(), delete: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(),
+    },
+  },
+}))
+
+vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
+vi.mock('@/auth', () => ({ requireAdmin: requireAdminMock }))
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('@/lib/correo', () => ({ correoConfigurado: () => false, enviarCorreo: vi.fn() }))
 vi.mock('@/lib/site', () => ({ SITE_URL: 'https://adrianosuna.com' }))
+vi.mock('@/lib/ga', () => ({ visitantesAhora: vi.fn() }))
+vi.mock('@/lib/infra', () => ({ snapshotServidor: vi.fn() }))
 
-const { sumarMeses, estadoDe } = await import('@/lib/mantenimiento')
+const { estadoDe } = await import('@/lib/mantenimiento')
 
 describe('sumarMeses', () => {
   it('suma meses simples y cruza de año', () => {
@@ -94,3 +114,118 @@ describe('antiguedad', () => {
   })
 })
 
+
+// ─────────── Ámbitos: ahora son filas, no un enum ───────────
+
+describe('createAmbito y updateAmbito', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    requireAdminMock.mockResolvedValue({ user: { uuid: 'admin-1', role: 'ADMIN' } })
+    prismaMock.maintenanceScope.findFirst.mockResolvedValue(null)
+  })
+
+  it('crea el ámbito con el nombre recortado', async () => {
+    const { createAmbito } = await import('@/app/app/panel/actions')
+    expect(await createAmbito({ name: '  Moto  ' })).toEqual({ ok: true })
+    expect(prismaMock.maintenanceScope.create).toHaveBeenCalledWith({ data: { name: 'Moto' } })
+  })
+
+  it('exige nombre y no admite repetidos', async () => {
+    const { createAmbito } = await import('@/app/app/panel/actions')
+    expect(await createAmbito({ name: '   ' })).toEqual({
+      ok: false, message: 'El nombre es obligatorio',
+    })
+    prismaMock.maintenanceScope.findFirst.mockResolvedValue({ uuid: 'otro' })
+    expect(await createAmbito({ name: 'Casa' })).toEqual({
+      ok: false, message: 'Ya existe un ámbito con ese nombre',
+    })
+    expect(prismaMock.maintenanceScope.create).not.toHaveBeenCalled()
+  })
+
+  it('renombrar a un nombre que ya usa OTRO se rechaza (el propio vale)', async () => {
+    const { updateAmbito } = await import('@/app/app/panel/actions')
+    prismaMock.maintenanceScope.findFirst.mockResolvedValue({ uuid: 'otro' })
+    expect(await updateAmbito('a1', { name: 'Casa' })).toEqual({
+      ok: false, message: 'Ya existe un ámbito con ese nombre',
+    })
+    prismaMock.maintenanceScope.findFirst.mockResolvedValue({ uuid: 'a1' })
+    expect(await updateAmbito('a1', { name: 'Casa' })).toEqual({ ok: true })
+  })
+})
+
+describe('deleteAmbito', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    requireAdminMock.mockResolvedValue({ user: { uuid: 'admin-1', role: 'ADMIN' } })
+  })
+
+  it('no se puede borrar uno en uso', async () => {
+    prismaMock.maintenanceTask.count.mockResolvedValue(5)
+    const { deleteAmbito } = await import('@/app/app/panel/actions')
+    expect(await deleteAmbito('a1')).toEqual({
+      ok: false,
+      message: 'No se puede borrar: lo usan 5 tareas. Cámbialas de ámbito primero.',
+    })
+    expect(prismaMock.maintenanceScope.delete).not.toHaveBeenCalled()
+  })
+
+  it('uno sin tareas sí se borra', async () => {
+    prismaMock.maintenanceTask.count.mockResolvedValue(0)
+    const { deleteAmbito } = await import('@/app/app/panel/actions')
+    expect(await deleteAmbito('a1')).toEqual({ ok: true })
+    expect(prismaMock.maintenanceScope.delete).toHaveBeenCalledWith({ where: { uuid: 'a1' } })
+  })
+})
+
+describe('createMaintenance y updateMaintenance', () => {
+  const base = { title: 'ITV', intervalMonths: 12, nextDue: '2027-03-20', scopeUuid: 'a-vehiculo' }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    requireAdminMock.mockResolvedValue({ user: { uuid: 'admin-1', role: 'ADMIN' } })
+    // Por defecto, el ámbito que se pasa existe.
+    prismaMock.maintenanceScope.findUnique.mockResolvedValue({ uuid: 'a-vehiculo', name: 'Vehículo' })
+  })
+
+  it('guarda la tarea con su ámbito', async () => {
+    const { createMaintenance } = await import('@/app/app/panel/actions')
+    expect(await createMaintenance(base)).toEqual({ ok: true })
+    const data = prismaMock.maintenanceTask.create.mock.calls[0][0].data
+    expect(data).toMatchObject({ title: 'ITV', scopeUuid: 'a-vehiculo', intervalMonths: 12, notes: null })
+    expect((data.nextDue as Date).toISOString()).toBe('2027-03-20T00:00:00.000Z')
+  })
+
+  it('sin ámbito, o con uno que no existe, no se guarda', async () => {
+    const { createMaintenance } = await import('@/app/app/panel/actions')
+    expect(await createMaintenance({ ...base, scopeUuid: '' })).toEqual({
+      ok: false, message: 'Elige un ámbito',
+    })
+    prismaMock.maintenanceScope.findUnique.mockResolvedValue(null)
+    expect(await createMaintenance({ ...base, scopeUuid: 'fantasma' })).toEqual({
+      ok: false, message: 'Ese ámbito no existe',
+    })
+    expect(prismaMock.maintenanceTask.create).not.toHaveBeenCalled()
+  })
+
+  it('sigue exigiendo título, periodicidad de 1 a 120 meses y fecha válida', async () => {
+    const { createMaintenance } = await import('@/app/app/panel/actions')
+    expect(await createMaintenance({ ...base, title: '  ' })).toEqual({
+      ok: false, message: 'El título es obligatorio',
+    })
+    expect(await createMaintenance({ ...base, intervalMonths: 0 })).toEqual({
+      ok: false, message: 'La periodicidad debe ser de 1 a 120 meses',
+    })
+    expect(await createMaintenance({ ...base, nextDue: '20/03/2027' })).toEqual({
+      ok: false, message: 'Fecha de vencimiento no válida',
+    })
+    expect(prismaMock.maintenanceTask.create).not.toHaveBeenCalled()
+  })
+
+  it('al editar, cambiar de ámbito también reinicia el aviso', async () => {
+    const { updateMaintenance } = await import('@/app/app/panel/actions')
+    expect(await updateMaintenance('t1', { ...base, scopeUuid: 'a-casa' })).toEqual({ ok: true })
+    const data = prismaMock.maintenanceTask.update.mock.calls[0][0].data
+    expect(data.scopeUuid).toBe('a-casa')
+    expect(data.lastNotified).toBeNull()
+  })
+})

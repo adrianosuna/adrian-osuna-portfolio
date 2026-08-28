@@ -126,24 +126,44 @@ model SavingExtra {
   @@map("saving_extra")
 }
 
-// ─────────── MANTENIMIENTO DEL SERVIDOR (personal del admin) ───────────
-// Tareas recurrentes (revisar deps, backups, renovar dominio...) con su
-// periodicidad en meses. Un cron diario dentro de la app (instrumentation.ts)
-// avisa por correo de las vencidas; "marcar hecha" recalcula el vencimiento.
+// ─────────── MANTENIMIENTO (personal del admin) ───────────
+// Tareas recurrentes con su periodicidad en meses, agrupadas por ÁMBITO: del
+// servidor (revisar deps, backups, dominio...), de casa o del vehículo (ITV,
+// seguro, revisión). Un cron diario dentro de la app (instrumentation.ts) avisa
+// por correo de las vencidas; "marcar hecha" recalcula el vencimiento.
+
+/// Ámbito de una tarea de mantenimiento (servidor, casa, vehículo... y los que
+/// hagan falta). Empezó siendo un enum de tres el 28/08/2026 y pasó a tabla el
+/// mismo día: la lista la decide quien usa la app, no el esquema.
+model MaintenanceScope {
+  id       Int               @id @default(autoincrement())
+  uuid     String            @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
+  name     String            @db.VarChar(60)
+  createTs DateTime          @default(now()) @map("create_ts") @db.Timestamp(0)
+  updateTs DateTime          @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
+  tasks    MaintenanceTask[]
+
+  @@map("maintenance_scope")
+}
 
 model MaintenanceTask {
-  id             Int       @id @default(autoincrement())
-  uuid           String    @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
-  title          String    @db.VarChar(255)
-  notes          String?   @db.Text
-  intervalMonths Int       @map("interval_months") @db.SmallInt
-  nextDue        DateTime  @map("next_due") @db.Date
-  lastDone       DateTime? @map("last_done") @db.Date
-  lastNotified   DateTime? @map("last_notified") @db.Timestamp(0)
-  createTs       DateTime  @default(now()) @map("create_ts") @db.Timestamp(0)
-  updateTs       DateTime  @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
+  id             Int               @id @default(autoincrement())
+  uuid           String            @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
+  title          String            @db.VarChar(255)
+  /// Ámbito al que pertenece. Null solo si su ámbito se borró (SET NULL), que
+  /// hoy no puede pasar: no se deja borrar uno en uso.
+  scopeUuid      String?           @map("scope_uuid") @db.VarChar(36)
+  notes          String?           @db.Text
+  intervalMonths Int               @map("interval_months") @db.SmallInt
+  nextDue        DateTime          @map("next_due") @db.Date
+  lastDone       DateTime?         @map("last_done") @db.Date
+  lastNotified   DateTime?         @map("last_notified") @db.Timestamp(0)
+  createTs       DateTime          @default(now()) @map("create_ts") @db.Timestamp(0)
+  updateTs       DateTime          @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
+  scope          MaintenanceScope? @relation(fields: [scopeUuid], references: [uuid], onDelete: SetNull, onUpdate: NoAction, map: "fk_maintenance_scope")
 
   @@index([nextDue], map: "idx_maintenance_next_due")
+  @@index([scopeUuid], map: "fk_maintenance_scope")
   @@map("maintenance_task")
 }
 
@@ -241,35 +261,81 @@ enum MovementType {
 }
 
 model ExpenseCategory {
-  id       Int           @id @default(autoincrement())
-  uuid     String        @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
-  name     String        @db.VarChar(100)
+  id        Int                @id @default(autoincrement())
+  uuid      String             @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
+  name      String             @db.VarChar(100)
   /// Si la categoría es de ingreso o de gasto.
-  type     MovementType
+  type      MovementType
   /// Color del chip y del donut, en hexadecimal (#rrggbb).
-  color    String        @db.VarChar(9)
-  createTs DateTime      @default(now()) @map("create_ts") @db.Timestamp(0)
-  updateTs DateTime      @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
-  expenses Expense[]
+  color     String             @db.VarChar(9)
+  /// Tope de gasto MENSUAL de la categoría (null = sin tope). Solo tiene
+  /// sentido en las categorías de gasto.
+  budget    Decimal?           @db.Decimal(12, 2)
+  /// Último aviso de tope enviado, como 'YYYY-MM:nivel' ('2026-08:100'): el
+  /// correo sale una vez por mes y por nivel alcanzado, no semanalmente.
+  notified  String?            @map("budget_notified") @db.VarChar(16)
+  createTs  DateTime           @default(now()) @map("create_ts") @db.Timestamp(0)
+  updateTs  DateTime           @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
+  expenses  Expense[]
+  recurring RecurringExpense[]
 
   @@index([type], map: "idx_expense_category_type")
   @@map("expense_category")
 }
 
+/// Movimientos que se repiten (alquiler, suscripciones, seguros, nómina...):
+/// el cron diario los apunta solos en `expense` cuando les toca y adelanta su
+/// próxima fecha. Lo generado es un movimiento normal, editable y borrable.
+model RecurringExpense {
+  id             Int              @id @default(autoincrement())
+  uuid           String           @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
+  categoryUuid   String?          @map("category_uuid") @db.VarChar(36)
+  type           MovementType
+  concept        String           @db.VarChar(255)
+  amount         Decimal          @default(0.00) @db.Decimal(12, 2)
+  /// Cada cuántos meses se repite (1 mensual, 3 trimestral, 12 anual).
+  intervalMonths Int              @map("interval_months") @db.SmallInt
+  /// Próximo cargo: el día en que el cron creará el movimiento.
+  nextDate       DateTime         @map("next_date") @db.Date
+  /// Día del mes original (1-31). Guardarlo evita que un cargo del 31 se
+  /// quede clavado en el 28 después de pasar por febrero.
+  dayAnchor      Int              @map("day_anchor") @db.SmallInt
+  /// Pausado sin perder el histórico ni la configuración.
+  active         Boolean          @default(true)
+  /// Fecha del último movimiento generado (null si aún no ha generado ninguno).
+  lastCreated    DateTime?        @map("last_created") @db.Date
+  createTs       DateTime         @default(now()) @map("create_ts") @db.Timestamp(0)
+  updateTs       DateTime         @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
+  category       ExpenseCategory? @relation(fields: [categoryUuid], references: [uuid], onDelete: SetNull, onUpdate: NoAction, map: "fk_recurring_category")
+
+  /// Movimientos que ha generado (los que siguen existiendo).
+  generados Expense[]
+
+  @@index([nextDate], map: "idx_recurring_next_date")
+  @@index([categoryUuid], map: "fk_recurring_category")
+  @@map("recurring_expense")
+}
+
 model Expense {
-  id           Int              @id @default(autoincrement())
-  uuid         String           @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
-  categoryUuid String?          @map("category_uuid") @db.VarChar(36)
+  id            Int               @id @default(autoincrement())
+  uuid          String            @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
+  categoryUuid  String?           @map("category_uuid") @db.VarChar(36)
+  /// Recurrente que lo generó (null: apuntado a mano). Permite ver qué ha
+  /// apuntado cada recurrente; borrarlo NO borra sus movimientos (SetNull):
+  /// son gasto real y se quedan en el histórico.
+  recurringUuid String?           @map("recurring_uuid") @db.VarChar(36)
   /// Ingreso o gasto (el "Tipo" de la hoja mensual del Excel).
-  type         MovementType
-  concept      String           @db.VarChar(255)
-  amount       Decimal          @default(0.00) @db.Decimal(12, 2)
-  expenseDate  DateTime         @map("expense_date") @db.Date
-  createTs     DateTime         @default(now()) @map("create_ts") @db.Timestamp(0)
-  updateTs     DateTime         @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
-  category     ExpenseCategory? @relation(fields: [categoryUuid], references: [uuid], onDelete: SetNull, onUpdate: NoAction, map: "fk_expense_category")
+  type          MovementType
+  concept       String            @db.VarChar(255)
+  amount        Decimal           @default(0.00) @db.Decimal(12, 2)
+  expenseDate   DateTime          @map("expense_date") @db.Date
+  createTs      DateTime          @default(now()) @map("create_ts") @db.Timestamp(0)
+  updateTs      DateTime          @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
+  category      ExpenseCategory?  @relation(fields: [categoryUuid], references: [uuid], onDelete: SetNull, onUpdate: NoAction, map: "fk_expense_category")
+  recurring     RecurringExpense? @relation(fields: [recurringUuid], references: [uuid], onDelete: SetNull, onUpdate: NoAction, map: "fk_expense_recurring")
 
   @@index([expenseDate], map: "idx_expense_date")
   @@index([categoryUuid], map: "fk_expense_category")
+  @@index([recurringUuid], map: "fk_expense_recurring")
   @@map("expense")
 }

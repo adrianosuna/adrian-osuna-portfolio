@@ -6,6 +6,283 @@ cuando algo se termina, se cuenta aquí con su porqué y desaparece de allí.
 
 ---
 
+## 28/08/2026
+
+### Más control de los recurrentes: apuntar ya, duplicar y ver lo apuntado
+
+Cada recurrente despliega su detalle desde la fila (un chevron; en la fila
+serían seis iconos) con tres cosas:
+
+- **Apuntar el cargo ya**, sin esperar a la pasada del cron — con la fecha en el
+  propio botón ("Apuntar el cargo del 10/09"). Comparte **la misma rutina** que
+  el cron (`apuntarCargos`), y esa es la clave: apunta el cargo con **su propia
+  fecha, no con la de hoy**, y adelanta `next_date`, así que cuando llegue el
+  día el cron no lo duplica. Si estaba atrasado, recupera todos los pendientes.
+  Funciona con el recurrente en pausa y no lo reactiva.
+- **Ver lo que ha apuntado**: los últimos doce movimientos con su fecha e
+  importe, y el total. Para esto hacía falta saber de dónde viene cada
+  movimiento, que hasta ahora no se guardaba: columna `expense.recurring_uuid`
+  (migración `origen_de_los_movimientos`), con `SetNull` — borrar el recurrente
+  **no** borra su gasto real, solo pierde el origen. Los movimientos anteriores
+  a la migración se quedan sin origen: nadie sabe de dónde vinieron.
+- **Duplicar**: abre el alta con los valores copiados y "(copia)" en el
+  concepto. No escribe nada hasta darle a Crear.
+
+Dos detalles que salieron al probarlo:
+
+- Si la lectura de lo apuntado falla, el panel **se quedaba en "Cargando..."
+  para siempre**. Ahora ese caso tiene su mensaje.
+- En móvil, "Apuntar el cargo del 03/09" **no cabe en media fila** y se partía
+  en dos líneas (56 px de alto contra los 37 de "Duplicar"): por debajo de sm,
+  un botón por fila y a lo ancho.
+
+6 tests nuevos en `tests/recurrentes.test.ts`: que apunta aunque no haya
+vencido, que recupera atrasos, que marca el origen, que respeta la pausa, que
+un uuid inexistente devuelve null, y el listado acotado a su recurrente.
+
+### Limpieza: una sola `sumarMeses` y fuera lo que ya no se usa
+
+Con todo lo del día encima, dos cosas sobraban:
+
+- **`sumarMeses` estaba duplicada** —una en `mantenimiento.ts` y otra en
+  `recurrentes.ts`, idénticas salvo el parámetro `ancla`— justo el patrón que
+  este proyecto ya pagó con los nombres de los meses. Ahora vive en
+  `src/lib/fechas.ts`, que es el módulo de fechas puro que ya compartían, con el
+  ancla como parámetro opcional. De paso quedó claro que `mantenimiento.ts` no
+  la usaba: solo la reexportaba para su server action.
+- **`PALETA` y `btnDanger`**: la primera quedó huérfana al automatizar el color
+  de las categorías; la segunda llevaba tiempo sin usarse.
+
+### Las flechas de los campos numéricos desaparecen en móvil
+
+Eran el último objetivo táctil pequeño que quedaba (24×18 px) y salían en cada
+importe, cada periodicidad y cada tope. En un móvil no aportan nada: al tocar el
+campo sale el teclado numérico y se teclea la cifra; dos botones diminutos
+pegados al borde solo estaban ahí para pulsarse sin querer. Desde `sm` siguen
+igual, que es donde sí se usan con el ratón, y el teclado sigue incrementando
+con ↑/↓ sobre el propio input en cualquier tamaño.
+
+De paso, el campo gana los ~30 px que ocupaban: el importe del alta rápida pasa
+de 119 a 149 px de ancho útil. Con esto **no queda ni un botón por debajo de
+32 px** en ninguna de las pantallas nuevas.
+
+### Los ámbitos de mantenimiento se pueden crear, renombrar y borrar
+
+Salieron como enum de tres (servidor, casa, vehículo) y eso significaba que
+añadir uno —moto, salud, trabajo— exigía tocar el esquema y desplegar. Ahora son
+una **tabla** (`maintenance_scope`, migración `ambitos_editables`) y se
+gestionan desde el modal «Ámbitos» de la pestaña.
+
+- **Renombrar es seguro**: las tareas apuntan al ámbito por uuid, no por nombre.
+- **Un ámbito en uso no se borra**, mismo criterio que las categorías de gastos:
+  el FK es SET NULL, así que borrarlo dejaría tareas sin clasificar en silencio.
+  El botón sale apagado diciendo cuántas tareas lo usan, y la acción también lo
+  rechaza en el servidor.
+- La tarea **exige un ámbito que exista** (antes, un valor raro caía al defecto;
+  ahora tiene que ser una fila).
+- El filtro y el selector se construyen con la lista real, alfabética.
+
+La migración hace el trasvase en dos pasos —siembra los tres nombres del enum,
+apunta cada tarea al suyo traduciendo el valor viejo y retira la columna— así
+que no hay que reclasificar nada a mano. Se queda como migración aparte de
+`ambitos_de_mantenimiento` (la que creó el enum) en vez de reescribirla: ninguna
+de las dos está desplegada, pero rehacer una migración ya aplicada en local es
+más frágil que añadir la que corrige.
+
+10 tests para el alta/renombrado/borrado y la validación del ámbito de la tarea.
+
+### Mantenimiento, ahora también de casa y del vehículo
+
+La ITV, el seguro de casa o la revisión de la caldera son **el mismo problema**
+que revisar dependencias o comprobar backups: algo que caduca cada N meses y
+que hay que recordar. En vez de un módulo nuevo, las tareas de mantenimiento se
+separan por **ámbito**: servidor, casa o vehículo (columna `scope`, migración
+`ambitos_de_mantenimiento`).
+
+- Cada tarea muestra su ámbito **con icono** (servidor, casa, coche) junto a la
+  periodicidad, que es lo que distingue una lista mezclada de un cajón.
+- **Filtro por ámbito** en la cabecera, que solo aparece cuando hay más de uno
+  en uso: con todo en el servidor no filtraría nada y sería ruido.
+- El **correo de vencidas** abre cada tarjeta con el ámbito ("Vehículo · Vencía
+  el 14/11") — en un aviso con la ITV y los backups juntos, es lo primero que
+  hace falta saber.
+- El ámbito se elige en el modal de alta/edición y **por defecto es Servidor**,
+  que es lo que eran todas las tareas hasta ahora: la migración no tuvo que
+  rellenar nada. Un ámbito inventado desde fuera cae en Servidor en vez de
+  fallar.
+
+6 tests nuevos en `tests/mantenimiento.test.ts`, que de paso estrena cobertura
+de sus server actions (antes solo se probaban las funciones puras).
+
+### Los años de ahorro también se gestionan en Ajustes
+
+Tercer bloque de la sección: **años de ahorro**, con lo que estaba en el modal
+«Gestionar años» de las pestañas de Ahorro (crear, renombrar, objetivo,
+exportar a Excel, eliminar) y dos cosas más de contexto que el modal no daba:
+cuántos **meses rellenos** tiene cada año y, en la cabecera, el objetivo del año
+en curso.
+
+Las pestañas de Ahorro se quedan **solo para navegar**, que es lo que se espera
+de unas pestañas, y toda la configuración de Finanzas queda en un sitio. El
+aviso al borrar ahora dice exactamente qué se lleva por delante ("se borra el
+año con todo su detalle: 12 meses rellenos, ingresos extra y viajes") y aclara
+lo que NO se toca: los movimientos de Gastos, que no cuelgan del año.
+
+Los textos de "no hay año creado" del Panel, del Resumen y del módulo anual
+apuntan ahora a Ajustes en vez de al modal desaparecido.
+
+### Ajustes: categorías y recurrentes salen de los modales
+
+Los dos se gestionaban en modales dentro de la vista Gastos, y con 19
+categorías ya había que buscar a ojo en una lista con scroll. Ahora Finanzas
+tiene una **cuarta sección, Ajustes** (`?s=ajustes`), con un bloque para cada
+cosa; la vista de Gastos se queda con lo que es —consultar y apuntar
+movimientos— y sus botones «Gestionar» llevan aquí.
+
+Lo que la sección permite y el modal no:
+
+- **Fusionar categorías** del mismo tipo: los movimientos y los recurrentes de
+  una pasan a la otra en una transacción y la de origen desaparece. Antes, con
+  dos nombres parecidos acumulados ("Comer fuera" y "Restaurantes"), la única
+  salida era borrar una y perder la categoría de todo su historial. La fila
+  dice antes de confirmar qué va a mover y adónde.
+- **Una categoría en uso ya no se puede borrar.** El FK es `SetNull`, así que
+  borrarla dejaba su historial "sin categoría" en silencio: años de gasto
+  desclasificados en un clic. Ahora la acción lo rechaza contando movimientos y
+  recurrentes, el botón sale apagado con el motivo, y el camino para quitar una
+  de en medio es fusionarla.
+- **El color lo elige la aplicación** y nunca repite (`src/lib/colores.ts`):
+  busca el tono más alejado de los que ya se usan, con la saturación y la
+  luminosidad fijas del tema. La paleta manual eran ocho colores para 19
+  categorías —repetidos garantizados— y elegir color al dar de alta un gasto no
+  aporta nada. Con las 19 de la BD, el siguiente color cae en el tono 93, a 48°
+  del más cercano.
+- **Buscador y filtros** en los dos bloques. La búsqueda ignora mayúsculas y
+  tildes (`NFD` + quitar diacríticos): "cafe" encuentra "Comer fuera / Cafés".
+  Sin icono de lupa dentro del campo: se montaba encima del placeholder.
+- **Altas y ediciones, por modal** (el común de la casa), con el mismo
+  formulario y los campos etiquetados: en la fila no se leían, y el de un
+  recurrente son seis. El tipo solo se ofrece al crear —cambiarlo después no
+  significa nada— y en la fila quedan las acciones de un clic: pausar,
+  fusionar y borrar.
+
+**Repaso móvil de todo lo nuevo** (375 y 320 px, y comprobado que a 1280 no
+cambia nada): ningún desbordamiento horizontal ni texto cortado en las dos
+tarjetas de Gastos, la sección y sus dos modales. Lo que hubo que corregir:
+
+- **Objetivos táctiles**: los chips de filtro y los botones de alta salían a
+  27 px de alto y el «Eliminar» de la confirmación a 24 px. Todos a 32-35 px en
+  móvil (`max-sm:py-2`), como ya estaban los botones de icono.
+- **"Con tope" se partía en dos líneas** al estrecharse el chip y subía la fila
+  a 54 px: pasa a llamarse **"Tope"**, y los chips llevan `whitespace-nowrap`.
+- **La cabecera se APILA en móvil** (columna, no wrapping): buscador, filtros y
+  botón de alta, cada uno en su fila y a lo ancho. Repartiéndose por wrapping
+  se pisaban entre ellos, y a 320 px el grupo de chips se aplastaba a 82 px.
+- **Las filas de las dos listas, a dos líneas iguales**: nombre y su cifra
+  arriba (el tope o el importe), datos y acciones abajo. La de categorías se
+  iba a tres líneas y la de recurrentes también. El truco es `sm:contents` en
+  los dos envoltorios: en escritorio desaparecen y todo vuelve a una sola fila,
+  con `sm:order-*` para conservar el orden original de las columnas.
+- **La vista de Gastos se queda sin atajos a Ajustes**: los botones «Categorías
+  y recurrentes» y «Gestionar» se retiraron — la sección ya está en la nav, y
+  en móvil el segundo competía por sitio con el resumen de su tarjeta.
+
+La lista va **siempre alfabética**. Hubo un orden manual con flechas y su
+columna `sort_order`; se retiró el mismo día, con su migración, porque el orden
+daba igual y la columna solo añadía reglas (las flechas tenían que ocultarse al
+filtrar). Como no llegó a desplegarse, no queda ni rastro en producción.
+
+12 tests nuevos entre `tests/gastos.test.ts` (fusión, guarda del borrado, color
+automático) y `tests/colores.test.ts` (tono de un hex, ida y vuelta, 30 colores
+seguidos sin repetir). Las piezas comunes de las dos vistas (`fmtDia`,
+`TIPOS`...) pasaron a `savings/comun.tsx`.
+
+### Recurrentes: lo que se repite se apunta solo
+
+Alquiler, suscripciones, seguros, la nómina... todos los meses había que
+teclear lo mismo. Ahora se dan de alta una vez (**concepto, importe,
+periodicidad, próximo cargo y categoría**) y **el cron diario los apunta** en
+`expense` el día que toca, adelantando su próxima fecha. Lo generado es un
+movimiento **normal**: se puede editar y borrar como cualquier otro, y si se
+pausa un recurrente, se conserva su configuración.
+
+Tabla nueva `recurring_expense` (migración `gastos_recurrentes`), tarjeta
+**Recurrentes** en la vista del mes —con el estado de cada uno: "próximo
+03/09", "cargado el 10/08" o "pendiente desde…"— y modal de gestión con el
+mismo formulario para el alta y la edición.
+
+Tres decisiones que no son obvias:
+
+- **`day_anchor`**: un recibo del 31 pasa por febrero, se recorta al 28 y, sin
+  guardar el día original, se quedaría clavado en el 28 para siempre. El ancla
+  lo devuelve al 31 en marzo.
+- **Recuperar atrasos**: si el servidor estuvo parado, `cargosPendientes` apunta
+  TODOS los cargos que se perdieron, no solo el último. Con freno
+  (`MAX_CARGOS = 24`) y validación de la fecha de alta: una fecha de 2019 solo
+  puede ser un despiste, y llenaría el histórico de movimientos falsos.
+- **Equivalente mensual**: la cifra de cabecera reparte los no mensuales entre
+  sus meses (un seguro de 600 € al año son 50 € al mes). Sumar solo los
+  mensuales dejaría fuera justo los recibos gordos.
+
+En el cron, la generación va **antes** de los avisos y estos la esperan: si hoy
+es día 1, el aviso de topes tiene que contar ya con el alquiler recién
+apuntado. De paso se corrigió que **sin SMTP no se programaba nada**: los
+recurrentes no tienen nada que ver con el correo y ahora se apuntan igual.
+19 tests nuevos (`tests/recurrentes.test.ts`), casi todos sobre fechas: meses
+cortos, febrero bisiesto, cruce de año y atrasos.
+
+### Topes de gasto por categoría
+
+Los donuts cuentan lo que ya pasó, y un gasto hecho no se deshace. Cada
+categoría de gasto admite ahora un **tope mensual** (`expense_category.budget`,
+vacío = sin tope) que se pone en «Gestionar categorías», y la vista del mes
+lleva una tarjeta con **una barra por tope** —verde, ámbar al 80 % y roja al
+pasarse— más la barra del conjunto y el "te quedan X €".
+
+El **aviso por correo** sale al llegar al 80 % y al pasarse, y **no se repite
+semanalmente** como el resto de avisos del panel: uno por mes y por nivel,
+recordado en `budget_notified` (`'2026-08:pasado'`). Es deliberado — no hay
+nada que "marcar como hecho", así que insistir cada semana solo enseñaría a
+ignorar el correo. Cambiar el tope limpia la marca y el estado se reevalúa.
+
+Migración `topes_por_categoria` (dos columnas, sin tocar datos) y 16 tests
+(`tests/topes.test.ts`), incluidos los cuatro casos del aviso: escala de 80 % a
+pasado, no repetir, mes nuevo y recuperación.
+
+Los umbrales viven en `src/lib/topes.ts`, **sin `server-only`**: los usan el
+aviso (servidor) y las barras (cliente), y tener el 80 % escrito en dos sitios
+es la forma segura de que un día dejen de coincidir.
+
+### Producción al día: gastos e ingresos, Finanzas en tres secciones y Chart.js
+
+Desde el 26/08 producción iba por detrás. Desplegado `69b9d36`, que arrastra
+todo el trabajo del 26-28/08: el **módulo de control de gastos e ingresos**,
+Finanzas en tres secciones, la tasa de ahorro corregida, el repaso móvil del
+dashboard, las **gráficas sobre Chart.js** con tooltip compartido y la
+agrupación semanal de la serie de visitas.
+
+Cómo fue, por si sirve la próxima vez:
+
+- **Dump manual antes de migrar**, además del diario de las 4:00: el despliegue
+  llevaba DDL y el cron podía quedar a horas de distancia.
+- **Build con `--profile setup`** — sin el perfil no se reconstruye la imagen de
+  `migrate` y la migración se aplicaría con el código viejo — y paso
+  `run --rm migrate` **antes** del `up`.
+- Migración nueva **`control_de_gastos`** (tablas de movimientos y categorías,
+  con el seed de las 19 categorías: 15 de gasto y 4 de ingreso). `migrate
+  deploy` es idempotente y el seed usa `WHERE NOT EXISTS`, así que aplicó solo
+  lo que faltaba.
+- **Ninguna variable de entorno nueva**: comprobado contra lo desplegado que
+  `docker-compose.yml` y `.env.production.example` no cambian, y que la única
+  nueva (`CRON_EN_DEV`) es exclusiva de desarrollo. `chart.js` la instala el
+  build. El `Dockerfile` solo subió pnpm a 11.24.0.
+
+**Los datos inventados de la BD local se quedan**: los 155 movimientos de 2026,
+el año de ahorro 2025 y las siete oportunidades (`origin = 'Datos de prueba'`)
+resultan útiles para trabajar con las pantallas llenas, así que dejan de estar
+pendientes de borrado. Producción no los ve: su BD arrancó vacía y nada de esto
+va en migraciones ni en el seed.
+
 ## 27/08/2026
 
 ### Los avisos por correo ya no se disparan en desarrollo

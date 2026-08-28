@@ -2,31 +2,32 @@
 
 // Vista "Gastos" de Finanzas, réplica del Excel "Control de gastos": cada
 // movimiento es un ingreso o un gasto. Dos sub-vistas — el MES (resumen,
-// lista con alta rápida y los dos desgloses) y el AÑO (mes a mes con balance
-// y desgloses del año). Las categorías se gestionan en su propio modal.
+// lista con alta rápida, topes, recurrentes y los dos desgloses) y el AÑO (mes
+// a mes con balance y desgloses del año). Es una vista de CONSULTA y alta
+// rápida de MOVIMIENTOS: gestionar categorías, topes y recurrentes es cosa de
+// la sección Ajustes (`?s=ajustes`, ajustes.tsx), sin atajos desde aquí.
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Check, ChevronLeft, ChevronRight, Pencil, Plus, Tag, Trash2, TrendingDown, TrendingUp, X,
+  Check, ChevronLeft, ChevronRight, Pencil, Plus, Trash2, TrendingDown, TrendingUp, X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { Modal } from '@/components/ui/modal'
 import { DateField, NumberField, SelectField, TextField } from '@/components/ui/fields'
 import type {
   AnioMovimientos, CategoriaRow, MesMovimientos, MovimientoRow, ParteCategoria, TipoMovimiento,
 } from '@/lib/gastos'
-import {
-  createCategoria, createGasto, deleteCategoria, deleteGasto, updateCategoria, updateGasto,
-} from '@/app/app/finance/gastos-actions'
+import { createGasto, deleteGasto, updateGasto } from '@/app/app/finance/gastos-actions'
 import { GraficaBarras } from '@/components/ui/charts/barras'
 import { coloresTema } from '@/components/ui/charts/comun'
 import { GraficaDonut } from '@/components/ui/charts/donut'
 import { MESES, mesCorto } from '@/lib/fechas'
+import { nivelTope, resumenTopes, type TopeRow } from '@/lib/topes'
+import { etiquetaPeriodo, resumenRecurrentes, type RecurrenteRow } from '@/lib/recurrentes'
 import { ejeEuros, ejeMeses } from './charts'
-import { btnIcon, btnOutline, btnPrimary, cardClass, eur } from './comun'
-
-
+import {
+  btnIcon, btnPrimary, cardClass, eur, fmtDia, fmtDiaAnio, SIN_CATEGORIA, TIPOS,
+} from './comun'
 
 /** 'YYYY-MM' → 'Agosto 2026'. */
 const nombreMes = (mes: string) => {
@@ -42,21 +43,6 @@ const moverMes = (mes: string, delta: number) => {
   const m2 = ((total % 12) + 12) % 12
   return `${y2}-${String(m2 + 1).padStart(2, '0')}`
 }
-
-const fmtDia = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
-
-// Paleta de colores para las categorías (legibles sobre el tema oscuro).
-const PALETA = [
-  '#10b981', '#f59e0b', '#3b82f6', '#a855f7',
-  '#ef4444', '#ec4899', '#14b8a6', '#94a3b8',
-]
-
-const SIN_CATEGORIA = '#94a3b8'
-
-const TIPOS: Array<{ value: TipoMovimiento; label: string }> = [
-  { value: 'GASTO', label: 'Gasto' },
-  { value: 'INGRESO', label: 'Ingreso' },
-]
 
 // ─────────── piezas comunes ───────────
 
@@ -104,6 +90,206 @@ function Comparativa({ actual, previo, gastoEsMalo }: {
   )
 }
 
+/**
+ * Topes del mes: una barra por categoría con tope, de la más apurada a la que
+ * más margen le queda.
+ *
+ * Va aquí y no arriba a propósito: el alta rápida de movimientos tiene que
+ * quedar a mano en móvil, y esto se consulta, no se teclea. Cuando no hay
+ * ningún tope la tarjeta sigue saliendo con la pista de dónde ponerlos — un
+ * módulo invisible es un módulo que no se usa.
+ */
+function Topes({ topes, mes }: { topes: TopeRow[]; mes: string }) {
+  const resumen = resumenTopes(topes)
+  const pctTotal = resumen.total > 0 ? (resumen.gastado / resumen.total) * 100 : 0
+
+  return (
+    <div className={cn(cardClass, 'mt-4')}>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-border px-5 py-3">
+        <h3 className="font-semibold">Topes de {nombreMes(mes)}</h3>
+        {topes.length > 0 && (
+          <p className="text-[12.5px] text-muted-foreground">
+            <span className="font-semibold tabular-nums text-foreground">{eur(resumen.gastado)}</span>
+            {' de '}
+            <span className="tabular-nums">{eur(resumen.total)}</span>
+            {resumen.restante >= 0 ? (
+              <> · te quedan <span className="tabular-nums">{eur(resumen.restante)}</span></>
+            ) : (
+              <> · <span className="text-danger">te has pasado en <span className="tabular-nums">{eur(-resumen.restante)}</span></span></>
+            )}
+          </p>
+        )}
+      </div>
+
+      {topes.length === 0 ? (
+        <p className="px-5 py-4 text-[13px] text-muted-foreground">
+          Ningún tope puesto. Dale un tope mensual a una categoría de gasto en la sección
+          Ajustes y aquí verás cuánto llevas gastado de cada uno.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-3 px-5 py-4">
+          {/* Barra del conjunto: la suma de todos los topes, para el vistazo. */}
+          <BarraTope
+            nombre="Todos los topes"
+            color="var(--muted-foreground)"
+            gastado={resumen.gastado}
+            budget={resumen.total}
+            pct={pctTotal}
+            destacada
+          />
+          {topes.map((t) => (
+            <BarraTope
+              key={t.uuid}
+              nombre={t.name}
+              color={t.color}
+              gastado={t.gastado}
+              budget={t.budget}
+              pct={t.pct}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Una fila de tope: nombre, cifras y barra coloreada por estado. */
+function BarraTope({ nombre, color, gastado, budget, pct, destacada }: {
+  nombre: string
+  color: string
+  gastado: number
+  budget: number
+  pct: number
+  destacada?: boolean
+}) {
+  const nivel = nivelTope(pct)
+  const tono =
+    nivel === 'pasado' ? 'bg-danger' : nivel === 'limite' ? 'bg-warning' : 'bg-primary'
+  const texto =
+    nivel === 'pasado' ? 'text-danger' : nivel === 'limite' ? 'text-warning' : 'text-muted-foreground'
+
+  return (
+    <div className={cn(destacada && 'border-b border-border/60 pb-3')}>
+      {/* En móvil el nombre solo tenía ~120px y se cortaba ("Transporte /
+          Gasoli…"): ahí ocupa su propia línea y las cifras bajan a la
+          siguiente, como en la lista de movimientos y en el modal. */}
+      <div className="flex items-center gap-2 text-[13px] max-sm:flex-wrap">
+        <span
+          className="inline-block size-2.5 shrink-0 rounded-xs"
+          style={{ background: color }}
+        />
+        <span className="min-w-0 flex-1 truncate font-semibold max-sm:basis-[calc(100%-1.75rem)]">
+          {nombre}
+        </span>
+        <span className="shrink-0 tabular-nums text-muted-foreground max-sm:ml-5 max-sm:flex-1">
+          {eur(gastado)} <span className="text-muted-foreground/70">de {eur(budget)}</span>
+        </span>
+        <span className={cn('w-12 shrink-0 text-right font-semibold tabular-nums', texto)}>
+          {Math.round(pct)}&nbsp;%
+        </span>
+      </div>
+      <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted">
+        <div
+          className={cn('h-full rounded-full transition-[width]', tono)}
+          style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Recurrentes activos: lo que va a caer solo, con su próximo cargo.
+ *
+ * El número que manda es el EQUIVALENTE MENSUAL: un seguro de 600 € al año son
+ * 50 € al mes, y sumar solo los mensuales dejaría fuera justo los recibos
+ * gordos. Los pausados no cuentan y solo se ven en el modal.
+ */
+function Recurrentes({ filas, mes, hoy, categorias }: {
+  filas: RecurrenteRow[]
+  mes: string
+  hoy: string
+  categorias: CategoriaRow[]
+}) {
+  const resumen = resumenRecurrentes(filas)
+  const activos = filas.filter((r) => r.active)
+
+  return (
+    <div className={cn(cardClass, 'mt-4')}>
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-5 py-3">
+        <h3 className="font-semibold">Recurrentes</h3>
+        {resumen.activos > 0 && (
+          <p className="text-[12.5px] text-muted-foreground">
+            <span className="font-semibold tabular-nums text-danger">{eur(resumen.gasto)}</span>
+            {' de gasto fijo al mes'}
+            {resumen.ingreso > 0 && (
+              <>
+                {' · '}
+                <span className="font-semibold tabular-nums text-success">{eur(resumen.ingreso)}</span>
+                {' de ingreso'}
+              </>
+            )}
+          </p>
+        )}
+      </div>
+
+      {activos.length === 0 ? (
+        <p className="px-5 py-4 text-[13px] text-muted-foreground">
+          Ningún recurrente. Da de alta el alquiler, las suscripciones o la nómina y se apuntarán
+          solos el día que toque, sin teclearlos cada mes.
+        </p>
+      ) : (
+        <div className="flex flex-col divide-y divide-border/60">
+          {activos.map((r) => {
+            const cat = categorias.find((c) => c.uuid === r.categoryUuid)
+            const esGasto = r.type === 'GASTO'
+            // "Ya cargado" solo si el último movimiento cayó en el mes que se
+            // está viendo: en un mes pasado, el próximo cargo no dice nada.
+            const cargado = r.lastCreated?.startsWith(mes) ? r.lastCreated : null
+            // Vencido y sin apuntar: pasa cuando se acaba de dar de alta con
+            // una fecha ya pasada. Lo recoge la siguiente pasada del cron.
+            const pendiente = !cargado && r.nextDate <= hoy
+            return (
+              <div key={r.uuid} className="flex items-center gap-2 px-5 py-2.5 text-[13px] max-sm:flex-wrap">
+                <span
+                  className="inline-block size-2.5 shrink-0 rounded-xs"
+                  style={{ background: cat?.color ?? SIN_CATEGORIA }}
+                  title={cat?.name ?? 'Sin categoría'}
+                />
+                <span className="min-w-0 flex-1 truncate font-semibold max-sm:basis-[calc(100%-1.75rem)]">
+                  {r.concept}
+                </span>
+                <span className="shrink-0 text-[12px] text-muted-foreground max-sm:ml-5">
+                  {etiquetaPeriodo(r.intervalMonths)}
+                </span>
+                <span className="shrink-0 text-[12px] text-muted-foreground max-sm:flex-1 sm:w-36 sm:text-right">
+                  {cargado ? (
+                    <span className="text-success">cargado el {fmtDia(cargado)}</span>
+                  ) : pendiente ? (
+                    <span className="text-warning">
+                      pendiente desde {fmtDiaAnio(r.nextDate, mes)}
+                    </span>
+                  ) : (
+                    <>próximo {fmtDiaAnio(r.nextDate, mes)}</>
+                  )}
+                </span>
+                <span
+                  className={cn(
+                    'shrink-0 font-semibold tabular-nums sm:w-24 sm:text-right',
+                    esGasto ? 'text-danger' : 'text-success',
+                  )}>
+                  {esGasto ? '−' : '+'}
+                  {eur(r.amount)}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /** Desglose por categoría: donut + leyenda (el "en qué se va" del Excel). */
 function Desglose({ titulo, partes, centro, vacio }: {
   titulo: string
@@ -133,17 +319,17 @@ function Desglose({ titulo, partes, centro, vacio }: {
 // ─────────── vista principal ───────────
 
 export function GastosTab({
-  datos, anio, categorias, mostrarAnio, hoy,
+  datos, anio, categorias, recurrentes, mostrarAnio, hoy,
 }: {
   datos: MesMovimientos
   anio: AnioMovimientos
   categorias: CategoriaRow[]
+  recurrentes: RecurrenteRow[]
   mostrarAnio: boolean
   hoy: string // 'YYYY-MM-DD' (Madrid)
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
-  const [gestion, setGestion] = useState(false)
 
   // Alta rápida: tipo gasto por defecto (es lo que más se apunta) y fecha
   // HOY si se está viendo el mes en curso; si no, el día 1 de ese mes.
@@ -244,9 +430,6 @@ export function GastosTab({
             </button>
           </div>
         </div>
-        <button type="button" className={cn(btnOutline, 'w-full sm:w-auto')} onClick={() => setGestion(true)}>
-          <Tag className="size-4" /> Gestionar categorías
-        </button>
       </div>
 
       {mostrarAnio ? (
@@ -523,6 +706,12 @@ export function GastosTab({
             </div>
           </div>
 
+          {/* Topes: lo único de esta vista que avisa a tiempo */}
+          <Topes topes={datos.topes} mes={datos.mes} />
+
+          {/* Recurrentes: lo que va a caer solo */}
+          <Recurrentes filas={recurrentes} mes={datos.mes} hoy={hoy} categorias={categorias} />
+
           {/* Los dos desgloses del mes */}
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
             <Desglose
@@ -541,7 +730,6 @@ export function GastosTab({
         </>
       )}
 
-      {gestion && <CategoriasModal categorias={categorias} onClose={() => setGestion(false)} />}
     </div>
   )
 }
@@ -704,196 +892,5 @@ export function MovimientosPorMes({
       scales={{ x: { ticks: ejeMeses }, y: { ticks: { callback: ejeEuros } } }}
       onBarra={onMes ? (i) => onMes(i + 1) : undefined}
     />
-  )
-}
-
-// ─────────── gestión de categorías ───────────
-
-function Paleta({ valor, onPick }: { valor: string; onPick: (c: string) => void }) {
-  return (
-    <span className="flex shrink-0 gap-1">
-      {PALETA.map((c) => (
-        <button
-          key={c}
-          type="button"
-          className={cn('size-5 rounded-sm', valor === c && 'ring-2 ring-foreground/60')}
-          style={{ background: c }}
-          aria-label={`Color ${c}`}
-          onClick={() => onPick(c)}
-        />
-      ))}
-    </span>
-  )
-}
-
-function CategoriasModal({
-  categorias, onClose,
-}: {
-  categorias: CategoriaRow[]
-  onClose: () => void
-}) {
-  const [pending, startTransition] = useTransition()
-  const [editando, setEditando] = useState<string | null>(null)
-  const [confirmando, setConfirmando] = useState<string | null>(null)
-  const [fila, setFila] = useState<{ name: string; color: string }>({ name: '', color: PALETA[0] })
-  const [nueva, setNueva] = useState<{ name: string; color: string; type: TipoMovimiento }>({
-    name: '', color: PALETA[0], type: 'GASTO',
-  })
-
-  const run = (promise: Promise<{ ok: boolean; message?: string }>, success: string, luego?: () => void) =>
-    startTransition(async () => {
-      const res = await promise
-      if (!res.ok) return void toast.error(res.message ?? 'Error')
-      toast.success(success)
-      luego?.()
-    })
-
-  const crear = () => {
-    if (!nueva.name.trim()) return
-    run(createCategoria(nueva), 'Categoría creada', () =>
-      setNueva((n) => ({ name: '', color: PALETA[0], type: n.type })),
-    )
-  }
-
-  const grupo = (tipo: TipoMovimiento) => categorias.filter((c) => c.type === tipo)
-
-  const listar = (tipo: TipoMovimiento) => (
-    <>
-      <p className="mb-1 mt-3 text-[13px] font-semibold text-muted-foreground first:mt-0">
-        {tipo === 'GASTO' ? 'Categorías de gasto' : 'Categorías de ingreso'}
-      </p>
-      {grupo(tipo).length === 0 && (
-        <p className="pb-1 text-[13px] text-muted-foreground/70">Ninguna todavía.</p>
-      )}
-      {grupo(tipo).map((c) => (
-        <div key={c.uuid} className="border-b border-border/60 py-2">
-          {editando === c.uuid ? (
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <TextField
-                  className="min-w-0 flex-1"
-                  ariaLabel="Nombre de la categoría"
-                  value={fila.name}
-                  onChange={(v) => setFila((f) => ({ ...f, name: v }))}
-                />
-                <span className="flex shrink-0 gap-0.5">
-                  <button
-                    type="button"
-                    className={btnIcon}
-                    aria-label="Guardar"
-                    disabled={pending}
-                    onClick={() => run(updateCategoria(c.uuid, fila), 'Categoría actualizada', () => setEditando(null))}>
-                    <Check className="size-4 text-success" />
-                  </button>
-                  <button type="button" className={btnIcon} aria-label="Cancelar" onClick={() => setEditando(null)}>
-                    <X className="size-4" />
-                  </button>
-                </span>
-              </div>
-              <Paleta valor={fila.color} onPick={(color) => setFila((f) => ({ ...f, color }))} />
-            </div>
-          ) : (
-            // En móvil el nombre solo tiene ~110px y se cortaba ("Comer fuera /
-            // Café…"): en un modal donde se edita y se borra hay que poder leer
-            // qué categoría es, así que el contador de usos baja a otra línea.
-            <div className="flex items-center gap-2 max-sm:flex-wrap">
-              <span className="inline-block size-3 shrink-0 rounded" style={{ background: c.color }} />
-              <span className="min-w-0 flex-1 text-sm font-semibold max-sm:basis-[calc(100%-2.75rem)] sm:truncate">
-                {c.name}
-              </span>
-              <span className="shrink-0 text-[12px] text-muted-foreground max-sm:ml-5">
-                {c.usos === 0 ? 'sin uso' : `${c.usos} ${c.usos === 1 ? 'movimiento' : 'movimientos'}`}
-              </span>
-              <span className="flex shrink-0 items-center gap-0.5">
-                <button
-                  type="button"
-                  className={btnIcon}
-                  aria-label={`Editar ${c.name}`}
-                  onClick={() => {
-                    setConfirmando(null)
-                    setFila({ name: c.name, color: c.color })
-                    setEditando(c.uuid)
-                  }}>
-                  <Pencil className="size-3.5" />
-                </button>
-                {confirmando === c.uuid ? (
-                  <>
-                    <button
-                      type="button"
-                      className="rounded-md bg-danger px-2 py-1 text-xs font-semibold text-white max-sm:px-3 max-sm:py-2"
-                      disabled={pending}
-                      onClick={() => {
-                        setConfirmando(null)
-                        run(deleteCategoria(c.uuid), `Categoría ${c.name} eliminada`)
-                      }}>
-                      Sí
-                    </button>
-                    <button type="button" className={btnIcon} aria-label="Cancelar" onClick={() => setConfirmando(null)}>
-                      <X className="size-3.5" />
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    type="button"
-                    className={cn(btnIcon, 'hover:bg-danger-bg hover:text-danger')}
-                    aria-label={`Eliminar ${c.name}`}
-                    onClick={() => setConfirmando(c.uuid)}>
-                    <Trash2 className="size-3.5" />
-                  </button>
-                )}
-              </span>
-            </div>
-          )}
-        </div>
-      ))}
-    </>
-  )
-
-  return (
-    <Modal
-      title="Gestionar categorías"
-      description="Cada tipo tiene su lista. Al borrar una categoría, sus movimientos no se pierden: quedan sin categoría."
-      onClose={onClose}
-      footer={
-        <button type="button" className={btnOutline} onClick={onClose}>
-          Cerrar
-        </button>
-      }>
-      {listar('GASTO')}
-      {listar('INGRESO')}
-
-      {/* Alta */}
-      <div className="mt-4 border-t border-border pt-3">
-        <p className="mb-1.5 text-[13px] text-muted-foreground">Nueva categoría</p>
-        <div className="flex items-center gap-2">
-          <SelectField
-            className="w-24 shrink-0"
-            ariaLabel="Tipo de la categoría"
-            value={nueva.type}
-            onChange={(v) => setNueva((n) => ({ ...n, type: v as TipoMovimiento }))}
-            options={TIPOS}
-          />
-          <TextField
-            className="min-w-0 flex-1"
-            ariaLabel="Nombre de la categoría nueva"
-            placeholder="Nombre"
-            value={nueva.name}
-            onChange={(v) => setNueva((n) => ({ ...n, name: v }))}
-            onEnter={crear}
-          />
-          <button
-            type="button"
-            className={cn(btnPrimary, 'shrink-0 px-2.5')}
-            aria-label="Añadir categoría"
-            disabled={pending || !nueva.name.trim()}
-            onClick={crear}>
-            <Plus className="size-4" />
-          </button>
-        </div>
-        <div className="mt-2">
-          <Paleta valor={nueva.color} onPick={(color) => setNueva((n) => ({ ...n, color }))} />
-        </div>
-      </div>
-    </Modal>
   )
 }

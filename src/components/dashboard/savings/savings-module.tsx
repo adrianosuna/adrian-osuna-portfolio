@@ -298,7 +298,7 @@ export function SavingsModule({
     <div>
       {!detail || !resumen ? (
         <div className={cn(cardClass, 'py-16 text-center text-muted-foreground')}>
-          Este año no existe. Vuelve al Resumen o crea uno desde «Gestionar años».
+          Este año no existe. Vuelve al Resumen o crea uno en la sección Ajustes.
         </div>
       ) : (
         <>

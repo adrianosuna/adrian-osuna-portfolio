@@ -208,11 +208,8 @@ export function NumberField({
     onChange(nuevo)
   }
 
-  // En móvil el target táctil sube a 18px de alto (14 era impulsable con el
-  // pulgar y se pulsaba sin querer al ir al campo); desde sm, el tamaño
-  // minimalista de siempre.
   const flecha =
-    'flex h-4.5 items-center rounded-sm px-1.5 text-muted-foreground/60 transition-colors hover:text-foreground sm:h-3.5 sm:px-0.5'
+    'flex h-3.5 items-center rounded-sm px-0.5 text-muted-foreground/60 transition-colors hover:text-foreground'
 
   return (
     <div
@@ -248,9 +245,11 @@ export function NumberField({
           else if (e.key === 'ArrowDown') { e.preventDefault(); aplicar(-1) }
         }}
       />
-      {/* Flechas minimalistas (fuera del orden de tabulación: el teclado ya
-          incrementa con ↑/↓ sobre el propio input) */}
-      <div className="flex flex-col justify-center pr-1">
+      {/* Flechas minimalistas, SOLO EN ESCRITORIO: en móvil sale el teclado
+          numérico y se teclea la cifra: dos targets de 18px pegados al campo
+          solo estaban ahí para pulsarse sin querer. Fuera del orden de
+          tabulación, porque el teclado ya incrementa con ↑/↓ sobre el input. */}
+      <div className="hidden flex-col justify-center pr-1 sm:flex">
         <button type="button" tabIndex={-1} className={flecha} aria-label="Incrementar" onClick={() => aplicar(1)}>
           <ChevronUp className="size-3" />
         </button>
