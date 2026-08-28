@@ -9,10 +9,11 @@ import { ArrowUpRight, Euro, PiggyBank, Receipt, Scale, TrendingDown, TrendingUp
 import { cn } from '@/lib/utils'
 import type { YearSummary } from '@/lib/finance'
 import type { MesMovimientos } from '@/lib/gastos'
-import { DonutAhorro } from './charts'
+import { nombreMes as mesDe } from '@/lib/fechas'
+import { GraficaDonut } from '@/components/ui/charts/donut'
 import { ahorroAnualDe, cardClass, esperadoHoy, eur, pct, proyeccionDe, tasaAhorroDe } from './comun'
 
-const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+
 
 function Kpi({ label, valor, pie, tono, Icon, to }: {
   label: string
@@ -120,7 +121,7 @@ export function PanelFinanzas({
         color: '#64748b',
       }]
     : gastoTop
-  const nombreMes = `${MESES[mesActual - 1].charAt(0).toUpperCase()}${MESES[mesActual - 1].slice(1)}`
+  const nombreMes = mesDe(mesActual)
   const enlaceGastos = `/app/finance?s=gastos&mes=${mes.mes}`
 
   return (
@@ -234,7 +235,7 @@ export function PanelFinanzas({
         <div className={cardClass}>
           <Cabecera titulo={`En qué se va el dinero en ${nombreMes}`} href={enlaceGastos} enlace="Ir a gastos" />
           <div className="px-5 py-4">
-            <DonutAhorro
+            <GraficaDonut
               titulo={`En qué se va el dinero en ${nombreMes}`}
               centro="gastado"
               vacio="Sin gastos apuntados este mes."

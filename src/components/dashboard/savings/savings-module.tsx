@@ -18,10 +18,12 @@ import {
   addExtra, addTravel, deleteExtra, deleteTravel,
   saveMonths, updateExtra, updateTravel,
 } from '@/app/app/finance/actions'
-import { DonutAhorro, MonthlyChart } from '@/components/dashboard/savings/charts'
+import { AhorroPorMes } from '@/components/dashboard/savings/charts'
+import { MESES } from '@/lib/fechas'
+import { GraficaDonut } from '@/components/ui/charts/donut'
 import { btnIcon, btnPrimary, cardClass, esperadoHoy, eur, pct, proyeccionDe } from './comun'
 
-const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+
 
 // Restante de uso diario de un mes (null si el mes no tiene ingreso).
 const restanteDe = (m: MonthRow) =>
@@ -563,7 +565,7 @@ export function SavingsModule({
                 {/* Una sola gráfica: mide su hueco y se pinta a escala 1:1
                     (apretándose sola en móvil), así que sobran las variantes. */}
                 <div className="px-4 py-3">
-                  <MonthlyChart months={monthsDraft} />
+                  <AhorroPorMes months={monthsDraft} />
                 </div>
               </div>
 
@@ -571,7 +573,10 @@ export function SavingsModule({
               <div className={cn(cardClass, 'mt-4')}>
                 <h3 className="border-b border-border px-5 py-3 font-semibold">Composición del ahorro</h3>
                 <div className="px-5 py-4">
-                  <DonutAhorro
+                  <GraficaDonut
+                    titulo="Composición del ahorro anual"
+                    centro="ahorro anual"
+                    vacio="Sin datos de ahorro todavía."
                     partes={[
                       { label: 'Ahorro mensual', valor: resumen.totalGeneral, color: 'var(--primary)' },
                       { label: 'Ingresos extraordinarios', valor: resumen.extrasTotal, color: 'var(--success)' },

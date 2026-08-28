@@ -19,19 +19,19 @@ import type {
 import {
   createCategoria, createGasto, deleteCategoria, deleteGasto, updateCategoria, updateGasto,
 } from '@/app/app/finance/gastos-actions'
-import { useAncho } from '@/components/ui/use-ancho'
-import { DonutAhorro } from './charts'
+import { GraficaBarras } from '@/components/ui/charts/barras'
+import { coloresTema } from '@/components/ui/charts/comun'
+import { GraficaDonut } from '@/components/ui/charts/donut'
+import { MESES, mesCorto } from '@/lib/fechas'
+import { ejeEuros, ejeMeses } from './charts'
 import { btnIcon, btnOutline, btnPrimary, cardClass, eur } from './comun'
 
-const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
-const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 
-const capitalizar = (s: string) => `${s.charAt(0).toUpperCase()}${s.slice(1)}`
 
 /** 'YYYY-MM' → 'Agosto 2026'. */
 const nombreMes = (mes: string) => {
   const [y, m] = mes.split('-').map(Number)
-  return `${capitalizar(MESES[m - 1])} ${y}`
+  return `${MESES[m - 1]} ${y}`
 }
 
 /** Desplaza un 'YYYY-MM' N meses (cruzando de año). */
@@ -118,7 +118,7 @@ function Desglose({ titulo, partes, centro, vacio }: {
       <h3 className="border-b border-border px-5 py-3 font-semibold">{titulo}</h3>
       <div className="flex flex-1 items-center px-5 py-4">
         <div className="w-full min-w-0">
-          <DonutAhorro
+          <GraficaDonut
             titulo={titulo}
             centro={centro}
             vacio={vacio}
@@ -598,8 +598,8 @@ function VistaAnio({ anio, onMes }: { anio: AnioMovimientos; onMes: (mes: number
                         type="button"
                         className="text-primary hover:underline"
                         onClick={() => onMes(m.mes)}>
-                        <span className="sm:hidden">{MESES_CORTOS[m.mes - 1]}</span>
-                        <span className="hidden sm:inline">{capitalizar(MESES[m.mes - 1])}</span>
+                        <span className="sm:hidden">{mesCorto(m.mes - 1)}</span>
+                        <span className="hidden sm:inline">{MESES[m.mes - 1]}</span>
                       </button>
                     </td>
                     <td className={cn(tdClass, 'text-right tabular-nums', vacio && 'text-muted-foreground/50')}>
@@ -647,7 +647,7 @@ function VistaAnio({ anio, onMes }: { anio: AnioMovimientos; onMes: (mes: number
           </span>
         </div>
         <div className="px-4 py-3">
-          <BarrasAnio meses={anio.meses} />
+          <MovimientosPorMes meses={anio.meses} onMes={onMes} />
         </div>
       </div>
 
@@ -670,86 +670,40 @@ function VistaAnio({ anio, onMes }: { anio: AnioMovimientos; onMes: (mes: number
 }
 
 /**
- * Barras de ingresos y gastos por mes, a todo el ancho de su tarjeta.
- * Exportada para poder probar la medida del contenedor en tests/gastos.dom.
+ * Barras de ingresos y gastos por mes, sobre Chart.js (componente portado del
+ * proyecto de Inversiones). Exportada para los tests.
  */
-export function BarrasAnio({ meses }: { meses: Array<{ mes: number; ingresos: number; gastos: number }> }) {
-  const [ref, ancho] = useAncho()
-  // Por debajo de ~420px no caben ni los nombres cortos ni el eje en euros.
-  const apretado = ancho > 0 && ancho < 420
-  const W = ancho || 520
-  const H = apretado ? 180 : Math.min(260, Math.max(200, Math.round(W * 0.24)))
-  const padL = apretado ? 32 : 52
-  const padB = apretado ? 22 : 26
-  const padT = apretado ? 10 : 14
-  const padR = apretado ? 6 : 10
-  const innerW = W - padL - padR
-  const innerH = H - padT - padB
-
-  const max = Math.max(...meses.map((m) => Math.max(m.ingresos, m.gastos)), 1)
-  const step = Math.pow(10, Math.max(1, String(Math.ceil(max)).length - 1))
-  const top = Math.ceil(max / step) * step
-
-  const hueco = innerW / 12
-  // Las barras crecen con el ancho, pero con tope: a 1085px, un 30% del hueco
-  // daría barras de 27px que se ven como bloques.
-  const bw = Math.min(22, hueco * 0.3)
-  const x = (i: number) => padL + hueco * i
-  const y = (v: number) => padT + innerH - (v / top) * innerH
-  const fuente = apretado ? 11 : 11.5
-
-  const eurCorto = (v: number) => `${v.toLocaleString('es-ES', { maximumFractionDigits: 0, useGrouping: 'always' })} €`
-  const fmtEje = (v: number) =>
-    apretado
-      ? v >= 1000
-        ? `${(v / 1000).toLocaleString('es-ES', { maximumFractionDigits: 1 })}k`
-        : String(Math.round(v))
-      : eurCorto(v)
-  // Con sitio, un mes por barra; apretado, la inicial.
-  const etiqueta = (i: number) => (apretado ? MESES_CORTOS[i][0] : MESES_CORTOS[i])
-
+export function MovimientosPorMes({
+  meses,
+  onMes,
+}: {
+  meses: Array<{ mes: number; ingresos: number; gastos: number }>
+  /** Clic en la barra de un mes: lo abre, igual que su fila en la tabla. */
+  onMes?: (mes: number) => void
+}) {
+  const c = coloresTema()
   return (
-    // El div mide; el SVG se pinta dentro con ese ancho exacto. Antes de la
-    // primera medida se reserva el alto para que la tarjeta no salte.
-    <div ref={ref} className="w-full" style={{ minHeight: H }}>
-      {ancho > 0 && (
-        // w-full (nunca un width fijo, que desbordaría al estrechar la
-        // ventana) + tope de alto: con la medida al día el lienzo coincide con
-        // el hueco y la escala es 1; si se quedara vieja, preserveAspectRatio
-        // pinta el dibujo a su tamaño centrado en vez de estirarlo.
-        <svg
-          viewBox={`0 0 ${W} ${H}`}
-          className="mx-auto block h-auto w-full"
-          style={{ maxHeight: H }}
-          role="img"
-          aria-label="Ingresos y gastos por mes">
-          {[0.5, 1].map((g) => (
-            <g key={g}>
-              <line x1={padL} y1={y(top * g)} x2={W - padR} y2={y(top * g)} stroke="var(--border)" strokeWidth="1" strokeDasharray={g === 1 ? '' : '3 4'} />
-              <text x={padL - 8} y={y(top * g) + 4} textAnchor="end" fontSize={fuente} fill="var(--muted-foreground)">
-                {fmtEje(top * g)}
-              </text>
-            </g>
-          ))}
-          <line x1={padL} y1={y(0)} x2={W - padR} y2={y(0)} stroke="var(--border)" strokeWidth="1" />
-
-          {meses.map((m, i) => (
-            <g key={m.mes}>
-              <title>{`${MESES_CORTOS[i]}: ${eurCorto(m.ingresos)} de ingresos · ${eurCorto(m.gastos)} de gastos`}</title>
-              {m.ingresos > 0 && (
-                <rect x={x(i) + hueco / 2 - bw - 1.5} y={y(m.ingresos)} width={bw} height={y(0) - y(m.ingresos)} rx="2.5" fill="var(--success)" />
-              )}
-              {m.gastos > 0 && (
-                <rect x={x(i) + hueco / 2 + 1.5} y={y(m.gastos)} width={bw} height={y(0) - y(m.gastos)} rx="2.5" fill="var(--danger)" />
-              )}
-              <text x={x(i) + hueco / 2} y={H - 8} textAnchor="middle" fontSize={fuente} fill="var(--muted-foreground)">
-                {etiqueta(i)}
-              </text>
-            </g>
-          ))}
-        </svg>
-      )}
-    </div>
+    <GraficaBarras
+      labels={MESES.map((_, i) => mesCorto(i))}
+      series={[
+        {
+          label: 'Ingresos',
+          data: meses.map((m) => m.ingresos),
+          backgroundColor: c.success,
+          _unidad: 'eur',
+        },
+        {
+          label: 'Gastos',
+          data: meses.map((m) => m.gastos),
+          backgroundColor: c.danger,
+          _unidad: 'eur',
+        },
+      ]}
+      alto={240}
+      titulo={(i) => MESES[i]}
+      scales={{ x: { ticks: ejeMeses }, y: { ticks: { callback: ejeEuros } } }}
+      onBarra={onMes ? (i) => onMes(i + 1) : undefined}
+    />
   )
 }
 

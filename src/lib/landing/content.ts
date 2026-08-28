@@ -42,7 +42,7 @@ export type TimelineCompany = (typeof TIMELINE)[number]
 
 // ─────────── Helpers de fechas (rango y duración estilo LinkedIn) ───────────
 
-const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+import { MESES } from '@/lib/fechas'
 const WORD = { present: 'Actualidad', year: ['año', 'años'], month: ['mes', 'meses'], and: 'y' } as const
 
 const nowYM = (): YM => {
@@ -50,7 +50,7 @@ const nowYM = (): YM => {
   return { y: d.getFullYear(), m: d.getMonth() + 1 }
 }
 const diffMonths = (a: YM, b: YM) => (a.y - b.y) * 12 + (a.m - b.m) // meses de b → a
-const monthName = (d: YM) => `${MONTHS[d.m - 1]} ${d.y}`
+const monthName = (d: YM) => `${MESES[d.m - 1]} ${d.y}`
 
 // "Enero 2024 — Actualidad"
 export const periodLabel = (start: YM, end?: YM) =>

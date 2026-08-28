@@ -16,6 +16,14 @@ export function iniciarCron() {
   if (marca.__cronIniciado) return
   marca.__cronIniciado = true
 
+  // Los avisos solo se programan en producción: con SMTP configurado en local,
+  // arrancar el dev server enviaba correos reales (la pasada de arranque salta
+  // al minuto). CRON_EN_DEV=1 los fuerza para poder probarlos a mano.
+  if (process.env.NODE_ENV !== 'production' && process.env.CRON_EN_DEV !== '1') {
+    console.log('[cron] desarrollo: avisos sin programar (CRON_EN_DEV=1 para forzarlos)')
+    return
+  }
+
   if (!correoConfigurado()) {
     console.log('[cron] SMTP sin configurar: los avisos por correo quedan inactivos')
     return

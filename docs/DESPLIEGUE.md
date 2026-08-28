@@ -252,7 +252,10 @@ servidor; un cron interno de la app (node-cron, arrancado en
 (hora española), con reaviso semanal. Requiere las variables `SMTP_HOST`,
 `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` y `ALERT_EMAIL` en `.env.production`
 (con Gmail: contraseña de aplicación en myaccount.google.com/apppasswords).
-Son variables de runtime: basta recrear el contenedor, sin rebuild. La tabla
+Son variables de runtime: basta recrear el contenedor, sin rebuild. **El cron
+solo se programa en producción** (`NODE_ENV=production`): en desarrollo no se
+arranca aunque haya SMTP en el `.env`, para no mandar correos reales al
+levantar el dev server; `CRON_EN_DEV=1` lo fuerza si hace falta probarlo. La tabla
 `maintenance_task` llega con la migración `add_maintenance_task` (servicio
 `migrate`). El botón "Probar correo" de la pestaña verifica el SMTP.
 

@@ -11,7 +11,7 @@ import { metricasPipeline } from '@/lib/pipeline'
 
 const num = (v: unknown) => (v === null || v === undefined ? 0 : Number(v))
 
-const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+import { MESES } from '@/lib/fechas'
 
 /** Aviso accionable de la franja "Requiere tu atención". */
 export interface Aviso {
@@ -145,7 +145,7 @@ export async function resumenInicio(hoyIso = hoyMadrid()): Promise<ResumenInicio
         clave: 'ahorro-sin-rellenar',
         texto:
           vacios.length === 1
-            ? `${MESES[vacios[0] - 1].replace(/^./, (c) => c.toUpperCase())} sin rellenar en el ahorro`
+            ? `${MESES[vacios[0] - 1]} sin rellenar en el ahorro`
             : `${vacios.length} meses sin rellenar en el ahorro`,
         detalle: vacios.map((m) => MESES[m - 1]).join(', '),
         gravedad: 'aviso',

@@ -85,11 +85,28 @@ Proyecto Next.js App Router con `src/`. **Paleta única en todo el sitio**
   actividad reciente; sus datos salen de `src/lib/inicio.ts` en una pasada
   paralela de consultas acotadas (nunca traer módulos enteros para pintar
   cifras) y el pulso de visitas va en Suspense.
-  **Las gráficas son SVG a mano y miden su contenedor** con
-  `useAncho` (`src/components/ui/use-ancho.ts`): un lienzo fijo estirado con
-  `w-full` escala también las fuentes (un lienzo de 760 en 1053px las agranda
-  un 39%), así que el lienzo se genera con el ancho real y se pinta a 1:1 — sin
-  variantes por breakpoint.
+  **Las gráficas van sobre Chart.js** (27/08/2026; antes eran SVG a mano). Los
+  componentes genéricos están en `src/components/ui/charts/` —
+  `GraficaBarras`, `GraficaLinea`, `GraficaDonut` y `comun.ts` (registro
+  SELECTIVO de Chart.js: `chart.js/auto` mete todos los controllers) — y sobre
+  ellos, los envoltorios del proyecto, nombrados por lo que muestran:
+  `AhorroPorMes`, `AhorroAcumulado` (`savings/charts.tsx`),
+  `MovimientosPorMes` (`savings/gastos.tsx`) y `VisitasPorDia`
+  (`panel/visitas.tsx`).
+  ⚠ **Tres trampas del canvas**, todas ya pagadas: (1) no entiende
+  `var(--token)` y lo pinta NEGRO, así que todo color pasa por
+  `resolverColor`; (2) el registro selectivo obliga a acordarse de los
+  elementos (`ArcElement` para el donut, o la página entera revienta); (3) el
+  texto se dibuja, no es DOM, así que lo que deba ser legible o accesible va en
+  HTML al lado — la leyenda del donut y su total central son propios.
+  La serie de visitas usa `src/lib/serie-diaria.ts` (port de `dailyTrend`):
+  rellena los huecos, marca los meses en un eje superior y **agrupa por semana
+  ISO por encima de 45 días** (90 barras no se leen; 14 sí). Devuelve GRUPOS de
+  índices, no valores: quien la usa suma lo que necesite.
+  El **tooltip es compartido** (`ui/charts/tooltip.ts`): un div global fijo que
+  usan tanto Chart.js como el mapa de calor de visitas, que **sigue siendo CSS
+  Grid a propósito** (Chart.js no tiene tipo matriz, y 168 divs con
+  `aria-label` son más accesibles que un canvas).
   Los modales usan siempre `src/components/ui/modal.tsx` (cabecera y pie
   fijos, cuerpo con scroll); los popovers de `fields.tsx` (select, calendario)
   se renderizan en un portal con posición fija — nunca los recorta un
@@ -157,8 +174,8 @@ utilidades comunes en
 `savings/comun.tsx` (incluidas las fórmulas puras del asistente del año en
 curso: `proyeccionDe` y `esperadoHoy` — proyección a fin de año, necesario
 mensual y objetivo prorrateado a hoy). KPIs, "restante" y proyecciones se
-calculan en el cliente sobre el borrador editable. Gráficas: SVG a mano en
-`charts` (sin librerías). El cron diario recuerda por correo los meses
+calculan en el cliente sobre el borrador editable. Gráficas: Chart.js con los
+componentes de `ui/charts` (ver Arquitectura). El cron diario recuerda por correo los meses
 cerrados sin rellenar (`avisarMesSinRellenar`, reaviso semanal vía
 `saving_year.last_reminded`). Cada año se exporta a Excel desde «Gestionar
 años» (`GET /app/finance/exportar?year=`, exceljs, guarda de admin propia:
@@ -176,7 +193,7 @@ desgloses anuales). Las **categorías son libres y propias de cada tipo**
 (tabla `expense_category`, 19 sembradas en la migración) y se gestionan en el
 modal «Gestionar categorías»; su nombre es único DENTRO del tipo y borrarlas
 NO borra sus movimientos (FK `SetNull`: quedan "sin categoría"). Los donuts
-reutilizan `DonutAhorro` con `centro`/`vacio`; la tarjeta "Gastos del mes"
+reutilizan `GraficaDonut` con `centro`/`vacio`/`titulo`; la tarjeta "Gastos del mes"
 del inicio sale de `gastadoEnMesDe`.
 
 ### Pipeline de oportunidades (`src/lib/pipeline.ts` + `/app/pipeline`)
@@ -217,6 +234,11 @@ completa: `docs/DESPLIEGUE.md` (procedimiento validado en local el 25/08/2026).
 Todo el texto de la UI, comentarios de código, mensajes y documentación de este
 proyecto están en **español**. El sitio es monolingüe (el multiidioma ES/EN se
 retiró antes del lanzamiento).
+**Nombres de meses y días: una sola fuente**, `src/lib/fechas.ts` (`MESES`,
+`DIAS`). Van SIN abreviar y con inicial mayúscula; las abreviaturas se DERIVAN
+(`mesCorto` = las tres primeras letras, `mesInicial` para ejes muy estrechos),
+nunca se duplica la lista. Había diez copias repartidas con cinco nombres
+distintos antes de unificarlas (27/08/2026).
 **Porcentajes con espacio, como prescribe la RAE** ("67 %", no "67%") y con
 espacio **irrompible** (` ` / `&nbsp;`), para que la cifra y el símbolo no
 se separen en un salto de línea. En finanzas lo pone `pct()` de `savings/comun`

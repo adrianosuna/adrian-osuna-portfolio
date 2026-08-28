@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { BarChart3, LineChart, Percent, TrendingDown, TrendingUp, Trophy } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { YearSummary } from '@/lib/finance'
-import { AcumuladoChart } from './charts'
+import { AhorroAcumulado } from './charts'
 import { ahorroAnualDe, cardClass, eur, pct, proyeccionDe, tasaAhorroDe } from './comun'
 
 const thClass = 'px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground'
@@ -213,7 +213,7 @@ export function ResumenGeneral({ years, hoy }: { years: YearSummary[]; hoy: stri
         {years.length > 1 && (
           <div className="overflow-x-auto border-t border-border px-4 pb-2 pt-4">
             <p className="mb-2 text-[13px] font-semibold text-muted-foreground">Ahorro acumulado</p>
-            <AcumuladoChart puntos={acumulado} />
+            <AhorroAcumulado puntos={acumulado} />
           </div>
         )}
       </div>

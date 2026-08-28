@@ -8,6 +8,162 @@ cuando algo se termina, se cuenta aquí con su porqué y desaparece de allí.
 
 ## 27/08/2026
 
+### Los avisos por correo ya no se disparan en desarrollo
+
+Llegó un correo de aviso desde local. La causa: `instrumentation.ts` arranca el
+planificador en **cualquier** entorno y `iniciarCron` hace una pasada de
+arranque **al minuto** de levantar el proceso, así que con el SMTP configurado
+en el `.env` bastaba tener el dev server encendido un rato para recibirlo (y
+para marcar el reaviso semanal en la BD, ocultando el aviso real).
+
+- `iniciarCron` solo programa en **producción** (`NODE_ENV === 'production'`);
+  en desarrollo avisa por consola y sale antes de tocar node-cron y el
+  `setTimeout`. **`CRON_EN_DEV=1`** lo fuerza para poder probarlo a mano.
+- Tres tests nuevos (`tests/cron-entorno.test.ts`, con node-cron y los tres
+  avisos mockeados) fijan las tres ramas: en desarrollo no se programa nada ni
+  salta la pasada de arranque, en producción sí, y con `CRON_EN_DEV=1` vuelve.
+  Comprobado que fallan si se quita la guarda.
+- Corregido el `.env.example`, que daba por hecho que en desarrollo no habría
+  SMTP, y anotado en `docs/DESPLIEGUE.md`.
+
+### Dependencias: dos patches al día
+
+`@testing-library/react` 16.3.2 → **16.3.3** y `nodemailer` 9.0.5 → **9.0.6**.
+`pnpm update` no los movía (rango cacheado), así que se pidieron por versión.
+Efecto secundario a tener en cuenta: pnpm añadió las dos a
+`minimumReleaseAgeExclude` en `pnpm-workspace.yaml` — son versiones recientes y
+la política de edad mínima del proyecto las habría frenado; esas exclusiones se
+pueden retirar cuando las versiones tengan solera.
+
+Los tres *major* siguen fuera a propósito (`@types/node` 26, `eslint` 10,
+`typescript` 7). Un dato que conviene no perder: el peer de `eslint-config-next`
+16.3.3 ya es `>=9.0.0`, así que **no bloquea formalmente ESLint 10** — lo que
+falta por comprobar es el comportamiento de sus plugins, y eso pide una rama
+aparte, no colarlo en un commit de gráficas.
+
+### La serie de visitas se agrupa por semanas cuando el rango es largo
+
+Con el rango de 90 días eran 90 barras finísimas. Ahora, **por encima de 45
+días la serie se agrupa por semana ISO** (lunes), como hacía `groupBy: week`
+del `dailyTrend` original: **14 columnas en vez de 90**, con la serie
+renombrada a "Usuarios (semana)" y el tooltip diciendo "Semana del 24 de
+Agosto" para que no haya duda de lo que suma cada barra. Con 30 o 7 días sigue
+una columna por día, sin tocar nada.
+
+El cambio de diseño que lo hace limpio: `serieDiaria` ya no devuelve valores,
+devuelve **los grupos de índices** de cada columna. Así quien la usa suma lo
+que quiera (usuarios, vistas, o lo que venga) sin que la función sepa nada de
+la forma de sus datos, y el relleno de huecos sigue funcionando igual — un día
+sin visitas es un grupo vacío que suma cero.
+
+Cubierto con **15 tests**: los umbrales (45 días por día, 46 por semana), que
+las columnas semanales empiezan en lunes, que agrupar no pierde ningún día
+(`grupos.flat()` tiene los 90), el texto del tooltip y que se puede forzar el
+modo sin depender del umbral.
+### Las vistas de página habían desaparecido, y la gráfica de meses ya es pulsable
+
+Dos cosas salieron de repasar qué más aprovechar de los componentes de
+Inversiones.
+
+**La regresión**: al migrar la serie de visitas a Chart.js se perdieron las
+**vistas de página**. El SVG anterior las ponía en el tooltip ("2 usuarios · 5
+vistas") y la versión nueva solo pasaba `activos` como serie, así que el dato
+seguía llegando de GA sin verse en ninguna parte. Vuelven al tooltip:
+"Martes 25 de Agosto · Usuarios: 4 · Vistas: 16".
+
+Para eso, el tooltip admite ahora **filas que no son series** del gráfico
+(`extra` en `GraficaBarras`). ⚠ El callback va en un **WeakMap**, NO dentro de
+`options`: Chart.js trata cualquier función que encuentre en las opciones como
+*scriptable option*, la invoca para resolver un valor y revienta con "Cannot
+convert object to primitive value" — pasó en el primer intento. Un test lo fija.
+
+**La mejora**: `onBarra` estaba portado y sin usar, así que la gráfica de
+ingresos y gastos por mes es **pulsable**: clic en la barra de marzo y se abre
+marzo, lo mismo que ya hacía su fila en la tabla de al lado. Dos tests cubren
+el mapeo (índice 0-11 del eje → mes 1-12) y que sin `onMes` no pasa nada.
+
+**Lo que se descartó a propósito**: pasar los rankings de visitas (Países,
+Ciudades, Dispositivos, Navegadores) a barras horizontales con `horizontal` del
+componente. Hoy son listas con nombre + valor + barra proporcional, y eso da
+MÁS información que un gráfico: el nombre completo se lee siempre. Queda
+pendiente, si se quiere, la agrupación **semanal** de `dailyTrend` (13 barras
+en vez de 90 en el rango largo), que sí aportaría.
+### Las gráficas, a Chart.js (con los componentes de Inversiones)
+
+Las cinco gráficas eran SVG a mano. Ahora van sobre **Chart.js 4**, con los
+componentes `CustomBarChart`, `CustomLineChart`, `CustomDonutChart` y
+`dailyTrend` del proyecto de Inversiones portados a TypeScript y al tema
+oscuro. El motivo no fue técnico —el escalado ya estaba resuelto— sino de
+consistencia: los dos proyectos hablan ahora el mismo idioma en las gráficas,
+que es la única capa donde se puede (el otro es antd + Bootstrap y este,
+Tailwind con componentes propios).
+
+**El coste, medido**: el bundle del cliente pasa de **282 a 343 KB gzip**. Son
+~60 KB de la librería y se pagan UNA vez: migrar las cuatro gráficas restantes
+después de la primera solo sumó 1 KB, porque Chart.js ya estaba dentro.
+
+Qué hay ahora, en dos capas:
+
+- `src/components/ui/charts/` — `GraficaBarras`, `GraficaLinea`, `GraficaDonut`
+  y `comun.ts` (registro **selectivo** de Chart.js; `chart.js/auto` habría
+  metido todos los controllers). Del original se conserva lo que ya estaba
+  bien resuelto: `animation: false`, deps serializadas para no reinstanciar el
+  canvas y `destroy()` en el cleanup.
+- Los envoltorios, renombrados **por lo que muestran** y no por su forma:
+  `AhorroPorMes`, `AhorroAcumulado`, `MovimientosPorMes` y `VisitasPorDia`. De
+  paso desapareció `DonutAhorro`, que era un alias con textos de «ahorro»
+  usado en cinco sitios, cuatro sin relación con el ahorro.
+
+**Lo que gana**: el eje de meses de `dailyTrend` en la serie de visitas (a 90
+días ahora se lee `Mayo 2026 · Junio · Julio · Agosto` arriba), el relleno de
+huecos, y `autoSkip` en lugar de calcular a mano cada cuántos días va una
+etiqueta.
+
+**Y las trampas del canvas, que costaron sangre** (quedan documentadas en
+CLAUDE.md para no repetirlas):
+
+1. **`var(--token)` se pinta NEGRO.** El donut «Composición del ahorro» salió
+   en negro porque sus partes llegan como `var(--primary)`: en SVG funcionaba,
+   en canvas no. Ahora todo color pasa por `resolverColor`, con seis tests que
+   fijan el invariante (nunca devolver un `var()` sin resolver).
+2. **El registro selectivo obliga a acordarse de los elementos.** Faltaba
+   `ArcElement` y el donut lanzaba `"arc" is not a registered element`, que
+   **tumbaba la página entera**. No lo habrían visto los tests (ahí Chart.js va
+   mockeado): lo pilló el navegador.
+3. **`autoSkip` se comía la mitad de los meses** en móvil (`Ene, Mar, May…`).
+   Se recuperó el comportamiento del SVG con un callback que consulta el ancho
+   real del lienzo: por debajo de 420px pinta los doce con su inicial.
+
+**El tooltip es ahora compartido de verdad** (`ui/charts/tooltip.ts`): un solo
+div global con `position: fixed` que usan las gráficas **y el mapa de calor de
+visitas**. El heatmap **se queda en CSS Grid a propósito** — Chart.js no tiene
+tipo matriz (haría falta `chartjs-chart-matrix`), no hay ejes ni escalas que
+resolver, y 168 divs con `aria-label` son más accesibles que un canvas. Se le
+quitó el `title` nativo para que el navegador no pinte su tooltip gris encima
+del propio.
+
+**Los tests de gráficas cambian de naturaleza**: antes medían el `viewBox` del
+SVG, que con canvas no existe. Ahora comprueban el CONTRATO que recibe
+Chart.js —series, colores del tema, apilado, unidad del tooltip, el callback
+que abrevia a `1,5k`, el título en mes largo— más la leyenda del donut, que
+sigue siendo HTML.
+
+### Nombres de meses y días: de diez copias a una
+
+Había **diez arrays** de meses repartidos por el proyecto con cinco nombres
+distintos (`MESES`, `MESES_CORTOS`, `MESES_LARGOS`, `MESES_CAL`, `MONTHS`) y
+dos capitalizaciones, y tres formas diferentes de capitalizar en el momento de
+usarlos. Ahora hay una sola fuente, `src/lib/fechas.ts`, con los nombres
+completos y con inicial mayúscula (petición de Adrián).
+
+La clave es que **las abreviaturas se derivan**: `mesCorto` son las tres
+primeras letras de la lista larga y `mesInicial` la primera, así que no pueden
+desincronizarse. Sustituido en los diez sitios —las dos gráficas de doce
+meses, la tabla «mes a mes», el módulo de ahorro, el panel de Finanzas, los
+avisos del inicio, el aviso de meses sin rellenar, el calendario de
+`fields.tsx`, la exportación a Excel y el contenido de la landing— y de paso
+cayó el helper `capitalizar`, que solo existía porque los meses estaban en
+minúscula.
 ### El panel de control en móvil
 
 Las cuatro pestañas y sus dos modales a 375px. Casi todo estaba bien: la barra

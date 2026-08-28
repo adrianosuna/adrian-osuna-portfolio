@@ -107,7 +107,7 @@ export const ahorroAnualDe = (y: YearSummary) =>
 
 // ─────────── Recordatorio de mes sin rellenar (cron diario) ───────────
 
-const MESES_LARGOS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+import { MESES } from '@/lib/fechas'
 
 /** Año y mes del mes natural anterior a una fecha ISO ('2027-01-15' → 2026/12). */
 export function mesAnterior(hoyIso: string): { year: number; month: number } {
@@ -145,7 +145,7 @@ export async function avisarMesSinRellenar(hoyIso = hoyMadrid()): Promise<number
   const hace7dias = new Date(Date.now() - 7 * 86_400_000)
   if (registro.lastReminded && registro.lastReminded > hace7dias) return 0
 
-  const nombres = vacios.map((m) => MESES_LARGOS[m - 1]).join(', ')
+  const nombres = vacios.map((m) => MESES[m - 1]).join(', ')
   await enviarCorreo(
     `✍ Ahorro ${year}: ${vacios.length === 1 ? 'un mes sin rellenar' : `${vacios.length} meses sin rellenar`}`,
     `<p style="margin:0 0 14px">El control mensual del ahorro tiene meses ya cerrados sin rellenar:</p>

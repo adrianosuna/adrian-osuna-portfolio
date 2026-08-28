@@ -5,7 +5,9 @@
 // conversiones de la landing (eventos clic_*), geografía, tecnología y mapa
 // horario. Gráficas SVG a mano, como las del módulo de ahorro.
 import { useEffect, useState } from 'react'
-import { useAncho } from '@/components/ui/use-ancho'
+import { GraficaBarras } from '@/components/ui/charts/barras'
+import { filaTooltip, marcoTooltip, mostrarTooltip, ocultarTooltip } from '@/components/ui/charts/tooltip'
+import { serieDiaria } from '@/lib/serie-diaria'
 import Link from 'next/link'
 import {
   BarChart3, ExternalLink, Eye, MousePointerClick, Radio, Target, TriangleAlert,
@@ -27,9 +29,6 @@ const fmtSeg = (seg: number) => {
   return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, '0')} s`
 }
 
-// "25 ago" para las etiquetas del eje X.
-const fmtDia = (iso: string) =>
-  new Date(`${iso}T12:00:00Z`).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
 
 // Flecha de tendencia frente al periodo previo del mismo tamaño.
 function Tendencia({ m, dias }: { m: Metrica; dias: number }) {
@@ -96,114 +95,63 @@ function Tarjeta({ titulo, children }: { titulo: string; children: React.ReactNo
   )
 }
 
-// Barras diarias de usuarios activos. `paso`: cada cuántos días va etiqueta.
-// El lienzo se ajusta al ancho real del hueco (escala 1:1 a cualquier ancho);
-// por debajo de ~420px se aprieta solo: eje más estrecho y menos etiquetas.
-function SerieChart({
-  serie, paso,
-}: {
-  serie: VisitasSnapshot['serie']
-  paso: number
-}) {
-  const [ref, ancho] = useAncho()
-  const compacto = ancho > 0 && ancho < 420
-  const W = ancho || 760
-  const H = compacto ? 170 : Math.min(260, Math.max(200, Math.round(W * 0.24)))
-  const padL = compacto ? 28 : 34
-  const padB = 24
-  const padT = 12
-  const innerW = W - padL - 12
-  const innerH = H - padT - padB
-  // En compacto caben ~5 etiquetas de fecha como mucho.
-  const pasoReal = compacto ? Math.max(paso, Math.ceil(serie.length / 5)) : paso
+// Barras diarias de usuarios activos, sobre Chart.js (componente portado del
+// proyecto de Inversiones). `paso` ya no hace falta: Chart.js reparte las
+// etiquetas con autoSkip, y el eje de meses de `serieDiaria` marca dónde
+// empieza cada mes para leer 90 días de un vistazo.
+function VisitasPorDia({ serie }: { serie: VisitasSnapshot['serie'] }) {
+  // Agrupación automática: con más de 45 días pasa a semanas (13 barras en vez
+  // de 90, que a esa anchura no se leen).
+  const { ejeX, largas, marcasMes, grupos, porSemana } = serieDiaria(serie)
 
-  const max = Math.max(...serie.map((d) => d.activos), 1)
-  const top = Math.max(Math.ceil(max * 1.15), 4)
-
-  const n = serie.length
-  const bw = (innerW / n) * 0.62
-  const slot = innerW / n
-  const x = (i: number) => padL + slot * i + (slot - bw) / 2
-  const y = (v: number) => padT + innerH - (v / top) * innerH
-
-  // Tooltip propio: <title> de SVG solo funciona con ratón y tras un retardo.
-  // Ratón: hover (pointerenter/leave). Táctil: tocar fija el día, retocar
-  // el mismo lo quita. La columna entera es zona de impacto, no solo la barra.
-  const [sel, setSel] = useState<number | null>(null)
-  const dia = sel === null ? null : serie[sel]
+  // Cada columna suma los días que agrupa (con día por columna es el valor tal
+  // cual, y los días sin dato suman cero).
+  const suma = (g: number[], campo: 'activos' | 'vistas') =>
+    g.reduce((total, i) => total + (serie[i]?.[campo] ?? 0), 0)
 
   return (
-    <div
-      ref={ref}
-      className="relative w-full"
-      style={{ minHeight: H }}
-      onPointerLeave={(e) => {
-        if (e.pointerType === 'mouse') setSel(null)
-      }}>
-      {dia && sel !== null && (
-        <div
-          className="pointer-events-none absolute top-0 z-10 -translate-x-1/2 whitespace-nowrap rounded-lg border border-border bg-popover px-2.5 py-1.5 text-center shadow-lg"
-          style={{ left: `${Math.min(86, Math.max(14, ((x(sel) + bw / 2) / W) * 100))}%` }}>
-          <p className="text-[11px] font-semibold text-muted-foreground">{fmtDia(dia.fecha)}</p>
-          <p className="text-xs font-semibold">
-            {nf(dia.activos)} {dia.activos === 1 ? 'usuario' : 'usuarios'} · {nf(dia.vistas)} {dia.vistas === 1 ? 'vista' : 'vistas'}
-          </p>
-        </div>
-      )}
-
-      {ancho > 0 && (
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        className="mx-auto block h-auto w-full"
-        style={{ maxHeight: H }}
-        role="img"
-        aria-label="Usuarios activos por día">
-        {[0.5, 1].map((g) => (
-          <g key={g}>
-            <line
-              x1={padL} y1={y(top * g)} x2={W - 12} y2={y(top * g)}
-              stroke="var(--border)" strokeWidth="1" strokeDasharray="3 4" />
-            <text x={padL - 8} y={y(top * g) + 4} textAnchor="end" fontSize="10.5" fill="var(--muted-foreground)">
-              {Math.round(top * g)}
-            </text>
-          </g>
-        ))}
-        <line x1={padL} y1={y(0)} x2={W - 12} y2={y(0)} stroke="var(--border)" strokeWidth="1" />
-
-        {serie.map((d, i) => (
-          <g key={d.fecha}>
-            {/* Guía del día seleccionado */}
-            {sel === i && (
-              <line
-                x1={x(i) + bw / 2} y1={padT} x2={x(i) + bw / 2} y2={y(0)}
-                stroke="var(--primary)" strokeWidth="1" strokeDasharray="3 3" opacity="0.5" />
-            )}
-            {d.activos > 0 && (
-              <rect
-                x={x(i)} y={y(d.activos)} width={bw} height={y(0) - y(d.activos)} rx="2"
-                fill="var(--primary)" opacity={sel === null || sel === i ? 1 : 0.45} />
-            )}
-            {(i % pasoReal === 0 || i === n - 1) && (
-              <text x={x(i) + bw / 2} y={H - 7} textAnchor="middle" fontSize="10" fill="var(--muted-foreground)">
-                {fmtDia(d.fecha)}
-              </text>
-            )}
-            {/* Zona de impacto de la columna completa (invisible) */}
-            <rect
-              x={padL + slot * i} y={padT} width={slot} height={innerH}
-              fill="transparent"
-              onPointerEnter={(e) => {
-                if (e.pointerType === 'mouse') setSel(i)
-              }}
-              onPointerDown={(e) => {
-                if (e.pointerType !== 'mouse') setSel(sel === i ? null : i)
-              }}
-            />
-          </g>
-        ))}
-      </svg>
-      )}
-    </div>
+    <GraficaBarras
+      labels={ejeX}
+      series={[
+        {
+          label: porSemana ? 'Usuarios (semana)' : 'Usuarios',
+          data: grupos.map((g) => suma(g, 'activos')),
+          _unidad: 'entero',
+        },
+      ]}
+      alto={220}
+      titulo={(i) => largas[i] ?? ''}
+      // Las vistas de página no son una serie del gráfico, pero sí un dato de la
+      // columna: van como fila extra del tooltip (el SVG anterior las mostraba).
+      extra={(i) => [{ nombre: 'Vistas', valor: nf(suma(grupos[i] ?? [], 'vistas')) }]}
+      scales={{
+        x: {
+          type: 'category',
+          grid: { display: false },
+          ticks: {
+            autoSkip: true,
+            maxTicksLimit: 8,
+            maxRotation: 0,
+            // El tooltip enseña el texto largo ("Semana del 3 de Agosto"); el eje, DD/MM.
+            callback: (_v: unknown, i: number) => ejeX[i] ?? '',
+          },
+        },
+        // Eje superior con la marca de cada mes (lo que hacía dailyTrend).
+        xMes: {
+          type: 'category',
+          position: 'top',
+          offset: false,
+          grid: { drawOnChartArea: true, lineWidth: 1 },
+          ticks: {
+            autoSkip: false,
+            maxRotation: 0,
+            font: { size: 10, weight: 600 },
+            callback: (_v: unknown, i: number) => marcasMes[i] ?? '',
+          },
+        },
+        y: { ticks: { precision: 0 } },
+      }}
+    />
   )
 }
 
@@ -253,13 +201,48 @@ const colorCelda = (v: number, max: number) =>
     ? 'var(--muted)'
     : `color-mix(in oklab, var(--primary) ${Math.round(20 + (v / max) * 80)}%, var(--muted))`
 
+const DIAS_LARGOS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+
+/** Texto accesible de la celda (aria-label): el tooltip visual lo compone aparte. */
 const tituloCelda = (d: number, h: number, v: number) =>
-  `${DIAS_MAPA[d]} ${String(h).padStart(2, '0')}:00 — ${v} ${v === 1 ? 'usuario' : 'usuarios'}`
+  `${DIAS_LARGOS[d]} a las ${String(h).padStart(2, '0')}:00 — ${v} ${v === 1 ? 'usuario' : 'usuarios'}`
+
+/**
+ * Tooltip de una celda con el MISMO aspecto que el de las gráficas. Se usa
+ * delegación en el contenedor (un handler, no 169) leyendo los data-* de la
+ * celda que está debajo del puntero.
+ */
+const tooltipCelda = (el: HTMLElement, x: number, y: number) => {
+  const dia = Number(el.dataset.dia)
+  const hora = Number(el.dataset.hora)
+  const valor = Number(el.dataset.valor)
+  mostrarTooltip(
+    marcoTooltip(
+      filaTooltip({
+        color: el.style.background,
+        nombre: `${String(hora).padStart(2, '0')}:00`,
+        valor: `${valor} ${valor === 1 ? 'usuario' : 'usuarios'}`,
+      }),
+      DIAS_LARGOS[dia],
+    ),
+    x,
+    y,
+  )
+}
 
 function MapaHorario({ horario }: { horario: number[][] }) {
   const max = Math.max(...horario.flat(), 1)
+
+  // Delegación: se busca la celda bajo el puntero. Con ratón sigue al cursor;
+  // al tocar en móvil se muestra la celda tocada (y se quita al levantar).
+  const alMover = (e: React.PointerEvent<HTMLDivElement>) => {
+    const celda = (e.target as HTMLElement).closest<HTMLElement>('[data-celda]')
+    if (celda) tooltipCelda(celda, e.clientX, e.clientY)
+    else ocultarTooltip()
+  }
+
   return (
-    <>
+    <div onPointerMove={alMover} onPointerDown={alMover} onPointerLeave={ocultarTooltip} onPointerUp={ocultarTooltip}>
       {/* Escritorio: 7 filas × 24 horas */}
       <div className="hidden grid-cols-[auto_repeat(24,1fr)] gap-1 sm:grid">
         {horario.map((fila, d) => (
@@ -270,7 +253,11 @@ function MapaHorario({ horario }: { horario: number[][] }) {
             {fila.map((v, h) => (
               <div
                 key={h}
-                title={tituloCelda(d, h, v)}
+                data-celda
+                data-dia={d}
+                data-hora={h}
+                data-valor={v}
+                aria-label={tituloCelda(d, h, v)}
                 className="h-5 rounded"
                 style={{ background: colorCelda(v, max) }}
               />
@@ -301,7 +288,11 @@ function MapaHorario({ horario }: { horario: number[][] }) {
             {horario.map((fila, d) => (
               <div
                 key={d}
-                title={tituloCelda(d, h, fila[h])}
+                data-celda
+                data-dia={d}
+                data-hora={h}
+                data-valor={fila[h]}
+                aria-label={tituloCelda(d, h, fila[h])}
                 className="h-3.5 rounded-xs"
                 style={{ background: colorCelda(fila[h], max) }}
               />
@@ -309,7 +300,7 @@ function MapaHorario({ horario }: { horario: number[][] }) {
           </div>
         ))}
       </div>
-    </>
+    </div>
   )
 }
 
@@ -458,7 +449,7 @@ export function VisitasTab({ snapshot }: { snapshot: VisitasSnapshot }) {
         <h2 className="mb-3 text-[15px] font-semibold">Usuarios activos por día</h2>
         {/* Una sola gráfica: mide su hueco y se pinta a escala 1:1, así que
             sobran las dos variantes por breakpoint. */}
-        <SerieChart serie={snapshot.serie} paso={dias <= 7 ? 1 : dias <= 30 ? 5 : 15} />
+        <VisitasPorDia serie={snapshot.serie} />
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">

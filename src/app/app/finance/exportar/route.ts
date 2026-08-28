@@ -7,7 +7,7 @@ import ExcelJS from 'exceljs'
 import { auth } from '@/auth'
 import { getYearDetail } from '@/lib/finance'
 
-const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+import { MESES } from '@/lib/fechas'
 const FMT_EUR = '#,##0 "€"'
 
 export async function GET(req: Request) {

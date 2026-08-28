@@ -8,6 +8,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Calendar, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { MESES } from '@/lib/fechas'
 
 // Estilo base compartido (text-base en móvil: <16px provoca zoom en iOS Safari).
 const fieldClass =
@@ -330,7 +331,7 @@ export function SelectField({
 // ─────────── DateField: selector de fecha con calendario propio ───────────
 // value en formato 'YYYY-MM-DD' o '' (vacío). Semana empezando en lunes.
 
-const MESES_CAL = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+
 const DIAS_CAL = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
 
 const iso = (y: number, m: number, d: number) =>
@@ -401,7 +402,7 @@ export function DateField({
               <ChevronLeft className="size-4" />
             </button>
             <span className="text-sm font-semibold">
-              {MESES_CAL[vista.m]} {vista.y}
+              {MESES[vista.m]} {vista.y}
             </span>
             <button type="button" className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" aria-label="Mes siguiente" onClick={() => mover(1)}>
               <ChevronRight className="size-4" />

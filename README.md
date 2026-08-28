@@ -32,7 +32,7 @@
 
 **Dashboard interno** (`/app`)
 - 🧭 **Inicio: centro de mando** — franja de avisos accionables (seguimientos vencidos, mantenimiento, meses de ahorro sin rellenar), KPIs con dato real (ahorro con progreso del objetivo, valor del pipeline abierto y pulso de visitas en streaming) y actividad reciente del pipeline
-- 💶 **Finanzas** (personal del admin) — **ahorro anual** y **control de gastos** en tres secciones (Panel · Ahorro · Gastos; dentro de Ahorro, el Resumen histórico y un tab por año): control mensual editable, ingresos extraordinarios, gastos de viaje cuyo sobrante engrosa el ahorro, objetivo con desvío frente al día de hoy, **proyección a fin de año a ritmo actual**, tasa de ahorro, donut de composición y gráficas SVG propias (sin librerías de charts). La pestaña **Gastos** es un libro de movimientos (ingresos y gastos) con vista de mes y de año: balance, gasto medio, alta rápida, categorías libres por tipo y los desgloses de "en qué se va" y "de dónde viene" el dinero. Exportación del año a **Excel**, recordatorio por correo si un mes se queda sin rellenar y **modo privado**: los importes salen ocultos por defecto y se revelan con un clic
+- 💶 **Finanzas** (personal del admin) — **ahorro anual** y **control de gastos** en tres secciones (Panel · Ahorro · Gastos; dentro de Ahorro, el Resumen histórico y un tab por año): control mensual editable, ingresos extraordinarios, gastos de viaje cuyo sobrante engrosa el ahorro, objetivo con desvío frente al día de hoy, **proyección a fin de año a ritmo actual**, tasa de ahorro, donut de composición y gráficas sobre **Chart.js** con los tokens del tema. La pestaña **Gastos** es un libro de movimientos (ingresos y gastos) con vista de mes y de año: balance, gasto medio, alta rápida, categorías libres por tipo y los desgloses de "en qué se va" y "de dónde viene" el dinero. Exportación del año a **Excel**, recordatorio por correo si un mes se queda sin rellenar y **modo privado**: los importes salen ocultos por defecto y se revelan con un clic
 - 📊 **Oportunidades** (admin) — mini-CRM del pipeline: kanban con drag&drop en escritorio (vista de tabla en móvil), seguimientos con fecha y **aviso por correo al vencer**, historial de actividad por tarjeta, métricas del embudo y archivo con histórico
 - 🖥️ **Panel de control** (admin) — cuatro pestañas: **Servidor** (SSL, latencia pública, MySQL a fondo, backups, disco y recursos en vivo), **Visitas** (GA4 vía Data API: tiempo real, comparativas, conversiones, geografía, mapa horario…), **Usuarios** (allowlist + **sesiones activas con cierre remoto**) y **Mantenimiento** (tareas recurrentes con aviso por correo)
 - ⏰ **Cron interno** (node-cron): avisos diarios por correo — mantenimiento vencido, seguimientos del pipeline y meses de ahorro sin rellenar — con plantilla propia y reaviso semanal
@@ -167,7 +167,7 @@ src/
 ├── components/
 │   ├── landing/              # Secciones (casos de estudio), navbar, analytics RGPD
 │   ├── dashboard/            # TopNav, inicio + módulos: savings/, pipeline/, panel/, users/
-│   └── ui/                   # Campos de formulario custom y modal común
+│   └── ui/                   # Campos custom, modal común y charts/ (Chart.js)
 ├── lib/
 │   ├── landing/content.ts    # Contenido de la landing, fuente única
 │   ├── inicio.ts             # Datos del centro de mando (avisos, KPIs, actividad)
