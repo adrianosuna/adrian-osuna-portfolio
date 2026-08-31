@@ -10,7 +10,7 @@
 [![Prisma](https://img.shields.io/badge/Prisma-7-2D3748?logo=prisma&logoColor=white)](https://www.prisma.io)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 [![Auth.js](https://img.shields.io/badge/Auth.js-v5-8B5CF6)](https://authjs.dev)
-[![Vitest](https://img.shields.io/badge/Vitest-302_tests-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev)
+[![Vitest](https://img.shields.io/badge/Vitest-322_tests-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev)
 [![Docker](https://img.shields.io/badge/Docker-multi--stage-2496ED?logo=docker&logoColor=white)](https://www.docker.com)
 
 🌐 [adrianosuna.com](https://adrianosuna.com)
@@ -32,7 +32,7 @@
 
 **Dashboard interno** (`/app`)
 - 🧭 **Inicio: centro de mando** — franja de avisos accionables (seguimientos vencidos, mantenimiento, meses de ahorro sin rellenar), KPIs con dato real (ahorro con progreso del objetivo, valor del pipeline abierto y pulso de visitas en streaming) y actividad reciente del pipeline
-- 💶 **Finanzas** (personal del admin) — **ahorro anual** y **control de gastos** en cuatro secciones (Panel · Ahorro · Gastos · Ajustes; dentro de Ahorro, el Resumen histórico y un tab por año): control mensual editable, ingresos extraordinarios, gastos de viaje cuyo sobrante engrosa el ahorro, objetivo con desvío frente al día de hoy, **proyección a fin de año a ritmo actual**, tasa de ahorro, donut de composición y gráficas sobre **Chart.js** con los tokens del tema. La pestaña **Gastos** es un libro de movimientos (ingresos y gastos) con vista de mes y de año: balance, gasto medio, alta rápida, categorías libres por tipo, **topes de gasto** con aviso por correo al 80 % y al pasarse, **movimientos recurrentes** que el cron apunta solos (alquiler, suscripciones, nómina…) y los desgloses de "en qué se va" y "de dónde viene" el dinero. **Ajustes** reúne toda la configuración del módulo: categorías (fusionar, tope, color automático), recurrentes y años de ahorro. Exportación del año a **Excel**, recordatorio por correo si un mes se queda sin rellenar y **modo privado**: los importes salen ocultos por defecto y se revelan con un clic
+- 💶 **Finanzas** (personal del admin) — **ahorro anual** y **control de gastos** en cuatro secciones (Panel · Ahorro · Gastos · Ajustes; dentro de Ahorro, el Resumen histórico y un tab por año): control mensual editable, ingresos extraordinarios, gastos de viaje cuyo sobrante engrosa el ahorro, objetivo con desvío frente al día de hoy, **proyección a fin de año a ritmo actual**, tasa de ahorro, donut de composición y gráficas sobre **Chart.js** con los tokens del tema. La pestaña **Gastos** es un libro de movimientos (ingresos y gastos) con vista de mes y de año: balance, gasto medio, alta rápida, categorías libres por tipo, **topes de gasto** con aviso por correo al 80 % y al pasarse, **movimientos recurrentes** que el cron apunta solos (alquiler, suscripciones, nómina…) y los desgloses de "en qué se va" y "de dónde viene" el dinero. **Ajustes** reúne toda la configuración del módulo: categorías (fusionar, tope, color automático), recurrentes y años de ahorro. Exportación del año a **Excel**, recordatorio por correo si un mes se queda sin rellenar
 - 📊 **Oportunidades** (admin) — mini-CRM del pipeline: kanban con drag&drop en escritorio (vista de tabla en móvil), seguimientos con fecha y **aviso por correo al vencer**, historial de actividad por tarjeta, métricas del embudo y archivo con histórico
 - 🖥️ **Panel de control** (admin) — cuatro pestañas: **Servidor** (SSL, latencia pública, MySQL a fondo, backups, disco y recursos en vivo), **Visitas** (GA4 vía Data API: tiempo real, comparativas, conversiones, geografía, mapa horario…), **Usuarios** (allowlist + **sesiones activas con cierre remoto**) y **Mantenimiento** (tareas recurrentes por ámbito editable —servidor, casa, vehículo…— con aviso por correo)
 - ⏰ **Cron interno** (node-cron): cada día apunta los **movimientos recurrentes** que vencen y avisa por correo — mantenimiento vencido, seguimientos del pipeline, meses de ahorro sin rellenar y topes de gasto alcanzados — con plantilla propia y reaviso semanal
@@ -76,7 +76,7 @@ flowchart LR
 - **Cron interno** arrancado por `instrumentation.ts` (node-cron, diario a las 8:00 Europe/Madrid): apunta los movimientos recurrentes vencidos y manda cuatro avisos por correo (nodemailer, plantilla email-safe propia); sin SMTP los avisos quedan inactivos, pero los recurrentes se siguen apuntando.
 - **Un solo sistema de diseño** vía CSS custom properties sobre un tema único oscuro, con componentes propios: campos de formulario custom (número, select y calendario con popover en portal) y modal común con cabecera y pie fijos.
 - **Base de datos** MySQL con Prisma 7 (driver adapter de MariaDB): convención `id` autoincremental + `uuid` de negocio, FKs por `uuid`, timestamps automáticos y migraciones generadas con `migrate diff` (schema a schema).
-- **Tests** (Vitest, 302 sin BD ni red): fórmulas de finanzas, proyecciones, aritmética de meses (meses cortos, febrero, cruce de año), topes y recurrentes, color automático de categorías, parsers de GA contra API simulada, guardas de todas las server actions, callbacks de auth, umbrales del monitor, avisos del cron, superficies GEO, exportación a Excel y componentes de UI en jsdom.
+- **Tests** (Vitest, 322 sin BD ni red): fórmulas de finanzas, proyecciones, aritmética de meses (meses cortos, febrero, cruce de año), topes y recurrentes, color automático de categorías, parsers de GA contra API simulada, guardas de todas las server actions, callbacks de auth, umbrales del monitor, avisos del cron, superficies GEO, exportación a Excel y componentes de UI en jsdom.
 - **Seguridad**: headers HTTP (HSTS, X-Frame-Options, CSP, nosniff), errores internos nunca expuestos al cliente y solo correos verificados por Google en el login.
 
 ## 🚀 Puesta en marcha (desarrollo)
@@ -192,7 +192,7 @@ prisma/
 ├── schema.prisma             # Esquema (User, SavingYear, Opportunity, Expense, …)
 ├── migrations/               # Baseline 0_init + migraciones (migrate diff)
 └── seed.ts                   # Asegura el administrador inicial
-tests/                        # 302 tests (Vitest; jsdom para componentes)
+tests/                        # 322 tests (Vitest; jsdom para componentes)
 docs/
 ├── DESPLIEGUE.md             # Guía de despliegue en OVH (Docker + Caddy + rclone)
 ├── CHANGELOG.md              # Historial de lo hecho, bien contado

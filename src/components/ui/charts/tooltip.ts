@@ -11,6 +11,15 @@ import { coloresTema } from './comun'
 
 const ID = 'grafica-tooltip'
 
+// Escape de HTML para el texto que entra en el tooltip. Este es el único sitio
+// del proyecto donde se construye HTML a mano y se inyecta con `innerHTML`, así
+// que aquí NO vale la premisa de "React escapa todo" con la que se descartó la
+// CSP con nonces. El texto que llega —nombres de categoría propios— es de bajo
+// riesgo, pero escaparlo mantiene esa premisa cierta en todo el sitio. El color
+// no pasa por aquí: viene de la paleta del código y va en un atributo `style`.
+const esc = (s: string) =>
+  s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
+
 const elemento = () => {
   let el = document.getElementById(ID)
   if (!el) {
@@ -46,7 +55,7 @@ export const filaTooltip = ({
     : ''
   return `<div style="display:flex;align-items:center;gap:8px;padding:1px 0">
     ${punto}
-    <span style="color:${c.suave}">${nombre}: <strong style="color:${c.texto}">${valor}</strong></span>
+    <span style="color:${c.suave}">${esc(nombre)}: <strong style="color:${c.texto}">${esc(valor)}</strong></span>
   </div>`
 }
 
@@ -54,7 +63,7 @@ export const filaTooltip = ({
 export const marcoTooltip = (filas: string, titulo?: string) => {
   const c = coloresTema()
   const cabecera = titulo
-    ? `<div style="padding:6px 10px;font-weight:600;font-size:12px;color:${c.texto};border-bottom:1px solid ${c.borde}">${titulo}</div>`
+    ? `<div style="padding:6px 10px;font-weight:600;font-size:12px;color:${c.texto};border-bottom:1px solid ${c.borde}">${esc(titulo)}</div>`
     : ''
   return `<div style="background:${c.fondo};border:1px solid ${c.borde};border-radius:10px;
     box-shadow:0 8px 24px rgba(0,0,0,.45);font-size:12px;overflow:hidden;min-width:130px">

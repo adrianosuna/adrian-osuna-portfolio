@@ -16,7 +16,6 @@ import { AjustesTab } from '@/components/dashboard/savings/ajustes'
 import { AhorroTabs, FinanzasNav } from '@/components/dashboard/savings/finanzas-tabs'
 import { GastosTab } from '@/components/dashboard/savings/gastos'
 import { PanelFinanzas } from '@/components/dashboard/savings/panel-finanzas'
-import { ContenidoPrivado } from '@/components/dashboard/savings/privado'
 import { ResumenGeneral } from '@/components/dashboard/savings/resumen-general'
 import { SavingsModule } from '@/components/dashboard/savings/savings-module'
 
@@ -49,8 +48,6 @@ export default async function FinancePage({
         Tus finanzas personales: el sistema de ahorro anual y el control de gastos e ingresos.
       </p>
 
-      {/* Modo privado: los importes salen ocultos y se revelan con el ojo de
-          la barra (la navegación queda fuera del difuminado). */}
       <FinanzasNav seccion={seccion} />
 
       {seccion === 'ahorro' ? (
@@ -70,11 +67,7 @@ export default async function FinancePage({
 async function SeccionPanel({ hoy }: { hoy: string }) {
   const categorias = await listCategorias()
   const [years, mes] = await Promise.all([listYears(), getMesMovimientos(hoy.slice(0, 7), categorias)])
-  return (
-    <ContenidoPrivado>
-      <PanelFinanzas years={years} mes={mes} hoy={hoy} />
-    </ContenidoPrivado>
-  )
+  return <PanelFinanzas years={years} mes={mes} hoy={hoy} />
 }
 
 /** Ahorro: sus pestañas (Resumen histórico + años) y el módulo del año. */
@@ -88,13 +81,11 @@ async function SeccionAhorro({ yearParam, hoy }: { yearParam?: string; hoy: stri
   return (
     <>
       <AhorroTabs years={years} selected={selected} />
-      <ContenidoPrivado>
-        {selected === null ? (
-          <ResumenGeneral years={years} hoy={hoy} />
-        ) : (
-          <SavingsModule detail={detail} hoy={hoy} />
-        )}
-      </ContenidoPrivado>
+      {selected === null ? (
+        <ResumenGeneral years={years} hoy={hoy} />
+      ) : (
+        <SavingsModule detail={detail} hoy={hoy} />
+      )}
     </>
   )
 }
@@ -107,14 +98,12 @@ async function SeccionAjustes({ hoy }: { hoy: string }) {
     listYears(),
   ])
   return (
-    <ContenidoPrivado>
-      <AjustesTab
-        categorias={categorias}
-        recurrentes={recurrentes}
-        years={years}
-        hoy={hoy}
-      />
-    </ContenidoPrivado>
+    <AjustesTab
+      categorias={categorias}
+      recurrentes={recurrentes}
+      years={years}
+      hoy={hoy}
+    />
   )
 }
 
@@ -139,15 +128,13 @@ async function SeccionGastos({
   ])
 
   return (
-    <ContenidoPrivado>
-      <GastosTab
-        datos={movimientos}
-        anio={anio}
-        categorias={categorias}
-        recurrentes={recurrentes}
-        mostrarAnio={vista === 'anio'}
-        hoy={hoy}
-      />
-    </ContenidoPrivado>
+    <GastosTab
+      datos={movimientos}
+      anio={anio}
+      categorias={categorias}
+      recurrentes={recurrentes}
+      mostrarAnio={vista === 'anio'}
+      hoy={hoy}
+    />
   )
 }

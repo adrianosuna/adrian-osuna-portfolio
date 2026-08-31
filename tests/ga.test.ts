@@ -16,6 +16,15 @@ const fila = (dims: string[], mets: number[]) => ({
   metricValues: mets.map((v) => ({ value: String(v) })),
 })
 
+// Día de la serie en el formato de GA (YYYYMMDD), RELATIVO a hoy y en el mismo
+// horario que usa ga.ts. Con fechas fijas el test caducaba: la serie son los
+// `dias` últimos días HASTA HOY, así que un día escrito a mano se sale de la
+// ventana en cuanto pasa el tiempo (y el andamiaje lo rellenaba a cero).
+const diaGA = (atras: number) =>
+  new Date(Date.now() - atras * 86_400_000)
+    .toLocaleDateString('en-CA', { timeZone: 'Europe/Madrid' })
+    .replace(/-/g, '')
+
 // Respuestas canned: cada lote se reconoce por la primera dimensión pedida.
 function respuestaLote(cuerpo: { requests: Array<{ dimensions?: Array<{ name: string }> }> }): { reports: Informe[] } {
   const primera = cuerpo.requests[0]?.dimensions?.[0]?.name
@@ -24,7 +33,7 @@ function respuestaLote(cuerpo: { requests: Array<{ dimensions?: Array<{ name: st
     // fuentes y canales.
     return {
       reports: [
-        { rows: [fila(['20260824'], [3, 9]), fila(['20260825'], [5, 12])] },
+        { rows: [fila([diaGA(1)], [3, 9]), fila([diaGA(0)], [5, 12])] },
         { rows: [fila(['date_range_0'], [40, 60, 150, 95.5, 0.62]), fila(['date_range_1'], [20, 30, 75, 60, 0.5])] },
         { rows: [fila(['clic_contactar'], [4]), fila(['clic_demo'], [2])] },
         { rows: [fila(['(direct)'], [30]), fila(['linkedin.com'], [12])] },

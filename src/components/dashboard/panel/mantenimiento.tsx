@@ -13,7 +13,7 @@ import {
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Modal } from '@/components/ui/modal'
-import { NumberField, SelectField, TextField, TextareaField, DateField } from '@/components/ui/fields'
+import { DateField, Field, NumberField, SelectField, TextField, TextareaField } from '@/components/ui/fields'
 import type { AmbitoRow } from '@/lib/mantenimiento'
 import {
   completeMaintenance, createAmbito, createMaintenance, deleteAmbito, deleteMaintenance,
@@ -111,14 +111,6 @@ const BORRADOR_VACIO: Borrador = {
   title: '', scopeUuid: '', notes: '', intervalMonths: 1, nextDue: '',
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <p className="mb-1 text-[13px] text-muted-foreground">{label}</p>
-      {children}
-    </div>
-  )
-}
 
 export function MantenimientoTab({
   rows, ambitos, hoy, smtpListo,

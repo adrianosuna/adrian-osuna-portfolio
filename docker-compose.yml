@@ -25,6 +25,14 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+    # Techo a los logs: sin esto json-file crece sin límite y llena el disco del
+    # VPS — justo lo que vigila el Panel de control. 10 MB × 3 ficheros rotados.
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    # Límite de memoria: descoméntalo ajustándolo a la RAM del VPS. Sin cifra a
+    # ciegas — un límite demasiado bajo provoca el OOM que se quiere evitar.
+    # mem_limit: 768m
 
   web:
     build:
@@ -37,6 +45,11 @@ services:
     environment:
       # Ruta interna del volumen de backups para el monitor de infraestructura.
       INFRA_BACKUPS_DIR: /backups
+      # El .env.production lleva MYSQL_ROOT_PASSWORD porque `db` lo interpola del
+      # --env-file, pero la app NO lo necesita (conecta con DATABASE_URL). Se
+      # anula aquí —`environment` gana a `env_file`— para que el proceso Next no
+      # herede el root de la BD: un vuelco de env o una traza no lo expondría.
+      MYSQL_ROOT_PASSWORD: ""
     ports:
       # Atado a loopback: Docker se salta el firewall del sistema (ufw), así
       # que solo el proxy inverso del propio servidor puede llegar al 9443.
@@ -45,6 +58,19 @@ services:
       # Solo lectura: el monitor de infraestructura lee la edad de los dumps
       # del cron y, de paso, el uso de disco del VPS (statfs sobre la carpeta).
       - ${BACKUPS_HOST_DIR:-/home/ubuntu/backups}:/backups:ro
+    # Salud real de la app, no solo "el proceso vive": si Next se cuelga
+    # respondiendo mal, `restart: unless-stopped` no lo pilla sin esto. La
+    # imagen alpine trae wget (busybox); /robots.txt es estático y barato.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:9443/robots.txt || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    # mem_limit: 512m   # ver la nota del servicio db
     depends_on:
       db:
         condition: service_healthy
@@ -59,6 +85,9 @@ services:
       args:
         NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?falta NEXT_PUBLIC_SITE_URL en .env.production}
     env_file: .env.production
+    # Igual que `web`: migrate conecta con DATABASE_URL, no necesita el root.
+    environment:
+      MYSQL_ROOT_PASSWORD: ""
     depends_on:
       db:
         condition: service_healthy

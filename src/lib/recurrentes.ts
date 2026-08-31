@@ -38,9 +38,15 @@ export const PERIODICIDADES = [
   { meses: 12, label: 'Cada año' },
 ] as const
 
-/** Etiqueta de una periodicidad en meses ('Cada trimestre', 'Cada 4 meses'). */
-export const etiquetaPeriodo = (meses: number) =>
-  PERIODICIDADES.find((p) => p.meses === meses)?.label ?? `Cada ${meses} meses`
+/** Etiqueta de una periodicidad en meses ('Cada trimestre', 'Cada 2 años',
+ *  'Cada 4 meses'). Los múltiplos de 12 por encima del año se leen mejor en
+ *  años ("Cada 2 años", no "Cada 24 meses"); el resto, en meses. */
+export const etiquetaPeriodo = (meses: number) => {
+  const fija = PERIODICIDADES.find((p) => p.meses === meses)
+  if (fija) return fija.label
+  if (meses > 12 && meses % 12 === 0) return `Cada ${meses / 12} años`
+  return `Cada ${meses} meses`
+}
 
 /** Fecha del cargo siguiente al de `nextDate`. */
 export const proximaFecha = (r: Pick<RecurrenteRow, 'nextDate' | 'intervalMonths' | 'dayAnchor'>) =>

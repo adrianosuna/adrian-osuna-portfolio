@@ -1,0 +1,48 @@
+# Verificación automática de cada push a main y de cada pull request: las
+# mismas cuatro comprobaciones que hay que pasar antes de dar algo por
+# terminado (CLAUDE.md), para que no dependan de acordarse de ejecutarlas.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Un push encima de otro cancela el anterior: solo interesa el último commit.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    env:
+      # El singleton de Prisma parsea DATABASE_URL al importar (src/lib/prisma.ts)
+      # y prisma.config.ts la lee: nada aquí conecta a una BD, pero la URL tiene
+      # que existir y tener formato válido. Mismo apaño que el Dockerfile.
+      DATABASE_URL: mysql://ci:ci@localhost:3306/ci
+      # Sin ella el build avisa de que la metadata apuntaría a localhost. El
+      # aviso es correcto en producción y ruido aquí, así que se le da valor.
+      NEXT_PUBLIC_SITE_URL: https://adrianosuna.com
+
+    steps:
+      - uses: actions/checkout@v5
+
+      # Antes de setup-node: `cache: pnpm` necesita que pnpm ya exista. La
+      # versión sale del campo `packageManager` de package.json.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24 # la misma que la imagen de producción
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # src/generated está en .gitignore: el cliente se genera aquí.
+      - run: pnpm prisma generate
+
+      - run: pnpm lint
+      - run: pnpm exec tsc --noEmit
+      - run: pnpm test
+      - run: pnpm build

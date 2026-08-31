@@ -66,6 +66,7 @@ vi.mock('@/app/app/finance/gastos-actions', () => ({
 const { MovimientosPorMes } = await import('@/components/dashboard/savings/gastos')
 const { AhorroPorMes, AhorroAcumulado } = await import('@/components/dashboard/savings/charts')
 const { GraficaDonut } = await import('@/components/ui/charts/donut')
+const { filaTooltip, marcoTooltip } = await import('@/components/ui/charts/tooltip')
 
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -121,6 +122,31 @@ describe('MovimientosPorMes (ingresos y gastos por mes)', () => {
     expect(eje?.(800)).toBe('800')
     const titulo = cfg.options.plugins?.tooltip?.callbacks?.title
     expect(titulo?.([{ dataIndex: 7 }])).toBe('Agosto')
+  })
+})
+
+describe('escape del tooltip (se inyecta con innerHTML)', () => {
+  // El tooltip es el único sitio que construye HTML a mano: un nombre de
+  // categoría con `<` no puede convertirse en marcado. El color NO se escapa
+  // (viene del código, va en un atributo style).
+  it('escapa el nombre y el valor de una fila', () => {
+    const html = filaTooltip({ nombre: '<img src=x onerror=alert(1)>', valor: '3 & 4' })
+    expect(html).not.toContain('<img')
+    expect(html).toContain('&#60;img')
+    expect(html).toContain('3 &#38; 4')
+  })
+
+  it('escapa el título del marco', () => {
+    const html = marcoTooltip('<span>fila</span>', '<b>Agosto</b>')
+    // El título (dato) va escapado; las filas ya vienen construidas por
+    // filaTooltip y se insertan tal cual.
+    expect(html).toContain('&#60;b&#62;Agosto')
+    expect(html).not.toContain('<b>Agosto')
+  })
+
+  it('deja pasar el color de la fila sin tocarlo (no es texto de usuario)', () => {
+    const html = filaTooltip({ color: '#ef4444', nombre: 'Gastos', valor: '12 €' })
+    expect(html).toContain('background:#ef4444')
   })
 })
 

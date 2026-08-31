@@ -30,8 +30,10 @@ del monitor de infraestructura (TLS/fs/reloj simulados), validaciones/guardas
 de todas las server actions, la lógica del pipeline (métricas del embudo y
 aviso de seguimientos), los callbacks de `auth.ts` (la config se exporta
 como `authConfig` precisamente para poder invocarlos con mocks), las
-superficies GEO (robots + llms.txt) y los campos custom de `fields.tsx` y el
-`Modal` común (jsdom + Testing Library; el resto corre en node). `server-only` se alias-ea a
+superficies GEO (robots + llms.txt), el **saneado del HTML** de las notas
+(allowlist y vectores de inyección: `<script>`, `on*`, `javascript:`) y los
+campos custom de `fields.tsx` y el `Modal` común —con su trampa de foco— (jsdom
++ Testing Library; el resto corre en node). `server-only` se alias-ea a
 un stub y `next-auth` se procesa inline en `vitest.config.mts`.
 Antes de dar algo por terminado: `pnpm test`, `pnpm lint` y `pnpm build`.
 
@@ -109,11 +111,19 @@ Proyecto Next.js App Router con `src/`. **Paleta única en todo el sitio**
   El **tooltip es compartido** (`ui/charts/tooltip.ts`): un div global fijo que
   usan tanto Chart.js como el mapa de calor de visitas, que **sigue siendo CSS
   Grid a propósito** (Chart.js no tiene tipo matriz, y 168 divs con
-  `aria-label` son más accesibles que un canvas).
+  `aria-label` son más accesibles que un canvas). Es el ÚNICO sitio que
+  construye HTML a mano y lo inyecta con `innerHTML`, así que **escapa el texto
+  que recibe** (nombre, valor, título): aquí no vale la premisa de "React escapa
+  todo" con la que se descartó la CSP con nonces, y escaparlo la mantiene cierta.
+  El color no se escapa (viene del código, va en un atributo `style`).
   Los modales usan siempre `src/components/ui/modal.tsx` (cabecera y pie
-  fijos, cuerpo con scroll); los popovers de `fields.tsx` (select, calendario)
-  se renderizan en un portal con posición fija — nunca los recorta un
-  contenedor con overflow.
+  fijos, cuerpo con scroll, y **atrapa el foco**: entra al primer campo, Tab da
+  la vuelta dentro y al cerrar vuelve a quien lo abrió — salvo con un popover de
+  `fields.tsx` abierto, cuyo foco vive en un portal fuera del panel); los
+  popovers de `fields.tsx` (select, calendario) se renderizan en un portal con
+  posición fija — nunca los recorta un contenedor con overflow. La etiqueta
+  sobre cada campo es `Field` de `fields.tsx` (un `<label>` de verdad; antes
+  había cuatro copias).
 - **Tema único oscuro**: el selector claro/oscuro se retiró; los tokens de
   `:root` ya son los oscuros (sin clase `dark` ni `next-themes`).
 
@@ -160,7 +170,9 @@ en la página (server component) y se pasan como props planas (convertir
 ### Módulo de finanzas (`src/lib/finance.ts` + `/app/finance`)
 
 **Personal del administrador**: página y actions exigen rol ADMIN, y el módulo
-se oculta (inicio y top-nav) a los usuarios invitados.
+se oculta (inicio y top-nav) a los usuarios invitados. (El "modo privado" que
+difuminaba los importes se retiró el 31/08/2026 —de raíz, incluida la columna
+`user.prefs`—: no compensaba su complejidad.)
 Semántica del ahorro anual: **mensual + ingresos extra + sobrante de viajes**
 (ahorrado − gastado: lo no gastado se suma al cierre y los viajes del año
 siguiente empiezan de cero; gastar de más resta). **Sin capital
@@ -221,6 +233,10 @@ solo cuentan lo que ya pasó):
   para que una fecha de alta disparatada no inunde el histórico. La cifra de
   cabecera es el **equivalente mensual** (un seguro de 600 €/año son 50 €/mes):
   sumar solo los mensuales dejaría fuera justo los recibos gordos.
+  La **periodicidad es libre**: el formulario ofrece las comunes
+  (`PERIODICIDADES`) y un "Personalizado" con número + unidad (meses/años) hasta
+  120 meses; `etiquetaPeriodo` lee los múltiplos de 12 en años. El tope de
+  `periodoValido` (120) es solo una cota: quien frena de verdad es `MAX_CARGOS`.
 
 `topes.ts` y `recurrentes.ts` NO llevan `server-only` a propósito: sus umbrales
 y cálculos los usan el cron (servidor) y las tarjetas (cliente), y duplicarlos
@@ -278,6 +294,22 @@ borrar) — renombrar es seguro (las tareas apuntan por uuid) y **un ámbito en 
 no se borra**, igual que las categorías de gastos. El filtro por ámbito **solo
 aparece cuando hay más de uno en uso**; el nombre de cada tarea sale del `include`
 de la relación, y el correo de vencidas abre cada tarjeta con él.
+
+### Notas (`src/lib/notas.ts` + `/app/panel?tab=notas`)
+
+Quinta pestaña del Panel: apuntes propios del admin con formato (tabla `note`,
+migración `notas_y_unicidad`). Se editan en un **editor visual** tipo Word
+(`contentEditable` + `document.execCommand` en `panel/notas.tsx`: siempre se ve
+el formato) y se **guardan como HTML**. La seguridad de guardar HTML está en que
+**se SANEA en el servidor antes de guardarlo** (`src/lib/sanitizar-html.ts`,
+sobre `sanitize-html`): es el punto de confianza —no el cliente, que se salta—,
+con una allowlist que tira `<script>`, `on*`, estilos y el `javascript:` de un
+href. Como lo guardado ya está saneado, pintarlo con `dangerouslySetInnerHTML`
+(editor y tarjetas, con la clase `.contenido-nota` de `globals.css`) es seguro.
+Reabrió el «módulo de notas» que estaba descartado (25/08); su primera versión
+del día guardaba Markdown, y se pasó a HTML/WYSIWYG a petición.
+⚠ Un saneador de HTML NO se escribe a mano: va sobre `sanitize-html`, igual que
+las gráficas van sobre Chart.js.
 
 ### Pipeline de oportunidades (`src/lib/pipeline.ts` + `/app/pipeline`)
 

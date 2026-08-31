@@ -10,6 +10,7 @@ const { requireAdminMock, prismaMock } = vi.hoisted(() => {
     userSession: { delete: vi.fn(), deleteMany: vi.fn() },
     savingYear: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
     savingMonth: { upsert: vi.fn() },
+    note: { create: vi.fn(), update: vi.fn(), delete: vi.fn() },
     $transaction: vi.fn(async (ops: unknown[]) => ops),
   }
   return { requireAdminMock: vi.fn(), prismaMock }
@@ -129,6 +130,47 @@ describe('guarded (contrato de errores)', () => {
     requireAdminMock.mockRejectedValue(new Error('P2002: detalle interno de Prisma'))
     expect(await inviteUser({ email: 'a@b.com', role: 'USER' })).toEqual({ ok: false, message: 'Error inesperado' })
     silencio.mockRestore()
+  })
+})
+
+describe('notas (panel/actions)', () => {
+  it('createNote exige contenido con texto (un editor vacío no vale)', async () => {
+    const { createNote } = await import('@/app/app/panel/actions')
+    expect(await createNote({ content: '   ' })).toEqual({ ok: false, message: 'La nota no puede estar vacía' })
+    expect(await createNote({ content: '<p><br></p>' })).toEqual({ ok: false, message: 'La nota no puede estar vacía' })
+    expect(prismaMock.note.create).not.toHaveBeenCalled()
+  })
+
+  it('createNote sanea el HTML (fuera lo peligroso), recorta el título y lo pone null si va vacío', async () => {
+    const { createNote } = await import('@/app/app/panel/actions')
+    const html = '<p>Hola <b>mundo</b></p><script>alert(1)</script><a href="javascript:alert(1)">x</a>'
+    expect(await createNote({ title: '   ', content: html })).toEqual({ ok: true })
+    const data = prismaMock.note.create.mock.calls[0][0].data
+    expect(data.title).toBeNull()
+    expect(data.content).toContain('<p>Hola <b>mundo</b></p>')
+    expect(data.content).not.toContain('<script')
+    expect(data.content).not.toContain('javascript:')
+  })
+
+  it('createNote limita el título a 255', async () => {
+    const { createNote } = await import('@/app/app/panel/actions')
+    await createNote({ title: 'T'.repeat(300), content: '<p>x</p>' })
+    expect(prismaMock.note.create.mock.calls[0][0].data.title).toHaveLength(255)
+  })
+
+  it('updateNote valida y sanea igual, y escribe por uuid', async () => {
+    const { updateNote } = await import('@/app/app/panel/actions')
+    expect(await updateNote('n-1', { content: '<div></div>' })).toEqual({ ok: false, message: 'La nota no puede estar vacía' })
+    expect(await updateNote('n-1', { title: 'Comandos', content: '<p>ls -la</p>' })).toEqual({ ok: true })
+    const call = prismaMock.note.update.mock.calls[0][0]
+    expect(call.where).toEqual({ uuid: 'n-1' })
+    expect(call.data.content).toBe('<p>ls -la</p>')
+  })
+
+  it('deleteNote borra por uuid', async () => {
+    const { deleteNote } = await import('@/app/app/panel/actions')
+    expect(await deleteNote('n-1')).toEqual({ ok: true })
+    expect(prismaMock.note.delete).toHaveBeenCalledWith({ where: { uuid: 'n-1' } })
   })
 })
 

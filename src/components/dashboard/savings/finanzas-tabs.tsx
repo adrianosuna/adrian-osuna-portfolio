@@ -7,9 +7,8 @@
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import type { YearSummary } from '@/lib/finance'
-import { BotonPrivado } from './privado'
 
-/** Barra de secciones del módulo (nivel 1) + el ojo del modo privado. */
+/** Barra de secciones del módulo (nivel 1). */
 export function FinanzasNav({
   seccion,
 }: {
@@ -24,22 +23,19 @@ export function FinanzasNav({
     { id: 'ajustes' as const, label: 'Ajustes', href: '/app/finance?s=ajustes' },
   ]
   return (
-    <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex max-w-full gap-0.5 overflow-x-auto overflow-y-hidden rounded-lg border border-border bg-card/50 p-0.5">
-        {secciones.map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            className={cn(
-              'flex-1 shrink-0 rounded-md px-4 py-1 text-sm font-semibold transition-colors sm:flex-none',
-              seccion === s.id ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
-            )}
-            onClick={() => router.push(s.href)}>
-            {s.label}
-          </button>
-        ))}
-      </div>
-      <BotonPrivado />
+    <div className="mb-4 flex max-w-full gap-0.5 overflow-x-auto overflow-y-hidden rounded-lg border border-border bg-card/50 p-0.5">
+      {secciones.map((s) => (
+        <button
+          key={s.id}
+          type="button"
+          className={cn(
+            'flex-1 shrink-0 rounded-md px-4 py-1 text-sm font-semibold transition-colors sm:flex-none',
+            seccion === s.id ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
+          )}
+          onClick={() => router.push(s.href)}>
+          {s.label}
+        </button>
+      ))}
     </div>
   )
 }

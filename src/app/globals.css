@@ -251,3 +251,63 @@ section[id] {
     transparent 72%
   );
 }
+/* Contenido HTML de las notas del Panel (editor y tarjetas). El HTML se sanea
+   en el servidor a una allowlist; aquí solo se le da estilo. `:where(...)`
+   mantiene baja la especificidad para no pelear con utilidades de Tailwind. */
+.contenido-nota {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  word-break: break-word;
+}
+.contenido-nota :where(h3) {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0.6rem 0 0.25rem;
+}
+.contenido-nota :where(h4) {
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin: 0.6rem 0 0.25rem;
+}
+.contenido-nota :where(p) {
+  margin: 0.3rem 0;
+}
+.contenido-nota :where(ul) {
+  list-style: disc;
+  margin: 0.3rem 0 0.3rem 1.25rem;
+}
+.contenido-nota :where(ol) {
+  list-style: decimal;
+  margin: 0.3rem 0 0.3rem 1.25rem;
+}
+.contenido-nota :where(a) {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.contenido-nota :where(blockquote) {
+  border-left: 3px solid var(--border);
+  padding-left: 0.75rem;
+  color: var(--muted-foreground);
+  margin: 0.3rem 0;
+}
+.contenido-nota :where(code) {
+  background: var(--muted);
+  padding: 0.05rem 0.3rem;
+  border-radius: 0.25rem;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.85em;
+}
+.contenido-nota :where(:first-child) {
+  margin-top: 0;
+}
+.contenido-nota :where(:last-child) {
+  margin-bottom: 0;
+}
+
+/* Placeholder del editor de notas cuando está vacío. */
+.editor-nota:empty::before {
+  content: attr(data-placeholder);
+  color: var(--muted-foreground);
+  pointer-events: none;
+}

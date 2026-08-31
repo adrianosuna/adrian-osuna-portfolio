@@ -6,6 +6,233 @@ cuando algo se termina, se cuenta aquí con su porqué y desaparece de allí.
 
 ---
 
+## 31/08/2026
+
+### Notas en el Panel de control (editor visual)
+
+Quinta pestaña del Panel (`?tab=notas`): apuntes propios del admin con formato
+—títulos, negrita, cursiva, subrayado, listas y enlaces—. Reabre el "módulo de
+notas/TIL" que se había descartado el 25/08 por no encajar; se rehízo a
+petición.
+
+Se editan en un **editor visual tipo Word** (`contentEditable`: siempre se ve el
+formato, sin sintaxis a la vista) y se **guardan como HTML**. La primera versión
+del día guardaba Markdown con una vista previa aparte; se cambió a HTML/WYSIWYG
+a petición, porque editar Markdown a mano no era cómodo.
+
+La clave es hacer seguro el "guardar HTML", que es justo el problema de
+`innerHTML` que la auditoría del 28/08 señaló:
+
+- **El HTML se SANEA en el servidor antes de guardarlo** (`lib/sanitizar-html.ts`,
+  sobre `sanitize-html`): es el punto donde el HTML pasa a ser de fiar, no el
+  cliente (que se salta). La allowlist deja formato de texto, listas, encabezados
+  y enlaces, y tira `<script>`, manejadores `on*`, estilos y el `javascript:` de
+  un href. Un saneador de HTML es lo último que conviene escribir a mano, así que
+  va sobre una librería probada (como Chart.js o exceljs).
+- Como lo guardado ya está saneado, pintarlo con `dangerouslySetInnerHTML` —en el
+  editor y en las tarjetas— es seguro. Las tarjetas ahora **renderizan el
+  formato** (antes no se veía).
+- **Editor** (`panel/notas.tsx`): `contentEditable` con barra de formato
+  (`document.execCommand`) y el título aparte. Tabla `note` (migración
+  `notas_y_unicidad`), acciones `createNote`/`updateNote`/`deleteNote` con guarda
+  de admin; la nota vacía se detecta sobre el texto (un editor "vacío" deja `<br>`).
+
+Tests: el saneador (allowlist y los vectores de inyección) y las acciones
+(saneado + validación).
+
+Retoques del editor: los botones de la barra **se marcan** cuando su formato
+está activo donde está el cursor (vía `queryCommandState`, como en Word);
+**Ctrl/Cmd+A** selecciona solo el contenido del editor (no la página) para que el
+formato se aplique a todo de forma fiable; y quitado el texto de ayuda de la
+cabecera, con el botón «Nueva nota» a lo ancho en móvil.
+
+De una segunda auditoría salieron dos arreglos del editor: la **tarjeta de nota
+pasa de `<button>` a `<div role="button">`** (pintar el HTML de la nota —bloques
+y enlaces— dentro de un botón era anidamiento inválido y hacía que un enlace
+disparara enlace + editor a la vez; el preview lleva `pointer-events-none`), y se
+fuerza **`styleWithCSS` a false** para que el formato salga por etiquetas
+(`<b>`...) y no como `style` en línea, que el saneador tiraría.
+
+En móvil, las cinco pestañas del Panel no caben en 375px (ni compactas), y ni el
+scroll horizontal ni las dos filas quedaban bien, así que ahí van en un
+**desplegable** (`PanelTabsMovil`, con el `SelectField` del tema); en escritorio
+siguen como pestañas.
+
+⚠ Dependencia nueva: **`sanitize-html`** (+ sus tipos). El despliegue la instala
+con el `pnpm install` del build; no hay variables nuevas.
+
+### Retirado el modo privado
+
+Se quita **de raíz** el "modo privado" de finanzas (el ojo que difuminaba los
+importes), que estaba desde el 25/08. Durante el día se llegó a reescribir como
+preferencia por usuario (columna JSON `user.prefs`, un modal de Preferencias en
+el menú de usuario), pero al final se decidió retirarlo entero: no aportaba lo
+suficiente para la complejidad que arrastraba.
+
+Fuera: `privado.tsx`, `lib/prefs.ts`, el modal de Preferencias, la action
+`guardarPreferencias`, el ojo de la barra de finanzas, el enmascarado de los
+importes en el inicio y en Ajustes, y el campo `prefs` de la sesión (`auth.ts` +
+tipos). La columna `user.prefs` no llega a producción: se retira del esquema y
+de la migración (ver abajo).
+
+### Migraciones de la sesión, unificadas en una
+
+Las tres migraciones creadas esta sesión (aún sin desplegar) se funden en una:
+`unicidad_de_nombres` + `notas` → **`notas_y_unicidad`**, y `preferencias_de_usuario`
+**desaparece** con el modo privado. En local se reconcilió a mano (drop de la
+columna `prefs`, ajuste de `_prisma_migrations` y `migrate resolve --applied`) y
+`migrate diff` contra la BD confirma **cero drift**. Quedan así **seis**
+migraciones pendientes para producción (las cinco de `0900c6a` + esta).
+
+### Periodicidad libre en los recurrentes
+
+Los recurrentes ya no se limitan a las cinco periodicidades fijas: el selector
+"Cada cuánto" tiene ahora un **Personalizado** que despliega número + unidad
+(meses/años), así que caben "cada 18 meses", "cada 2 años" o "cada 3 años".
+
+Casi todo estaba hecho de fábrica —`sumarMeses` no distingue 24 meses de 1, y
+`interval_months` es un SMALLINT— así que el cambio fue pequeño:
+
+- `etiquetaPeriodo` lee los múltiplos de 12 por encima del año en años ("Cada 2
+  años", no "Cada 24 meses"); el resto, en meses.
+- El formulario deriva su estado del propio `intervalMonths`: si es una de las
+  comunes muestra el select; si no, cae en Personalizado con el número y la
+  unidad ya calculados. Al elegir año/mes recompone el intervalo y **lo topa**
+  para que la combinación nunca pase del límite.
+- El tope del servidor (`periodoValido`) sube de 24 a **120 meses (10 años)**.
+  No protegía de nada —`MAX_CARGOS` ya frena la generación—, así que ahora es
+  solo una cota de sensatez alineada con la ventana de fecha (±10 años).
+
+Tres tests nuevos (etiquetas en años, alta con periodicidad personalizada y su
+rechazo por encima del tope).
+
+### Un solo componente de campo (de la auditoría del 28/08)
+
+`Field` —la etiqueta sobre un campo de formulario— estaba definido **cuatro
+veces**: en `savings/comun.tsx` (exportado y sin que lo importara nadie: código
+muerto que sobrevivió a la limpieza del 28), y como copia local en
+`panel/mantenimiento.tsx`, `pipeline/oportunidad-modal.tsx` y
+`savings/ajustes.tsx` (ahí llamado `Campo`). Ahora vive una sola vez en
+`ui/fields.tsx`, junto a los campos que etiqueta.
+
+La versión que se queda es la de `ajustes`, que era la única correcta: un
+`<label>` de verdad en lugar de un `<div>` con un `<p>`, así que **el clic en el
+texto enfoca el campo** (o abre su popover) en los 22 campos de los tres
+modales, no solo en los de Ajustes. El nombre que anuncia el lector de pantalla
+no cambia: sale del `ariaLabel` de cada campo, que ya lo llevaban todos.
+
+Sin cambio visual: `flex flex-col gap-1` deja los mismos 4px que el `mb-1`
+anterior, y el patrón ya estaba en producción en Ajustes desde el 28/08 — aquí
+solo se extiende a los otros dos modales.
+
+⚠ `Field` espera **un** control dentro: un `<label>` con dos se asocia solo al
+primero. Está dicho en su comentario.
+
+### La fixture de GA caducaba sola
+
+`tests/ga.test.ts` simulaba la Data API con dos días **escritos a mano**
+(`20260824` y `20260825`). La serie que arma `ga.ts` son los últimos `dias`
+días HASTA HOY, así que el 31/08 el primero ya caía fuera de la ventana de 7
+días, el andamiaje lo rellenaba a cero y el test fallaba: `[5]` en vez de
+`[3, 5]`. No era un fallo del código — era el test caducando por el paso del
+tiempo, tres días después de escribirlo.
+
+Los dos días se calculan ahora relativos a hoy y en el mismo horario que usa
+`ga.ts` (Europe/Madrid), así que la ventana siempre los contiene.
+
+### Operación en el VPS: healthcheck, logs con techo y `.env.example`
+
+Del bloque de operación de la auditoría:
+
+- **`web` tiene healthcheck.** Antes solo `db` lo tenía; `restart: unless-stopped`
+  reinicia el proceso si muere, pero no si Next se cuelga respondiendo mal. Ahora
+  sondea `http://127.0.0.1:9443/robots.txt` (estático y barato) con el `wget` de
+  busybox que ya trae la imagen alpine.
+- **Los logs de Docker no pueden llenar el disco.** `json-file` con
+  `max-size: 10m` y `max-file: 3` en `db` y `web`: sin techo crecían sin límite,
+  justo lo que vigila el propio Panel de control.
+- **`.env.example` documenta `CRON_EN_DEV` y `NEXT_PUBLIC_SITE_URL`** como claves
+  comentadas (antes solo se mencionaban en prosa, y un grep de claves no las
+  veía). Ambas siguen siendo opcionales en desarrollo.
+
+El **límite de memoria** de `db` y `web` se dejó como bloque comentado en el
+compose: ponerlo a ciegas, sin saber la RAM del VPS, provoca el OOM que se
+quiere evitar. Queda en `TAREAS.md` a falta de mirar `free -m` y elegir cifra.
+
+Todo el compose se validó con `docker compose config` (parseo en cliente; el
+daemon no hace falta): sintaxis correcta y `MYSQL_ROOT_PASSWORD` vacío en `web`.
+
+### Cerrado el bloque de endurecimiento de la auditoría del 28/08
+
+Los cinco puntos de seguridad del informe:
+
+- **El tooltip escapa el texto que inyecta.** `ui/charts/tooltip.ts` es el único
+  sitio del proyecto que construye HTML a mano y lo mete con `innerHTML`, así
+  que era el único donde ya no valía la premisa de "React escapa todo" con la
+  que se descartó la CSP con nonces. Ahora el nombre, el valor y el título pasan
+  por un escape antes de entrar (el color no: viene del código, va en un `style`).
+  Con eso la premisa vuelve a ser cierta en todo el sitio; **la CSP sigue sin
+  reabrirse**. Tres tests nuevos.
+- **La contraseña root de MySQL sale del contenedor de la app.** `web` (y
+  `migrate`) cargan el `.env.production` entero con `env_file`, que lleva
+  `MYSQL_ROOT_PASSWORD` porque `db` lo interpola del `--env-file`. La app no lo
+  usa (conecta con `DATABASE_URL`), así que se anula en su `environment`
+  (`MYSQL_ROOT_PASSWORD: ""`, que gana a `env_file`): el proceso Next ya no
+  hereda el root, y un vuelco de entorno o una traza no lo expondría.
+- **`Cache-Control: private, no-store` en la exportación a Excel.** La guarda de
+  admin ya estaba; ahora ningún intermediario puede guardar las finanzas.
+- **Unicidad de nombres en la BD.** Índices únicos en `expense_category`
+  (nombre+tipo) y `maintenance_scope` (nombre): la garantía pasa del código
+  (comprobar-antes-de-insertar) al motor. Generada con `migrate diff` sin tocar
+  la BD y con los duplicados comprobados antes (0 en local). Va junto con la
+  tabla `note` en la migración `notas_y_unicidad`.
+- **`override` de `uuid` a `>=11.1.1`** (quedó en 14.0.2): retira la única
+  alerta que tenía el `pnpm audit` al empezar. `exceljs` sigue funcionando
+  —usa `require('uuid').v4`, que v11+ mantiene—, verificado generando un xlsx
+  con formato condicional (la ruta que carga uuid).
+
+Al repasar el `audit` afloraron **tres avisos nuevos en `mariadb`** (publicados
+estos días, no los había el 28) que no se tocan de momento: riesgo real bajo en
+este despliegue y el adapter fija la versión exacta. Anotados en `TAREAS.md`.
+
+### Cerrado el bloque de código de la auditoría del 28/08
+
+Los cinco puntos de código que quedaban del informe:
+
+- **Validación igualada en los dos módulos de finanzas.** `cleanConcept`
+  (ingresos extra y gastos de viaje, en `finance/actions.ts`) ahora recorta el
+  concepto a 255 y rechaza importes de magnitud absurda (`>= 1e10`), igual que
+  `limpiar` en `gastos-actions.ts`. Sin eso, un concepto largo reventaba contra
+  el `VarChar(255)` de la columna y al cliente solo le llegaba el "Error
+  inesperado" genérico en vez de un mensaje que se entienda.
+- **Fuera el cast que mentía.** `apuntarCargos` en `lib/gastos.ts` declaraba la
+  fila con `amount: unknown` y la pasaba con `as number`, cuando de Prisma llega
+  un `Decimal`. El tipo de la fila es ahora el del modelo (`RecurringExpenseModel`),
+  así que Prisma valida los campos de verdad y desaparecen los dos casts
+  (`type` y `amount`) que lo tapaban.
+- **El modal atrapa el foco.** `ui/modal.tsx` ya tenía `role="dialog"`,
+  `aria-modal` y cierre con Escape; ahora, además: el foco entra al primer
+  control del cuerpo al abrir (no en la "X"), **Tab da la vuelta dentro** en vez
+  de escaparse a la página de detrás, y al cerrar vuelve al elemento que lo
+  abrió. Dos sutilezas que costaron pensarse: el trap se **desactiva** mientras
+  hay un popover de `fields.tsx` abierto (su foco vive en un portal fuera del
+  panel), y la gestión del foco va en un efecto SIN dependencias, aparte del de
+  teclado (que depende de `onClose`, a menudo inline: en el mismo efecto,
+  reenfocaría el primer campo en cada pulsación).
+- **`minimumReleaseAgeExclude` vacío.** Retiradas las dos exclusiones
+  (`nodemailer@9.0.6`, `@testing-library/react@16.3.3`): ya tienen edad de
+  sobra y `pnpm install --frozen-lockfile` sigue resolviendo igual sin ellas.
+- **CI en GitHub Actions** (`.github/workflows/ci.yml`): en cada push a `main` y
+  en cada PR corre las cuatro comprobaciones de siempre — `lint`, `tsc`, `test`
+  y `build` — sobre Node 24, con `DATABASE_URL` y `NEXT_PUBLIC_SITE_URL` de
+  pega (nada conecta a una BD; el singleton de Prisma solo necesita que la URL
+  tenga formato). Dejan de depender de acordarse de ejecutarlas.
+
+Quedan pendientes de la auditoría los bloques de **Endurecimiento** (5) y
+**Operación en el VPS** (4), en `TAREAS.md`.
+
+---
+
 ## 28/08/2026
 
 ### Más control de los recurrentes: apuntar ya, duplicar y ver lo apuntado
@@ -1362,5 +1589,6 @@ mapa horario transpuesto y tooltip táctil en la gráfica diaria.
 ### Descartes del día
 
 - **Módulo de notas/TIL**: no encaja con el flujo de trabajo de Adrián.
+  (Reabierto y hecho el 31/08/2026 a petición: notas con formato en el Panel.)
 - **Redis para sesiones**: se eligió tabla MySQL (una pieza menos que
   operar; la escala no lo justifica).

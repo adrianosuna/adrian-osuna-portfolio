@@ -17,7 +17,7 @@ import {
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Modal } from '@/components/ui/modal'
-import { DateField, NumberField, SelectField, TextField } from '@/components/ui/fields'
+import { DateField, Field, NumberField, SelectField, TextField } from '@/components/ui/fields'
 import type { CategoriaRow, TipoMovimiento } from '@/lib/gastos'
 import type { YearSummary } from '@/lib/finance'
 import { createYear, deleteYear, updateYear } from '@/app/app/finance/actions'
@@ -29,7 +29,6 @@ import type { MovimientoRow } from '@/lib/gastos'
 import {
   etiquetaPeriodo, PERIODICIDADES, resumenRecurrentes, type RecurrenteRow,
 } from '@/lib/recurrentes'
-import { MASCARA, useOculto } from './privado'
 import {
   btnIcon, btnOutline, btnPrimary, cardClass, eur, fmtDiaAnio, SIN_CATEGORIA, TIPOS,
 } from './comun'
@@ -388,7 +387,7 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
           }>
           <div className="flex flex-col gap-3">
             {!editando && (
-              <Campo etiqueta="Tipo">
+              <Field label="Tipo">
                 <SelectField
                   className="w-32"
                   ariaLabel="Tipo de la categoría"
@@ -396,9 +395,9 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
                   onChange={(v) => setBorrador((b) => ({ ...b, type: v as TipoMovimiento }))}
                   options={TIPOS}
                 />
-              </Campo>
+              </Field>
             )}
-            <Campo etiqueta="Nombre">
+            <Field label="Nombre">
               <TextField
                 autoFocus
                 ariaLabel="Nombre de la categoría"
@@ -407,9 +406,9 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
                 onChange={(v) => setBorrador((b) => ({ ...b, name: v }))}
                 onEnter={guardar}
               />
-            </Campo>
+            </Field>
             {borrador.type === 'GASTO' && (
-              <Campo etiqueta="Tope al mes">
+              <Field label="Tope al mes">
                 <NumberField
                   className="w-32"
                   step={10}
@@ -418,22 +417,12 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
                   value={borrador.budget}
                   onChange={(v) => setBorrador((b) => ({ ...b, budget: v }))}
                 />
-              </Campo>
+              </Field>
             )}
           </div>
         </Modal>
       )}
     </section>
-  )
-}
-
-/** Etiqueta encima del campo, para los formularios de los modales. */
-function Campo({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className="text-[13px] text-muted-foreground">{etiqueta}</span>
-      {children}
-    </label>
   )
 }
 
@@ -506,7 +495,18 @@ interface BorradorRec {
   cat: string
 }
 
-const OPCIONES_PERIODO = PERIODICIDADES.map((p) => ({ value: String(p.meses), label: p.label }))
+const MESES_FIJOS: number[] = PERIODICIDADES.map((p) => p.meses)
+const OPCIONES_PERIODO = [
+  ...PERIODICIDADES.map((p) => ({ value: String(p.meses), label: p.label })),
+  { value: 'otro', label: 'Personalizado' },
+]
+const UNIDADES_PERIODO = [
+  { value: 'meses', label: 'Meses' },
+  { value: 'anios', label: 'Años' },
+]
+// Cota de sensatez, la misma que valida el servidor (`periodoValido`): hasta
+// 120 meses = 10 años.
+const MAX_MESES = 120
 
 type FiltroRec = 'todos' | 'activos' | 'pausados'
 
@@ -535,18 +535,38 @@ function FormRecurrente({ valor, onChange, categorias, onGuardar }: {
       .map((c) => ({ value: c.uuid, label: c.name })),
   ]
 
+  // Periodicidad: si el intervalo es una de las comunes, el select la muestra;
+  // si no, se editan número + unidad. Que el panel esté abierto es estado
+  // PROPIO —sembrado del valor inicial al montar (el modal remonta este
+  // formulario en cada apertura)—, no derivado del intervalo: derivarlo hacía
+  // que teclear "18" colapsara el panel al pasar por "1" (un valor común).
+  // Solo el select lo cierra, al elegir una periodicidad común.
+  const [personalizado, setPersonalizado] = useState(!MESES_FIJOS.includes(valor.intervalMonths))
+  // Los múltiplos de 12 se leen en años; el resto, en meses.
+  const enAnios = valor.intervalMonths % 12 === 0
+  const numCustom = enAnios ? valor.intervalMonths / 12 : valor.intervalMonths
+  const unidadCustom = enAnios ? 'anios' : 'meses'
+  const setIntervalo = (meses: number) => onChange({ ...valor, intervalMonths: meses })
+  // Recompone y TOPA para que número × unidad nunca pase del límite (12 años
+  // se quedarían en 10).
+  const recomponer = (num: number, unidad: string) => {
+    const tope = unidad === 'anios' ? MAX_MESES / 12 : MAX_MESES
+    const n = Math.min(tope, Math.max(1, Math.floor(num || 1)))
+    setIntervalo(unidad === 'anios' ? n * 12 : n)
+  }
+
   return (
     <div className="flex flex-col gap-3">
       <div className="grid gap-3 sm:grid-cols-2">
-        <Campo etiqueta="Tipo">
+        <Field label="Tipo">
           <SelectField
             ariaLabel="Tipo del recurrente"
             value={valor.type}
             onChange={(v) => onChange({ ...valor, type: v as TipoMovimiento, cat: '' })}
             options={TIPOS}
           />
-        </Campo>
-        <Campo etiqueta="Importe">
+        </Field>
+        <Field label="Importe">
           <NumberField
             ariaLabel="Importe del recurrente"
             placeholder="Importe"
@@ -554,9 +574,9 @@ function FormRecurrente({ valor, onChange, categorias, onGuardar }: {
             value={valor.amount}
             onChange={(v) => onChange({ ...valor, amount: v })}
           />
-        </Campo>
+        </Field>
       </div>
-      <Campo etiqueta="Concepto">
+      <Field label="Concepto">
         <TextField
           autoFocus
           ariaLabel="Concepto del recurrente"
@@ -565,32 +585,59 @@ function FormRecurrente({ valor, onChange, categorias, onGuardar }: {
           onChange={(v) => onChange({ ...valor, concept: v })}
           onEnter={onGuardar}
         />
-      </Campo>
+      </Field>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Campo etiqueta="Cada cuánto">
+        <Field label="Cada cuánto">
           <SelectField
             ariaLabel="Cada cuánto se repite"
-            value={String(valor.intervalMonths)}
-            onChange={(v) => onChange({ ...valor, intervalMonths: Number(v) })}
+            value={personalizado ? 'otro' : String(valor.intervalMonths)}
+            onChange={(v) => {
+              if (v === 'otro') {
+                setPersonalizado(true)
+              } else {
+                setPersonalizado(false)
+                setIntervalo(Number(v))
+              }
+            }}
             options={OPCIONES_PERIODO}
           />
-        </Campo>
-        <Campo etiqueta="Próximo cargo">
+        </Field>
+        <Field label="Próximo cargo">
           <DateField
             ariaLabel="Fecha del próximo cargo"
             value={valor.nextDate}
             onChange={(v) => onChange({ ...valor, nextDate: v })}
           />
-        </Campo>
+        </Field>
       </div>
-      <Campo etiqueta="Categoría">
+      {personalizado && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Repetir cada">
+            <NumberField
+              ariaLabel="Número de la periodicidad personalizada"
+              step={1}
+              value={numCustom}
+              onChange={(v) => recomponer(v ?? 1, unidadCustom)}
+            />
+          </Field>
+          <Field label="Unidad">
+            <SelectField
+              ariaLabel="Unidad de la periodicidad"
+              value={unidadCustom}
+              onChange={(u) => recomponer(numCustom, u)}
+              options={UNIDADES_PERIODO}
+            />
+          </Field>
+        </div>
+      )}
+      <Field label="Categoría">
         <SelectField
           ariaLabel="Categoría del recurrente"
           value={valor.cat}
           onChange={(v) => onChange({ ...valor, cat: v })}
           options={opcionesCat}
         />
-      </Campo>
+      </Field>
     </div>
   )
 }
@@ -966,7 +1013,6 @@ function PanelAnios({ years }: { years: YearSummary[] }) {
   const [abierto, setAbierto] = useState(false)
   const [editando, setEditando] = useState<YearSummary | null>(null)
   const [borrador, setBorrador] = useState<BorradorAnio>({ year: null, goal: null })
-  const oculto = useOculto()
 
   const run = (promise: Accion, success: string, luego?: () => void) =>
     startTransition(async () => {
@@ -1006,7 +1052,7 @@ function PanelAnios({ years }: { years: YearSummary[] }) {
   const enCurso = years.find((y) => y.year === new Date().getFullYear())
   const resumen = [
     `${years.length} ${years.length === 1 ? 'año' : 'años'}`,
-    enCurso?.goal ? `objetivo de ${enCurso.year}: ${oculto ? MASCARA : eur(enCurso.goal)}` : '',
+    enCurso?.goal ? `objetivo de ${enCurso.year}: ${eur(enCurso.goal)}` : '',
   ]
     .filter(Boolean)
     .join(' · ')
@@ -1039,7 +1085,7 @@ function PanelAnios({ years }: { years: YearSummary[] }) {
               <div className="flex min-w-0 items-center gap-2 sm:contents">
                 <span className="min-w-0 flex-1 text-sm font-semibold tabular-nums">{y.year}</span>
                 <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[12px] font-semibold tabular-nums text-foreground">
-                  {y.goal === null ? 'Sin objetivo' : `${oculto ? MASCARA : eur(y.goal)} al año`}
+                  {y.goal === null ? 'Sin objetivo' : `${eur(y.goal)} al año`}
                 </span>
               </div>
               <div className="flex items-center gap-2 sm:contents">
@@ -1124,7 +1170,7 @@ function PanelAnios({ years }: { years: YearSummary[] }) {
             </>
           }>
           <div className="flex flex-col gap-3">
-            <Campo etiqueta="Año">
+            <Field label="Año">
               <NumberField
                 className="w-32"
                 step={1}
@@ -1132,8 +1178,8 @@ function PanelAnios({ years }: { years: YearSummary[] }) {
                 value={borrador.year}
                 onChange={(v) => setBorrador((b) => ({ ...b, year: v }))}
               />
-            </Campo>
-            <Campo etiqueta="Objetivo de ahorro">
+            </Field>
+            <Field label="Objetivo de ahorro">
               <NumberField
                 className="w-32"
                 step={50}
@@ -1143,7 +1189,7 @@ function PanelAnios({ years }: { years: YearSummary[] }) {
                 onChange={(v) => setBorrador((b) => ({ ...b, goal: v }))}
                 onEnter={guardar}
               />
-            </Campo>
+            </Field>
           </div>
         </Modal>
       )}

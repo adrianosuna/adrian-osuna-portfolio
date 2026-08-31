@@ -13,6 +13,7 @@ import { visitantesAhora } from '@/lib/ga'
 import { snapshotServidor, type ServidorSnapshot } from '@/lib/infra'
 import { hoyMadrid } from '@/lib/mantenimiento'
 import { sumarMeses } from '@/lib/fechas'
+import { sanitizarNota, textoDe } from '@/lib/sanitizar-html'
 
 export async function leerUsuariosAhora(): Promise<number | null> {
   try {
@@ -284,3 +285,54 @@ export async function deleteMaintenance(uuid: string): Promise<Result> {
 
 // (El 26/08/2026 se retiró la acción del botón "Probar correo": el SMTP ya
 // quedó verificado en producción y el botón se pulsaba sin querer.)
+
+// ─────────── Notas (pestaña Notas) ───────────
+
+const NOTA_TITULO_MAX = 255
+// El contenido es HTML del editor, así que el tope va más alto que el texto que
+// representa (etiquetas de por medio). Cabe un apunte largo lejos del límite de
+// TEXT (64 KB) y evita que un cliente manipulado llene la columna.
+const NOTA_CONTENIDO_MAX = 50_000
+
+// Título (opcional) y contenido HTML, comunes al alta y la edición. El HTML se
+// SANEA aquí (servidor) antes de guardar: es el punto donde pasa a ser de fiar,
+// así que pintarlo luego con dangerouslySetInnerHTML es seguro. La nota vacía se
+// detecta sobre el TEXTO (un editor "vacío" deja `<br>` o `<div></div>`).
+type NotaParse = { error: string } | { error?: never; title: string | null; content: string }
+const limpiarNota = (datos: { title?: string; content?: string }): NotaParse => {
+  const content = sanitizarNota((datos.content ?? '').slice(0, NOTA_CONTENIDO_MAX))
+  if (!textoDe(content)) return { error: 'La nota no puede estar vacía' }
+  const title = (datos.title ?? '').trim().slice(0, NOTA_TITULO_MAX)
+  return { title: title || null, content }
+}
+
+export async function createNote(datos: { title?: string; content?: string }): Promise<Result> {
+  return guarded(async () => {
+    const parsed = limpiarNota(datos)
+    if (parsed.error !== undefined) return fail(parsed.error)
+    await prisma.note.create({ data: { title: parsed.title, content: parsed.content } })
+    refresh()
+    return ok
+  })
+}
+
+export async function updateNote(
+  uuid: string,
+  datos: { title?: string; content?: string },
+): Promise<Result> {
+  return guarded(async () => {
+    const parsed = limpiarNota(datos)
+    if (parsed.error !== undefined) return fail(parsed.error)
+    await prisma.note.update({ where: { uuid }, data: { title: parsed.title, content: parsed.content } })
+    refresh()
+    return ok
+  })
+}
+
+export async function deleteNote(uuid: string): Promise<Result> {
+  return guarded(async () => {
+    await prisma.note.delete({ where: { uuid } })
+    refresh()
+    return ok
+  })
+}

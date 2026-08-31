@@ -76,6 +76,65 @@ describe('Modal', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  it('al abrir, el foco entra al primer control del cuerpo (no a la "X")', () => {
+    render(
+      <Modal title="T" onClose={vi.fn()} footer={<button type="button">Guardar</button>}>
+        <button type="button">Primero</button>
+        <button type="button">Segundo</button>
+      </Modal>,
+    )
+    expect(document.activeElement).toBe(screen.getByText('Primero'))
+  })
+
+  it('al cerrar, el foco vuelve al elemento que abrió el modal', () => {
+    const abridor = document.createElement('button')
+    document.body.appendChild(abridor)
+    abridor.focus()
+    expect(document.activeElement).toBe(abridor)
+
+    const { unmount } = render(
+      <Modal title="T" onClose={vi.fn()}>
+        <button type="button">Dentro</button>
+      </Modal>,
+    )
+    expect(document.activeElement).toBe(screen.getByText('Dentro'))
+    unmount()
+    expect(document.activeElement).toBe(abridor)
+    abridor.remove()
+  })
+
+  it('Tab desde el último control vuelve al primero, y Shift+Tab al revés', () => {
+    render(
+      <Modal title="T" onClose={vi.fn()} footer={<button type="button">Último</button>}>
+        <button type="button">Primero</button>
+      </Modal>,
+    )
+    // El panel tiene: X (cabecera) · Primero (cuerpo) · Último (pie). El foco
+    // arranca en "Primero"; el ciclo va de la X al Último.
+    const x = screen.getByLabelText('Cerrar')
+    const ultimo = screen.getByText('Último')
+
+    ultimo.focus()
+    fireEvent.keyDown(ultimo, { key: 'Tab' })
+    expect(document.activeElement).toBe(x)
+
+    fireEvent.keyDown(x, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(ultimo)
+  })
+
+  it('con el foco en un popover portalizado (fuera del panel) no se atrapa Tab', () => {
+    render(
+      <Modal title="T" onClose={vi.fn()}>
+        <SelectField ariaLabel="Origen" value="" onChange={vi.fn()} options={[{ value: 'a', label: 'A' }]} />
+      </Modal>,
+    )
+    fireEvent.click(screen.getByLabelText('Origen'))
+    const lista = screen.getByRole('listbox')
+    // El Tab llega desde el portal (fuera del <dialog>): el modal no debe
+    // secuestrarlo. No lanza y no mueve el foco al primer control del panel.
+    expect(() => fireEvent.keyDown(lista, { key: 'Tab' })).not.toThrow()
+  })
+
   it('el popover se renderiza en un portal fijo: fuera del panel del modal', () => {
     render(
       <Modal title="T" onClose={vi.fn()}>

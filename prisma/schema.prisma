@@ -143,6 +143,7 @@ model MaintenanceScope {
   updateTs DateTime          @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
   tasks    MaintenanceTask[]
 
+  @@unique([name], map: "uq_maintenance_scope_name")
   @@map("maintenance_scope")
 }
 
@@ -279,6 +280,7 @@ model ExpenseCategory {
   expenses  Expense[]
   recurring RecurringExpense[]
 
+  @@unique([name, type], map: "uq_expense_category_name_type")
   @@index([type], map: "idx_expense_category_type")
   @@map("expense_category")
 }
@@ -338,4 +340,19 @@ model Expense {
   @@index([categoryUuid], map: "fk_expense_category")
   @@index([recurringUuid], map: "fk_expense_recurring")
   @@map("expense")
+}
+
+/// Notas del Panel de control: apuntes propios del administrador con formato.
+/// El contenido se guarda en MARKDOWN (no HTML) y se renderiza a elementos
+/// (`lib/markdown.tsx`), nunca inyectado: así no hay superficie de XSS.
+model Note {
+  id       Int      @id @default(autoincrement())
+  uuid     String   @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
+  title    String?  @db.VarChar(255)
+  content  String   @db.Text
+  createTs DateTime @default(now()) @map("create_ts") @db.Timestamp(0)
+  updateTs DateTime @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
+
+  @@index([updateTs], map: "idx_note_updated")
+  @@map("note")
 }

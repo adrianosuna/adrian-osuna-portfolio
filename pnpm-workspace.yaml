@@ -5,11 +5,12 @@ allowBuilds:
   sharp: true
   unrs-resolver: true
 
-minimumReleaseAgeExclude:
-  - nodemailer@9.0.6
-  - '@testing-library/react@16.3.3'
-
 # deepmerge-ts <8 (vía prisma>@prisma/config) tiene GHSA-ggr8-5vv4-36mx
 # (stack exhaustion); se fuerza la versión parcheada hasta que Prisma la suba.
+# uuid <11.1.1 (vía exceljs) tiene GHSA-w5hq-g745-h8pq: no es explotable aquí
+# (solo v3/v5/v6 pasando `buf`, que exceljs no hace — usa v4), pero deja el
+# audit en cero. exceljs sigue funcionando: usa `require('uuid').v4`, que v11
+# mantiene; solo desaparecieron los subpaths `uuid/v4`, que exceljs no usa.
 overrides:
   deepmerge-ts: '>=8.0.0'
+  uuid: '>=11.1.1'

@@ -112,6 +112,27 @@ function PopoverPanel({
   )
 }
 
+// ─────────── Field: etiqueta sobre el campo ───────────
+
+/**
+ * Etiqueta encima de un campo, para los formularios de los modales.
+ *
+ * Es un `<label>` de verdad y no un `<div>` con un `<p>`: así el clic en el
+ * texto enfoca el control (o abre su popover), que es lo que espera cualquiera.
+ * El nombre que anuncia el lector de pantalla sigue saliendo del `ariaLabel`
+ * de cada campo de este fichero.
+ *
+ * Espera UN control dentro: un `<label>` con dos se asocia solo al primero.
+ */
+export function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-[13px] text-muted-foreground">{label}</span>
+      {children}
+    </label>
+  )
+}
+
 // ─────────── TextField: entrada de texto ───────────
 
 export function TextField({

@@ -337,7 +337,8 @@ describe('createRecurrente', () => {
     expect(await createRecurrente({ ...base, intervalMonths: 0 })).toEqual({
       ok: false, message: 'Periodicidad no válida',
     })
-    expect(await createRecurrente({ ...base, intervalMonths: 36 })).toEqual({
+    // 121 pasa del tope (120 = 10 años); 36 (cada 3 años) ya es válido.
+    expect(await createRecurrente({ ...base, intervalMonths: 121 })).toEqual({
       ok: false, message: 'Periodicidad no válida',
     })
     expect(await createRecurrente({ ...base, nextDate: '03/09/2026' })).toEqual({
@@ -361,6 +362,12 @@ describe('createRecurrente', () => {
     const data = prismaMock.recurringExpense.create.mock.calls[0][0].data
     expect(data).toMatchObject({ type: 'GASTO', concept: 'Alquiler', amount: 720, dayAnchor: 30 })
     expect(data.nextDate.toISOString()).toBe('2026-09-30T00:00:00.000Z')
+  })
+
+  it('acepta una periodicidad personalizada dentro del tope (cada 3 años)', async () => {
+    const { createRecurrente } = await import('@/app/app/finance/gastos-actions')
+    expect(await createRecurrente({ ...base, intervalMonths: 36 })).toEqual({ ok: true })
+    expect(prismaMock.recurringExpense.create.mock.calls[0][0].data.intervalMonths).toBe(36)
   })
 })
 

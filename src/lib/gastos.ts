@@ -4,6 +4,7 @@
 // mes tiene su resumen (ingresos, gastos, balance) y sus dos desgloses por
 // categoría: en qué se va el dinero y de dónde viene.
 import 'server-only'
+import type { RecurringExpenseModel } from '@/generated/prisma/models'
 import { prisma } from '@/lib/prisma'
 import { botonHtml, correoConfigurado, enviarCorreo, tarjetaHtml } from '@/lib/correo'
 import { hoyMadrid } from '@/lib/mantenimiento'
@@ -296,17 +297,13 @@ export async function generarRecurrentes(hoyIso = hoyMadrid()): Promise<number> 
   return creados
 }
 
-/** Fila de recurrente que necesita `apuntarCargos` (lo que devuelve Prisma). */
-type FilaRecurrente = {
-  uuid: string
-  type: string
-  concept: string
-  amount: unknown
-  intervalMonths: number
-  nextDate: Date
-  dayAnchor: number
-  categoryUuid: string | null
-}
+/**
+ * Fila de recurrente tal y como la devuelve Prisma: el tipo del modelo, no una
+ * copia a mano. La copia declaraba `amount: unknown` y luego lo pasaba con un
+ * `as number`, cuando en realidad es un `Decimal` — funcionaba solo porque
+ * Prisma acepta Decimal de vuelta, pero el tipo mentía sobre lo que hay dentro.
+ */
+type FilaRecurrente = RecurringExpenseModel
 
 /**
  * Apunta los cargos de UN recurrente hasta `hastaIso` y adelanta su fecha.
@@ -334,9 +331,9 @@ async function apuntarCargos(r: FilaRecurrente, hastaIso: string): Promise<numbe
   await prisma.$transaction([
     prisma.expense.createMany({
       data: fechas.map((f) => ({
-        type: r.type as TipoMovimiento,
+        type: r.type,
         concept: r.concept,
-        amount: r.amount as number,
+        amount: r.amount,
         expenseDate: new Date(`${f}T00:00:00Z`),
         categoryUuid: r.categoryUuid,
         // Origen: es lo que permite ver después qué ha apuntado cada uno.

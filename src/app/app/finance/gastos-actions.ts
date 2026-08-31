@@ -136,10 +136,16 @@ interface DatosRecurrente {
   active?: boolean
 }
 
-/** Periodicidad en meses: entre 1 y 24 (más allá no es una recurrencia útil). */
+/**
+ * Periodicidad en meses: entre 1 y 120 (hasta cada 10 años). El tope no protege
+ * de nada —`cargosPendientes` ya frena la generación con `MAX_CARGOS`— y es solo
+ * una cota de sensatez, alineada con la ventana de fecha (`fechaCargo`, ±10
+ * años). La UI ofrece las periodicidades comunes y un "Personalizado" con
+ * número + unidad (meses/años) para el resto.
+ */
 const periodoValido = (v: number | null | undefined): number | false => {
   const n = Number(v)
-  return Number.isInteger(n) && n >= 1 && n <= 24 ? n : false
+  return Number.isInteger(n) && n >= 1 && n <= 120 ? n : false
 }
 
 /**

@@ -11,7 +11,7 @@ import {
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Modal } from '@/components/ui/modal'
-import { DateField, NumberField, SelectField, TextField, TextareaField } from '@/components/ui/fields'
+import { DateField, Field, NumberField, SelectField, TextField, TextareaField } from '@/components/ui/fields'
 import {
   addOpportunityEvent, createOpportunity, deleteOpportunityEvent,
   getOpportunityEvents, updateOpportunity,
@@ -67,14 +67,6 @@ const desdeFila = (o: OpportunityRow | null): Borrador => ({
   nextActionDate: o?.nextActionDate ?? '',
 })
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <p className="mb-1 text-[13px] text-muted-foreground">{label}</p>
-      {children}
-    </div>
-  )
-}
 
 /** oportunidad = null → alta; con fila → edición + timeline. */
 export function OportunidadModal({

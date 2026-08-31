@@ -132,13 +132,19 @@ export async function saveMonths(
 
 // ─────────── Conceptos: ingresos extra y gastos de viaje ───────────
 
-// Valida el par concepto/importe común a extras y gastos de viaje.
+// Valida el par concepto/importe común a extras y gastos de viaje. Los topes
+// son los de la BD (VarChar(255) y Decimal(12,2)), mismo criterio que `limpiar`
+// en gastos-actions.ts: sin recortar aquí, un concepto largo o una cifra
+// absurda reventaban contra la columna y al cliente solo le llegaba el
+// "Error inesperado" genérico en vez de un mensaje que se entienda.
 type ConceptParse = { error: string } | { error?: never; concept: string; amount: number }
 const cleanConcept = (datos: { concept?: string; amount?: number | null }): ConceptParse => {
-  const concept = (datos.concept || '').trim()
+  const concept = (datos.concept || '').trim().slice(0, 255)
   const amount = Number(datos.amount)
   if (!concept) return { error: 'El concepto es obligatorio' }
-  if (!Number.isFinite(amount) || amount < 0) return { error: 'Importe no válido' }
+  if (!Number.isFinite(amount) || amount < 0 || amount >= 1e10) {
+    return { error: 'Importe no válido' }
+  }
   return { concept, amount }
 }
 

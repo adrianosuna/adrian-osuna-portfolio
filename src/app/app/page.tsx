@@ -13,7 +13,6 @@ import {
 import { auth } from '@/auth'
 import { resumenInicio } from '@/lib/inicio'
 import { pulsoVisitas } from '@/lib/ga'
-import { ImporteDeSesion } from '@/components/dashboard/savings/privado'
 import { Actividad, Atencion, Tile, TileEsqueleto, cardClass } from '@/components/dashboard/inicio'
 import { cn } from '@/lib/utils'
 
@@ -138,7 +137,7 @@ export default async function HomePage() {
       <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Tile
           label={ahorro ? `Ahorro en ${ahorro.year}` : 'Ahorro'}
-          valor={ahorro ? <ImporteDeSesion valor={eur(ahorro.total)} /> : '—'}
+          valor={ahorro ? eur(ahorro.total) : '—'}
           icon={<Euro className="size-4" />}
           chip="bg-primary/10 text-primary"
           to="/app/finance"
@@ -162,7 +161,7 @@ export default async function HomePage() {
         />
         <Tile
           label="Gastos del mes"
-          valor={<ImporteDeSesion valor={eur(gastadoMes)} />}
+          valor={eur(gastadoMes)}
           icon={<Receipt className="size-4" />}
           chip="bg-success-bg text-success"
           to={`/app/finance?mes=${new Date().toISOString().slice(0, 7)}`}
@@ -170,7 +169,7 @@ export default async function HomePage() {
         />
         <Tile
           label="Pipeline abierto"
-          valor={<ImporteDeSesion valor={eur(pipeline.valorAbierto)} />}
+          valor={eur(pipeline.valorAbierto)}
           icon={<Briefcase className="size-4" />}
           chip="bg-warning-bg text-warning"
           to="/app/pipeline"

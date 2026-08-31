@@ -133,12 +133,3 @@ export const btnOutline =
   'inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3.5 py-1.5 text-sm font-semibold transition-colors hover:border-primary hover:text-primary'
 // p-2 (36px con icono): target táctil suficiente en móvil.
 export const btnIcon = 'rounded-md p-2 max-sm:p-2.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
-
-export function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <p className="mb-1 text-[13px] text-muted-foreground">{label}</p>
-      {children}
-    </div>
-  )
-}

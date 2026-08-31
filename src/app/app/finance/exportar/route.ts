@@ -99,6 +99,9 @@ export async function GET(req: Request) {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename="ahorro-${year}.xlsx"`,
+      // Son las finanzas personales del admin: que ningún intermediario las
+      // guarde. Caddy no cachea por defecto, pero esto lo deja cerrado.
+      'Cache-Control': 'private, no-store',
     },
   })
 }

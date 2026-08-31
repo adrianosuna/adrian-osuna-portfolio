@@ -150,6 +150,13 @@ describe('etiquetaPeriodo', () => {
     expect(etiquetaPeriodo(12)).toBe('Cada año')
     expect(etiquetaPeriodo(7)).toBe('Cada 7 meses')
   })
+
+  it('lee los múltiplos de 12 por encima del año en años', () => {
+    expect(etiquetaPeriodo(24)).toBe('Cada 2 años')
+    expect(etiquetaPeriodo(36)).toBe('Cada 3 años')
+    // No múltiplo de 12 → en meses, aunque pase de un año.
+    expect(etiquetaPeriodo(18)).toBe('Cada 18 meses')
+  })
 })
 
 // ─────────── generador del cron ───────────

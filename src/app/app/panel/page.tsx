@@ -17,10 +17,13 @@ import { VisitasTab } from '@/components/dashboard/panel/visitas'
 import { UsersTable, type UserRow } from '@/components/dashboard/users/users-table'
 import { SessionsList, type SessionRow } from '@/components/dashboard/users/sessions-list'
 import { MantenimientoTab, type MaintenanceRow } from '@/components/dashboard/panel/mantenimiento'
+import { NotasTab } from '@/components/dashboard/panel/notas'
+import { PanelTabsMovil } from '@/components/dashboard/panel/tabs-movil'
 import { cn } from '@/lib/utils'
 import { dispositivoDe } from '@/lib/dispositivo'
 import { correoConfigurado } from '@/lib/correo'
 import { hoyMadrid, listAmbitos } from '@/lib/mantenimiento'
+import { listNotes } from '@/lib/notas'
 
 export const metadata: Metadata = { title: 'Panel de control' }
 
@@ -29,6 +32,7 @@ const TABS = [
   { id: 'visitas', label: 'Visitas', href: '/app/panel?tab=visitas' },
   { id: 'usuarios', label: 'Usuarios', href: '/app/panel?tab=usuarios' },
   { id: 'mantenimiento', label: 'Mantenimiento', href: '/app/panel?tab=mantenimiento' },
+  { id: 'notas', label: 'Notas', href: '/app/panel?tab=notas' },
 ] as const
 
 // Componentes async separados: es lo que permite al Suspense pintar el
@@ -81,9 +85,6 @@ async function Usuarios({ meUuid, meSessionUuid }: { meUuid: string; meSessionUu
 
   return (
     <div>
-      <p className="mb-3 text-sm text-muted-foreground">
-        Acceso por lista de invitados: solo los correos dados de alta pueden entrar con Google.
-      </p>
       <UsersTable rows={rows} meUuid={meUuid} />
       <SessionsList rows={sessionRows} ahora={ahora} />
     </div>
@@ -118,6 +119,10 @@ async function Visitas({ dias }: { dias: RangoDias }) {
   return <VisitasTab snapshot={await snapshotVisitas(dias)} />
 }
 
+async function Notas() {
+  return <NotasTab rows={await listNotes()} />
+}
+
 function Esqueleto() {
   return (
     <div aria-hidden="true">
@@ -146,24 +151,26 @@ export default async function PanelPage({
 
   const { tab, dias: diasParam } = await searchParams
   const activa =
-    tab === 'visitas' || tab === 'usuarios' || tab === 'mantenimiento' ? tab : 'servidor'
+    tab === 'visitas' || tab === 'usuarios' || tab === 'mantenimiento' || tab === 'notas'
+      ? tab
+      : 'servidor'
   const dias: RangoDias = diasParam === '7' ? 7 : diasParam === '90' ? 90 : 30
 
   return (
     <div>
-      <h1 className="flex items-center gap-2 text-xl font-bold">
+      {/* mb-5: separa el título de la barra (antes lo hacía el subtítulo, ya retirado). */}
+      <h1 className="mb-5 flex items-center gap-2 text-xl font-bold">
         <Gauge className="size-5 text-primary" />
         Panel de control
       </h1>
-      <p className="mb-4 mt-1 text-sm text-muted-foreground">
-        Salud del despliegue, visitas, usuarios y mantenimiento del servidor.
-      </p>
 
-      {/* Scroll SOLO horizontal en móvil: con 4 pestañas no caben en 375px.
-          La línea inferior va en el envoltorio y el `-mb-px` en el scroller
-          (no en los enlaces): así el contenido no sobresale 1px hacia abajo,
-          que era lo que hacía scrollear la barra también en vertical. */}
-      <div className="mb-5 border-b border-border">
+      {/* Móvil: las cinco pestañas no caben en 375px (ni compactas), y el scroll
+          o las dos filas no quedaban bien, así que va un desplegable. Desde sm,
+          las pestañas normales con su línea inferior. */}
+      <div className="mb-5 sm:hidden">
+        <PanelTabsMovil tabs={TABS} activa={activa} />
+      </div>
+      <div className="mb-5 hidden border-b border-border sm:block">
         <div className="-mb-px flex gap-1 overflow-x-auto overflow-y-hidden">
           {TABS.map((t) => (
             <Link
@@ -188,6 +195,7 @@ export default async function PanelPage({
           <Usuarios meUuid={session.user.uuid} meSessionUuid={session.sessionUuid} />
         )}
         {activa === 'mantenimiento' && <Mantenimiento />}
+        {activa === 'notas' && <Notas />}
       </Suspense>
     </div>
   )
