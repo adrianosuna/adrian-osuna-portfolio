@@ -89,6 +89,41 @@ describe('SelectField', () => {
     expect(onChange).toHaveBeenCalledWith('b')
     expect(screen.queryByRole('listbox')).toBeNull() // se cierra al elegir
   })
+
+  // Con pocas opciones no hay buscador; con muchas, sí, y filtra sin tildes.
+  const muchas = Array.from({ length: 10 }, (_, i) => ({ value: `c${i}`, label: `Categoría ${i}` }))
+    .concat({ value: 'cafe', label: 'Café con leche' })
+
+  it('no muestra buscador con 8 opciones o menos', () => {
+    render(
+      <SelectField
+        ariaLabel="Pocas"
+        value=""
+        onChange={vi.fn()}
+        options={Array.from({ length: 8 }, (_, i) => ({ value: String(i), label: `Op ${i}` }))}
+      />,
+    )
+    fireEvent.click(screen.getByLabelText('Pocas'))
+    expect(screen.queryByLabelText('Buscar en la lista')).toBeNull()
+  })
+
+  it('con muchas opciones filtra sin tildes ni mayúsculas', () => {
+    render(<SelectField ariaLabel="Muchas" value="" onChange={vi.fn()} options={muchas} />)
+    fireEvent.click(screen.getByLabelText('Muchas'))
+    const buscador = screen.getByLabelText('Buscar en la lista')
+    expect(buscador).toBeTruthy()
+
+    // "cafe" (sin tilde) encuentra "Café con leche".
+    fireEvent.change(buscador, { target: { value: 'cafe' } })
+    const opciones = screen.getAllByRole('option')
+    expect(opciones).toHaveLength(1)
+    expect(opciones[0].textContent).toContain('Café con leche')
+
+    // Sin coincidencias → aviso.
+    fireEvent.change(buscador, { target: { value: 'zzz' } })
+    expect(screen.queryAllByRole('option')).toHaveLength(0)
+    expect(screen.getByText('Sin resultados')).toBeTruthy()
+  })
 })
 
 describe('DateField', () => {

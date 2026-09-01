@@ -8,6 +8,7 @@
 // la sección Ajustes (`?s=ajustes`, ajustes.tsx), sin atajos desde aquí.
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { useCarga } from '@/components/dashboard/barra-carga'
 import {
   Check, ChevronLeft, ChevronRight, Pencil, Plus, Trash2, TrendingDown, TrendingUp, X,
 } from 'lucide-react'
@@ -329,6 +330,7 @@ export function GastosTab({
   hoy: string // 'YYYY-MM-DD' (Madrid)
 }) {
   const router = useRouter()
+  const iniciar = useCarga()
   const [pending, startTransition] = useTransition()
 
   // Alta rápida: tipo gasto por defecto (es lo que más se apunta) y fecha
@@ -352,7 +354,11 @@ export function GastosTab({
       luego?.()
     })
 
-  const irAMes = (mes: string) => router.push(`/app/finance?s=gastos&mes=${mes}`)
+  // Navegar a un mes (dispara la barra de carga: son botones, no <a>).
+  const irAMes = (mes: string) => {
+    iniciar()
+    router.push(`/app/finance?s=gastos&mes=${mes}`)
+  }
 
   const crear = () => {
     if (!nuevo.concept.trim() || nuevo.amount === null) return
@@ -425,7 +431,10 @@ export function GastosTab({
                 'rounded-md px-2.5 py-1 text-[13px] font-semibold transition-colors',
                 mostrarAnio ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
               )}
-              onClick={() => router.push(`/app/finance?s=gastos&mes=${datos.mes}&vista=anio`)}>
+              onClick={() => {
+                iniciar()
+                router.push(`/app/finance?s=gastos&mes=${datos.mes}&vista=anio`)
+              }}>
               Año {año}
             </button>
           </div>

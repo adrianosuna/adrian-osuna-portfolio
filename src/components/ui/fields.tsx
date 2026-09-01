@@ -6,8 +6,8 @@
 // cualquier módulo; estilados con los tokens del tema activo.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Calendar, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, X } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Calendar, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Search, X } from 'lucide-react'
+import { cn, sinAcentos } from '@/lib/utils'
 import { MESES } from '@/lib/fechas'
 
 // Estilo base compartido (text-base en móvil: <16px provoca zoom en iOS Safari).
@@ -289,6 +289,9 @@ export interface SelectOption {
   label: string
 }
 
+// A partir de cuántas opciones aparece el buscador (con menos, sobra).
+const UMBRAL_BUSCADOR = 8
+
 export function SelectField({
   value, onChange, options, placeholder = '—', className, ariaLabel,
 }: {
@@ -300,7 +303,26 @@ export function SelectField({
   ariaLabel?: string
 }) {
   const { open, setOpen, ref, popRef } = usePopover()
+  const [busqueda, setBusqueda] = useState('')
+  const buscadorRef = useRef<HTMLInputElement>(null)
   const actual = options.find((o) => o.value === value)
+
+  const conBuscador = options.length > UMBRAL_BUSCADOR
+  const q = sinAcentos(busqueda.trim())
+  const visibles = conBuscador && q ? options.filter((o) => sinAcentos(o.label).includes(q)) : options
+
+  // Resetear el filtro al abrir o cerrar (patrón de ajuste en render, sin
+  // efecto: evita el setState síncrono dentro de un useEffect).
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (prevOpen !== open) {
+    setPrevOpen(open)
+    setBusqueda('')
+  }
+
+  // Enfocar el buscador al abrir (vive en un portal: se enfoca a mano tras pintar).
+  useEffect(() => {
+    if (open && conBuscador) requestAnimationFrame(() => buscadorRef.current?.focus())
+  }, [open, conBuscador])
 
   return (
     <div className={cn('relative', className)} ref={ref}>
@@ -323,25 +345,45 @@ export function SelectField({
           popRef={popRef}
           mismaAnchura
           rol="listbox"
-          className="max-h-56 overflow-y-auto rounded-md border border-border bg-popover p-1 shadow-lg">
-          {options.map((o) => (
-            <button
-              key={o.value}
-              type="button"
-              role="option"
-              aria-selected={o.value === value}
-              className={cn(
-                'flex w-full items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-muted',
-                o.value === value ? 'font-semibold text-primary' : 'text-foreground',
-              )}
-              onClick={() => {
-                onChange(o.value)
-                setOpen(false)
-              }}>
-              <span className="truncate">{o.label}</span>
-              {o.value === value && <Check className="size-3.5 shrink-0" />}
-            </button>
-          ))}
+          className="flex max-h-64 flex-col overflow-hidden rounded-md border border-border bg-popover shadow-lg">
+          {conBuscador && (
+            <div className="flex items-center gap-2 border-b border-border px-2.5 py-1.5">
+              <Search className="size-4 shrink-0 text-muted-foreground" />
+              <input
+                ref={buscadorRef}
+                type="text"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar…"
+                aria-label="Buscar en la lista"
+                className="w-full min-w-0 bg-transparent text-base outline-none placeholder:text-muted-foreground sm:text-sm"
+              />
+            </div>
+          )}
+          <div className="overflow-y-auto p-1">
+            {visibles.length === 0 ? (
+              <p className="px-2.5 py-2 text-sm text-muted-foreground">Sin resultados</p>
+            ) : (
+              visibles.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  role="option"
+                  aria-selected={o.value === value}
+                  className={cn(
+                    'flex w-full items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-muted',
+                    o.value === value ? 'font-semibold text-primary' : 'text-foreground',
+                  )}
+                  onClick={() => {
+                    onChange(o.value)
+                    setOpen(false)
+                  }}>
+                  <span className="truncate">{o.label}</span>
+                  {o.value === value && <Check className="size-3.5 shrink-0" />}
+                </button>
+              ))
+            )}
+          </div>
         </PopoverPanel>
       )}
     </div>

@@ -140,7 +140,7 @@ export default async function HomePage() {
           valor={ahorro ? eur(ahorro.total) : '—'}
           icon={<Euro className="size-4" />}
           chip="bg-primary/10 text-primary"
-          to="/app/finance"
+          to={ahorro ? `/app/finance?s=ahorro&year=${ahorro.year}` : '/app/finance?s=ahorro'}
           pie={
             !ahorro ? (
               'Sin año creado'
@@ -164,7 +164,7 @@ export default async function HomePage() {
           valor={eur(gastadoMes)}
           icon={<Receipt className="size-4" />}
           chip="bg-success-bg text-success"
-          to={`/app/finance?mes=${new Date().toISOString().slice(0, 7)}`}
+          to={`/app/finance?s=gastos&mes=${new Date().toISOString().slice(0, 7)}`}
           pie={gastadoMes === 0 ? 'nada registrado todavía' : 'control de gastos'}
         />
         <Tile

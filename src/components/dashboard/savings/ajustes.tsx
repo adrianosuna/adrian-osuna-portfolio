@@ -15,7 +15,7 @@ import {
   Repeat, Tag, Trash2, X,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { cn } from '@/lib/utils'
+import { cn, sinAcentos } from '@/lib/utils'
 import { Modal } from '@/components/ui/modal'
 import { DateField, Field, NumberField, SelectField, TextField } from '@/components/ui/fields'
 import type { CategoriaRow, TipoMovimiento } from '@/lib/gastos'
@@ -35,9 +35,9 @@ import {
 
 type Accion = Promise<{ ok: boolean; message?: string }>
 
-/** Normaliza para buscar: sin mayúsculas y sin tildes ("cafe" encuentra "Café").
- *  NFD separa la letra de su tilde y el reemplazo se lleva los diacríticos. */
-const clave = (s: string) => s.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
+// Normaliza para buscar (sin tildes ni mayúsculas): el mismo criterio que el
+// buscador de los selects, en `lib/utils.ts`.
+const clave = sinAcentos
 
 export function AjustesTab({ categorias, recurrentes, years, hoy }: {
   categorias: CategoriaRow[]
@@ -1093,10 +1093,13 @@ function PanelAnios({ years }: { years: YearSummary[] }) {
                   {mesesRellenos(y)}
                 </span>
                 <span className="flex shrink-0 items-center gap-0.5">
-                  {/* Descarga del Excel del año (route handler con guarda propia) */}
+                  {/* Descarga del Excel del año (route handler con guarda propia).
+                      `download`: es una descarga, no una navegación — así la barra
+                      de carga global no se dispara con este enlace. */}
                   <a
                     className={btnIcon}
                     href={`/app/finance/exportar?year=${y.year}`}
+                    download
                     title="Descargar Excel"
                     aria-label={`Descargar Excel de ${y.year}`}>
                     <FileDown className="size-3.5" />

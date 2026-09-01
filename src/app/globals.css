@@ -311,3 +311,30 @@ section[id] {
   color: var(--muted-foreground);
   pointer-events: none;
 }
+
+/* Barra de carga lineal bajo la barra superior (h-14 = 3.5rem). Un segmento
+   esmeralda que se desliza sobre una pista tenue mientras hay navegación en
+   curso; `barra-carga.tsx` la muestra/oculta. */
+.barra-carga {
+  position: fixed;
+  top: 3.5rem;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 30;
+  overflow: hidden;
+  pointer-events: none;
+  background: color-mix(in oklab, var(--primary) 22%, transparent);
+}
+.barra-carga::before {
+  content: '';
+  position: absolute;
+  height: 100%;
+  width: 40%;
+  background: var(--primary);
+  animation: barra-carga-desliza 1.1s ease-in-out infinite;
+}
+@keyframes barra-carga-desliza {
+  from { left: -45%; }
+  to { left: 100%; }
+}

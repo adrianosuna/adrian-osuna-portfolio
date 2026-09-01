@@ -5,7 +5,7 @@
 export const PROFILE = {
   name: 'Adrián Osuna',
   email: 'adrianosunaalbala@gmail.com',
-  linkedin: 'https://www.linkedin.com/in/adrián-osuna-albalá',
+  linkedin: 'https://www.linkedin.com/in/adrian-osuna-albala',
   github: 'https://github.com/adrianosuna',
 }
 

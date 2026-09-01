@@ -6,6 +6,35 @@ cuando algo se termina, se cuenta aquí con su porqué y desaparece de allí.
 
 ---
 
+## 01/09/2026
+
+### Buscador en los selects, feedback de carga y retoques
+
+- **Buscador en el `SelectField`** (`ui/fields.tsx`): con más de 8 opciones sale
+  un campo de búsqueda en la cabecera del popover que filtra **sin tildes ni
+  mayúsculas** ("cafe" encuentra "Café"), se autoenfoca al abrir y avisa con
+  "Sin resultados". El normalizador se unificó en `sinAcentos` (`lib/utils.ts`),
+  compartido con el buscador de la sección Ajustes (que tenía su propia copia).
+- **Barra de carga lineal bajo la barra superior.** Cambiar de sección/pestaña
+  navega por query param (sin prefetch) y el clic se sentía "congelado" mientras
+  el servidor traía los datos (`loading.tsx` no se dispara en cambios de query
+  param). Se añade una **barra lineal global** justo debajo del menú superior
+  (`barra-carga.tsx`, montada en el layout): aparece al empezar a navegar y
+  desaparece cuando la ruta se asienta. Detecta el inicio de dos formas —un clic
+  en cualquier `<a>` interno (Links de la barra superior, pestañas del Panel en
+  escritorio, rango de Visitas, «Ver portfolio público») vía un listener global,
+  y la llamada `iniciar()` de **cada** navegación por `router.push` (secciones y
+  años de Finanzas, desplegable del Panel en móvil, y las vistas de Gastos: mes
+  anterior/siguiente y el conmutador mes/año)— y el fin, cuando cambian
+  `pathname`/`searchParams`. Cubre así **todos los tabs y vistas**. La descarga
+  del Excel se excluye (lleva `download`: no navega). El pipeline conmuta de
+  vista con estado de cliente (no navega, no hay que cargar) y el «Comprobar de
+  nuevo» del Panel usa `router.refresh` con su propio spinner. Se descartó la
+  primera versión (spinner por pestaña) a petición.
+- **El acceso directo "Gastos del mes"** del inicio ahora abre directamente la
+  sección Gastos (`?s=gastos`), no el Panel de finanzas.
+- **URL de LinkedIn** actualizada (sin tildes) en `lib/landing/content.ts`.
+
 ## 31/08/2026
 
 ### Notas en el Panel de control (editor visual)
