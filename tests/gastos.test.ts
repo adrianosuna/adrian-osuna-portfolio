@@ -5,6 +5,10 @@
 // El cálculo de los topes está en topes.test.ts y el de los recurrentes en
 // recurrentes.test.ts.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+// El tope de peticiones vive en memoria y es COMPARTIDO por todo el proceso:
+// sin reiniciarlo, un fichero de tests con muchas actions agotaría la ventana
+// y los siguientes fallarían por algo que no están probando.
+import { reiniciarLimites } from '@/lib/rate-limit'
 
 const { requireAdminMock, prismaMock } = vi.hoisted(() => {
   const prismaMock = {
@@ -21,6 +25,7 @@ vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 beforeEach(() => {
+  reiniciarLimites()
   vi.clearAllMocks()
   requireAdminMock.mockResolvedValue({ user: { uuid: 'admin-1', role: 'ADMIN' } })
   prismaMock.expenseCategory.findFirst.mockResolvedValue(null)
@@ -29,6 +34,17 @@ beforeEach(() => {
   prismaMock.expenseCategory.findMany.mockResolvedValue([])
   prismaMock.expense.count.mockResolvedValue(0)
   prismaMock.recurringExpense.count.mockResolvedValue(0)
+  // `altaMovimiento` comprueba que la categoría existe y que es del tipo del
+  // movimiento; por defecto, la que se pida es válida para los dos tipos.
+  prismaMock.expenseCategory.findUnique.mockImplementation(async ({ where }: { where: { uuid: string } }) => ({
+    uuid: where.uuid,
+    type: where.uuid.startsWith('i') ? 'INGRESO' : 'GASTO',
+  }))
+  // Lo creado se devuelve: el alta lee la fila para responder con su uuid.
+  prismaMock.expense.create.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({
+    uuid: 'g-nuevo',
+    ...data,
+  }))
 })
 
 // ─────────── Movimientos ───────────
@@ -42,10 +58,11 @@ describe('createGasto', () => {
       ok: false, message: 'El concepto es obligatorio',
     })
     expect(await createGasto({ ...base, amount: -3 })).toEqual({
-      ok: false, message: 'Importe no válido',
+      // El mensaje viene de `lib/esquemas.ts` y dice qué le pasa al importe.
+      ok: false, message: 'El importe no puede ser negativo',
     })
     expect(await createGasto({ ...base, expenseDate: '26/08/2026' })).toEqual({
-      ok: false, message: 'Indica la fecha del movimiento',
+      ok: false, message: 'La fecha del movimiento no es válida',
     })
     expect(await createGasto({ ...base, type: 'TRANSFERENCIA' })).toEqual({
       ok: false, message: 'Indica si es un ingreso o un gasto',
@@ -76,6 +93,16 @@ describe('createGasto', () => {
     const { createGasto } = await import('@/app/app/finance/gastos-actions')
     await createGasto({ ...base, categoryUuid: '' })
     expect(prismaMock.expense.create.mock.calls[0][0].data.categoryUuid).toBeNull()
+    // Con cadena vacía no hay nada que comprobar: no se consulta la tabla.
+    expect(prismaMock.expenseCategory.findUnique).not.toHaveBeenCalled()
+  })
+
+  it('rechaza una categoría del tipo contrario', async () => {
+    const { createGasto } = await import('@/app/app/finance/gastos-actions')
+    // 'i1' es de INGRESO en el mock; el movimiento es un GASTO.
+    const res = await createGasto({ ...base, categoryUuid: 'i1' })
+    expect(res).toEqual({ ok: false, message: 'La categoría no es de ese tipo' })
+    expect(prismaMock.expense.create).not.toHaveBeenCalled()
   })
 })
 

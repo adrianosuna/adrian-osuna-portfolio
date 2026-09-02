@@ -8,16 +8,25 @@ import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ExternalLink, LogOut, Menu, UserRound, X } from 'lucide-react'
+import { ExternalLink, Keyboard, LogOut, Menu, Plus, RotateCcw, Search, UserRound, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useAcciones } from '@/components/dashboard/acciones-rapidas'
+import { useSilenciadas } from '@/components/dashboard/confirmar'
+import { Notificaciones } from '@/components/dashboard/notificaciones'
+import { TogglePush } from '@/components/dashboard/push'
+import type { Aviso } from '@/lib/inicio'
 
 interface TopNavProps {
   user: { name: string | null; email: string | null; image: string | null; role: 'ADMIN' | 'USER' }
+  /** Avisos accionables para la campana (los calcula el layout). */
+  avisos: Aviso[]
   onSignOut: () => Promise<void>
 }
 
-export function TopNav({ user, onSignOut }: TopNavProps) {
+export function TopNav({ user, avisos, onSignOut }: TopNavProps) {
   const pathname = usePathname()
+  const acc = useAcciones()
+  const [silenciadas, restablecer] = useSilenciadas()
   const [profileOpen, setProfileOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const profileRef = useRef<HTMLDivElement>(null)
@@ -55,8 +64,9 @@ export function TopNav({ user, onSignOut }: TopNavProps) {
   const isActive = (href: string) => (href === '/app' ? pathname === '/app' : pathname.startsWith(href))
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background">
-      <div className="mx-auto flex h-14 w-full max-w-300 items-center gap-4 px-4 sm:px-6">
+    // safe-top: en apaisado y en la isla dinámica el recorte llega hasta aquí.
+    <header className="safe-top sticky top-0 z-40 border-b border-border bg-background">
+      <div className="safe-x mx-auto flex h-14 w-full max-w-300 items-center gap-4">
         <Link href="/app" className="text-lg font-extrabold tracking-tight text-foreground">
           AO<span className="text-primary">.</span>
         </Link>
@@ -78,6 +88,31 @@ export function TopNav({ user, onSignOut }: TopNavProps) {
           ))}
         </nav>
         <span className="flex-1 md:hidden" />
+
+        {/* Campana de avisos: en las dos anchuras (es la señal, no un extra) */}
+        {acc.isAdmin && <Notificaciones avisos={avisos} />}
+
+        {/* Acciones rápidas en escritorio: paleta ⌘K y alta de movimiento */}
+        {acc.isAdmin && (
+          <div className="hidden items-center gap-1.5 md:flex">
+            <button
+              type="button"
+              className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+              onClick={acc.abrirPaleta}>
+              <Search className="size-4" />
+              <span>Buscar</span>
+              <kbd className="rounded border border-border px-1 text-[11px] leading-relaxed">Ctrl&nbsp;K</kbd>
+            </button>
+            <button
+              type="button"
+              className="flex items-center justify-center rounded-md bg-primary p-2 text-primary-foreground transition-opacity hover:opacity-90"
+              aria-label="Nuevo movimiento"
+              title="Nuevo movimiento"
+              onClick={() => acc.abrirAlta('GASTO')}>
+              <Plus className="size-4" />
+            </button>
+          </div>
+        )}
 
         {/* Perfil (solo escritorio; en móvil va dentro del panel desplegable) */}
         <div className="relative hidden md:block" ref={profileRef}>
@@ -114,6 +149,36 @@ export function TopNav({ user, onSignOut }: TopNavProps) {
                   {user.role === 'ADMIN' ? 'Administrador' : 'Usuario'}
                 </span>
               </div>
+              {/* Preferencias de ESTE navegador (no viajan a la BD) */}
+              <div className="mt-1 border-b border-border pb-1">
+                <TogglePush />
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  onClick={() => {
+                    setProfileOpen(false)
+                    acc.abrirAtajos()
+                  }}>
+                  <Keyboard className="size-4" />
+                  Atajos de teclado
+                </button>
+                {/* Solo si hay algo silenciado: un botón que no hace nada es ruido. */}
+                {silenciadas.length > 0 && (
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    onClick={() => {
+                      restablecer()
+                      setProfileOpen(false)
+                    }}>
+                    <RotateCcw className="size-4" />
+                    Volver a preguntar al eliminar
+                    <span className="ml-auto rounded-full bg-muted px-1.5 text-[11px] tabular-nums">
+                      {silenciadas.length}
+                    </span>
+                  </button>
+                )}
+              </div>
               <Link
                 href="/"
                 className="mt-1 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -132,6 +197,24 @@ export function TopNav({ user, onSignOut }: TopNavProps) {
           )}
         </div>
 
+        {/* Acciones rápidas en móvil: buscar (paleta) y alta de movimiento */}
+        <button
+          type="button"
+          className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:hidden"
+          aria-label="Buscar"
+          onClick={acc.abrirPaleta}>
+          <Search className="size-5" />
+        </button>
+        {acc.isAdmin && (
+          <button
+            type="button"
+            className="rounded-md bg-primary p-2 text-primary-foreground transition-opacity hover:opacity-90 md:hidden"
+            aria-label="Nuevo movimiento"
+            onClick={() => acc.abrirAlta('GASTO')}>
+            <Plus className="size-5" />
+          </button>
+        )}
+
         {/* Hamburguesa (solo móvil) */}
         <button
           type="button"
@@ -145,7 +228,7 @@ export function TopNav({ user, onSignOut }: TopNavProps) {
 
       {/* Panel móvil: sólido (bg-popover), con los módulos y el perfil dentro */}
       {menuOpen && (
-        <nav className="border-t border-border bg-popover px-4 py-3 shadow-lg md:hidden">
+        <nav className="safe-x safe-bottom border-t border-border bg-popover py-3 shadow-lg md:hidden">
           <div className="mx-auto flex w-full max-w-300 flex-col gap-1">
             {links.map((l) => (
               <Link

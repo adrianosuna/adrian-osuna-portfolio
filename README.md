@@ -192,16 +192,21 @@ prisma/
 ├── schema.prisma             # Esquema (User, SavingYear, Opportunity, Expense, …)
 ├── migrations/               # Baseline 0_init + migraciones (migrate diff)
 └── seed.ts                   # Asegura el administrador inicial
-tests/                        # 322 tests (Vitest; jsdom para componentes)
+tests/                        # 479 tests (Vitest; jsdom para componentes)
+e2e/                          # Tests de extremo a extremo (Playwright)
 docs/
 ├── DESPLIEGUE.md             # Guía de despliegue en OVH (Docker + Caddy + rclone)
+├── API.md                    # API v1 (Atajos de iOS) y receta del Atajo
 ├── CHANGELOG.md              # Historial de lo hecho, bien contado
+├── SUGERENCIAS.md            # Pozo de ideas sin comprometer
 └── TAREAS.md                 # Tareas pendientes del proyecto
 ```
 
 La documentación del proyecto vive en `docs/`: la guía de
-[despliegue](docs/DESPLIEGUE.md), el [historial de cambios](docs/CHANGELOG.md)
-y las [tareas pendientes](docs/TAREAS.md).
+[despliegue](docs/DESPLIEGUE.md), la [API v1](docs/API.md) para automatizar
+con Atajos de iOS, el [historial de cambios](docs/CHANGELOG.md), el
+[pozo de ideas](docs/SUGERENCIAS.md) y las
+[tareas pendientes](docs/TAREAS.md).
 
 ## 🔐 Modelo de acceso
 

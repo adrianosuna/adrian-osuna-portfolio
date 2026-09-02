@@ -4,6 +4,10 @@
 // son una tabla editable: su alta/renombrado/borrado y la validación de que la
 // tarea apunta a uno que existe.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+// El tope de peticiones vive en memoria y es COMPARTIDO por todo el proceso:
+// sin reiniciarlo, un fichero de tests con muchas actions agotaría la ventana
+// y los siguientes fallarían por algo que no están probando.
+import { reiniciarLimites } from '@/lib/rate-limit'
 import { sumarMeses } from '@/lib/fechas'
 
 // mantenimiento.ts arrastra Prisma y el correo; aquí solo se prueban las puras
@@ -119,6 +123,7 @@ describe('antiguedad', () => {
 
 describe('createAmbito y updateAmbito', () => {
   beforeEach(() => {
+  reiniciarLimites()
     vi.clearAllMocks()
     requireAdminMock.mockResolvedValue({ user: { uuid: 'admin-1', role: 'ADMIN' } })
     prismaMock.maintenanceScope.findFirst.mockResolvedValue(null)
@@ -216,7 +221,7 @@ describe('createMaintenance y updateMaintenance', () => {
       ok: false, message: 'La periodicidad debe ser de 1 a 120 meses',
     })
     expect(await createMaintenance({ ...base, nextDue: '20/03/2027' })).toEqual({
-      ok: false, message: 'Fecha de vencimiento no válida',
+      ok: false, message: 'La fecha de vencimiento no es válida',
     })
     expect(prismaMock.maintenanceTask.create).not.toHaveBeenCalled()
   })

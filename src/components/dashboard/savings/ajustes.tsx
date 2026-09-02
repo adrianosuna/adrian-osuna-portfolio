@@ -12,11 +12,12 @@
 import { useState, useTransition } from 'react'
 import {
   CalendarRange, Check, ChevronDown, Copy, FileDown, Merge, Pause, Pencil, PlayCircle, Plus,
-  Repeat, Tag, Trash2, X,
+  Repeat, Tag, Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn, sinAcentos } from '@/lib/utils'
 import { Modal } from '@/components/ui/modal'
+import { useConfirmar } from '@/components/dashboard/confirmar'
 import { DateField, Field, NumberField, SelectField, TextField } from '@/components/ui/fields'
 import type { CategoriaRow, TipoMovimiento } from '@/lib/gastos'
 import type { YearSummary } from '@/lib/finance'
@@ -30,8 +31,9 @@ import {
   etiquetaPeriodo, PERIODICIDADES, resumenRecurrentes, type RecurrenteRow,
 } from '@/lib/recurrentes'
 import {
-  btnIcon, btnOutline, btnPrimary, cardClass, eur, fmtDiaAnio, SIN_CATEGORIA, TIPOS,
+  btnIcon, btnOutline, btnPrimary, cardClass, chipFiltro, eur, fmtDiaAnio, SIN_CATEGORIA, TIPOS,
 } from './comun'
+import { MenuAcciones } from '@/components/dashboard/menu-acciones'
 
 type Accion = Promise<{ ok: boolean; message?: string }>
 
@@ -109,10 +111,9 @@ function Filtros<T extends string>({ valor, onCambio, opciones, etiqueta }: {
           key={o.value}
           type="button"
           className={cn(
-            // py-2 en móvil: 27px de alto es un objetivo táctil corto.
             // whitespace-nowrap: en móvil el chip se estrecha y "En pausa" se
             // partía en dos líneas, subiendo la fila entera a 54px.
-            'whitespace-nowrap rounded-md px-2.5 py-1 text-[12.5px] font-semibold transition-colors max-sm:flex-1 max-sm:py-2',
+            chipFiltro,
             valor === o.value ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
           )}
           onClick={() => onCambio(o.value)}>
@@ -148,7 +149,7 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
   const [filtro, setFiltro] = useState<FiltroCat>('todas')
   const [fusionando, setFusionando] = useState<string | null>(null)
   const [destino, setDestino] = useState('')
-  const [confirmando, setConfirmando] = useState<string | null>(null)
+  const confirmar = useConfirmar()
   // Alta y edición comparten formulario y modal: `editando` es la categoría en
   // curso, o null cuando se está creando una nueva.
   const [abierto, setAbierto] = useState(false)
@@ -182,7 +183,7 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
           {tipo === 'GASTO' ? 'Categorías de gasto' : 'Categorías de ingreso'}
         </p>
         {grupo.length === 0 && (
-          <p className="pb-1 text-[13px] text-muted-foreground/70">
+          <p className="pb-1 text-[13px] text-muted-foreground">
             {busqueda.trim() || filtro === 'tope' ? 'Ninguna con ese criterio.' : 'Ninguna todavía.'}
           </p>
         )}
@@ -222,86 +223,60 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
                   <span className="min-w-0 flex-1 text-[12px] text-muted-foreground sm:flex-none sm:shrink-0">
                     {usosTexto(c)}
                   </span>
-                  <span className="flex shrink-0 items-center gap-0.5">
-                  <button
-                    type="button"
-                    className={btnIcon}
-                    aria-label={`Fusionar ${c.name}`}
-                    title="Fusionar con otra categoría"
-                    onClick={() => {
-                      setConfirmando(null)
-                      setEditando(null)
-                      setDestino('')
-                      setFusionando(c.uuid)
-                    }}>
-                    <Merge className="size-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    className={btnIcon}
-                    aria-label={`Editar ${c.name}`}
-                    onClick={() => {
-                      setConfirmando(null)
-                      setFusionando(null)
-                      setBorrador({ name: c.name, type: c.type, budget: c.budget })
-                      setEditando(c)
-                      setAbierto(true)
-                    }}>
-                    <Pencil className="size-3.5" />
-                  </button>
-                  {/* Una categoría en uso NO se borra: perder la clasificación
-                      de todo su historial en un clic no es una opción. Para
-                      quitarla de en medio está fusionar. */}
-                  <button
-                    type="button"
-                    className={cn(
-                      btnIcon,
-                      enUso(c)
-                        ? 'cursor-not-allowed opacity-40 hover:bg-transparent hover:text-muted-foreground'
-                        : 'hover:bg-danger-bg hover:text-danger',
-                    )}
-                    aria-label={`Eliminar ${c.name}`}
-                    title={
-                      enUso(c)
-                        ? `No se puede borrar: la usan ${usosTexto(c, ' y ')}. Fusiónala en otra.`
-                        : 'Eliminar'
-                    }
-                    aria-disabled={enUso(c)}
-                    onClick={() => {
-                      if (enUso(c)) {
-                        toast.error(
-                          `«${c.name}» no se puede borrar: la usan ${usosTexto(c, ' y ')}. Fusiónala en otra categoría.`,
-                        )
-                        return
-                      }
-                      setConfirmando(confirmando === c.uuid ? null : c.uuid)
-                    }}>
-                    <Trash2 className="size-3.5" />
-                  </button>
-                  </span>
+                  <MenuAcciones
+                    className="shrink-0"
+                    etiqueta={c.name}
+                    acciones={[
+                      {
+                        id: 'fusionar',
+                        label: 'Fusionar con otra categoría',
+                        icon: <Merge className="size-3.5" />,
+                        onClick: () => {
+                          setEditando(null)
+                          setDestino('')
+                          setFusionando(c.uuid)
+                        },
+                      },
+                      {
+                        id: 'editar',
+                        label: 'Editar',
+                        icon: <Pencil className="size-3.5" />,
+                        onClick: () => {
+                          setFusionando(null)
+                          setBorrador({ name: c.name, type: c.type, budget: c.budget })
+                          setEditando(c)
+                          setAbierto(true)
+                        },
+                      },
+                      {
+                        // Una categoría en uso NO se borra: perder la
+                        // clasificación de todo su historial en un clic no es
+                        // una opción. Para quitarla de en medio está fusionar.
+                        id: 'eliminar',
+                        label: 'Eliminar',
+                        icon: <Trash2 className="size-3.5" />,
+                        destructiva: true,
+                        disabled: enUso(c),
+                        motivo: `La usan ${usosTexto(c, ' y ')}. Fusiónala en otra.`,
+                        onClick: async () => {
+                          // Solo llega aquí una categoría sin uso: no arrastra nada.
+                          if (
+                            await confirmar({
+                              clave: 'borrar-categoria',
+                              titulo: 'Eliminar la categoría',
+                              texto: `Se eliminará «${c.name}». No la usa ningún movimiento ni recurrente.`,
+                            })
+                          ) {
+                            run(deleteCategoria(c.uuid), `Categoría ${c.name} eliminada`)
+                          }
+                        },
+                      },
+                    ]}
+                  />
                 </div>
               </div>
             )}
 
-            {/* Solo llega aquí una categoría sin uso: no hay nada que arrastre. */}
-            {confirmando === c.uuid && (
-              <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-danger-bg px-3 py-2 text-[12.5px]">
-                <span className="min-w-0 flex-1">Eliminar «{c.name}»: no la usa nada.</span>
-                <button
-                  type="button"
-                  className="rounded-md bg-danger px-2.5 py-1 text-xs font-semibold text-white max-sm:px-3 max-sm:py-2"
-                  disabled={pending}
-                  onClick={() => {
-                    setConfirmando(null)
-                    run(deleteCategoria(c.uuid), `Categoría ${c.name} eliminada`)
-                  }}>
-                  Eliminar
-                </button>
-                <button type="button" className={btnIcon} aria-label="Cancelar" onClick={() => setConfirmando(null)}>
-                  <X className="size-3.5" />
-                </button>
-              </div>
-            )}
           </div>
         ))}
       </div>
@@ -650,7 +625,7 @@ function PanelRecurrentes({ filas, categorias, hoy }: {
   const [pending, startTransition] = useTransition()
   const [busqueda, setBusqueda] = useState('')
   const [filtro, setFiltro] = useState<FiltroRec>('todos')
-  const [confirmando, setConfirmando] = useState<string | null>(null)
+  const confirmar = useConfirmar()
   const vacio: BorradorRec = {
     type: 'GASTO', concept: '', amount: null, intervalMonths: 1, nextDate: hoy, cat: '',
   }
@@ -713,7 +688,6 @@ function PanelRecurrentes({ filas, categorias, hoy }: {
 
   /** Abre (o cierra) el detalle y pide lo que ha apuntado ese recurrente. */
   const abrirDetalle = (r: RecurrenteRow) => {
-    setConfirmando(null)
     if (detalle === r.uuid) return setDetalle(null)
     setDetalle(r.uuid)
     setCargados(null)
@@ -819,40 +793,57 @@ function PanelRecurrentes({ filas, categorias, hoy }: {
                         className={cn('size-3.5 transition-transform', detalle === r.uuid && 'rotate-180')}
                       />
                     </button>
-                    <button
-                      type="button"
-                      className={btnIcon}
-                      aria-label={r.active ? `Pausar ${r.concept}` : `Reactivar ${r.concept}`}
-                      title={r.active ? 'Pausar' : 'Reactivar'}
-                      disabled={pending}
-                      onClick={() =>
-                        run(
-                          updateRecurrente(r.uuid, { active: !r.active }),
-                          r.active ? 'Recurrente en pausa' : 'Recurrente reactivado',
-                        )
-                      }>
-                      {r.active ? <Pause className="size-3.5" /> : <Check className="size-3.5" />}
-                    </button>
-                    <button
-                      type="button"
-                      className={btnIcon}
-                      aria-label={`Editar ${r.concept}`}
-                      onClick={() => {
-                        setConfirmando(null)
-                        setDetalle(null)
-                        setBorrador(borradorDe(r))
-                        setEditando(r)
-                        setAbierto(true)
-                      }}>
-                      <Pencil className="size-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      className={cn(btnIcon, 'hover:bg-danger-bg hover:text-danger')}
-                      aria-label={`Eliminar ${r.concept}`}
-                      onClick={() => setConfirmando(confirmando === r.uuid ? null : r.uuid)}>
-                      <Trash2 className="size-3.5" />
-                    </button>
+                    {/* El chevron se queda FUERA del menú: no es una acción,
+                        es un despliegue — y meter un "ver más" dentro de otro
+                        "ver más" son dos toques para lo mismo. */}
+                    <MenuAcciones
+                      etiqueta={r.concept}
+                      acciones={[
+                        {
+                          id: 'pausar',
+                          label: r.active ? 'Pausar' : 'Reactivar',
+                          icon: r.active ? (
+                            <Pause className="size-3.5" />
+                          ) : (
+                            <Check className="size-3.5" />
+                          ),
+                          disabled: pending,
+                          onClick: () =>
+                            run(
+                              updateRecurrente(r.uuid, { active: !r.active }),
+                              r.active ? 'Recurrente en pausa' : 'Recurrente reactivado',
+                            ),
+                        },
+                        {
+                          id: 'editar',
+                          label: 'Editar',
+                          icon: <Pencil className="size-3.5" />,
+                          onClick: () => {
+                            setDetalle(null)
+                            setBorrador(borradorDe(r))
+                            setEditando(r)
+                            setAbierto(true)
+                          },
+                        },
+                        {
+                          id: 'eliminar',
+                          label: 'Eliminar',
+                          icon: <Trash2 className="size-3.5" />,
+                          destructiva: true,
+                          onClick: async () => {
+                            if (
+                              await confirmar({
+                                clave: 'borrar-recurrente',
+                                titulo: 'Eliminar el recurrente',
+                                texto: `«${r.concept}» dejará de apuntarse. Los movimientos que ya generó se quedan como están.`,
+                              })
+                            ) {
+                              run(deleteRecurrente(r.uuid), `${r.concept} eliminado`)
+                            }
+                          },
+                        },
+                      ]}
+                    />
                   </span>
                 </div>
               </div>
@@ -923,7 +914,7 @@ function PanelRecurrentes({ filas, categorias, hoy }: {
                         </span>
                       ))}
                       {cargados.total > cargados.movimientos.length && (
-                        <span className="text-[12px] text-muted-foreground/80">
+                        <span className="text-[12px] text-muted-foreground">
                           y {cargados.total - cargados.movimientos.length} más, en la lista de
                           movimientos de su mes.
                         </span>
@@ -933,27 +924,6 @@ function PanelRecurrentes({ filas, categorias, hoy }: {
                 </div>
               )}
 
-              {confirmando === r.uuid && (
-                <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-danger-bg px-3 py-2 text-[12.5px]">
-                  <span className="min-w-0 flex-1">
-                    Eliminar «{r.concept}»: dejará de apuntarse. Los movimientos que ya generó se
-                    quedan como están.
-                  </span>
-                  <button
-                    type="button"
-                    className="rounded-md bg-danger px-2.5 py-1 text-xs font-semibold text-white max-sm:px-3 max-sm:py-2"
-                    disabled={pending}
-                    onClick={() => {
-                      setConfirmando(null)
-                      run(deleteRecurrente(r.uuid), `${r.concept} eliminado`)
-                    }}>
-                    Eliminar
-                  </button>
-                  <button type="button" className={btnIcon} aria-label="Cancelar" onClick={() => setConfirmando(null)}>
-                    <X className="size-3.5" />
-                  </button>
-                </div>
-              )}
             </div>
           )
         })}
@@ -1009,7 +979,7 @@ interface BorradorAnio {
  */
 function PanelAnios({ years }: { years: YearSummary[] }) {
   const [pending, startTransition] = useTransition()
-  const [confirmando, setConfirmando] = useState<string | null>(null)
+  const confirmar = useConfirmar()
   const [abierto, setAbierto] = useState(false)
   const [editando, setEditando] = useState<YearSummary | null>(null)
   const [borrador, setBorrador] = useState<BorradorAnio>({ year: null, goal: null })
@@ -1109,7 +1079,6 @@ function PanelAnios({ years }: { years: YearSummary[] }) {
                     className={btnIcon}
                     aria-label={`Editar ${y.year}`}
                     onClick={() => {
-                      setConfirmando(null)
                       setBorrador({ year: y.year, goal: y.goal })
                       setEditando(y)
                       setAbierto(true)
@@ -1120,35 +1089,23 @@ function PanelAnios({ years }: { years: YearSummary[] }) {
                     type="button"
                     className={cn(btnIcon, 'hover:bg-danger-bg hover:text-danger')}
                     aria-label={`Eliminar ${y.year}`}
-                    onClick={() => setConfirmando(confirmando === y.uuid ? null : y.uuid)}>
+                    onClick={async () => {
+                      // SIN `clave`: borrar un año se lleva todo su detalle y
+                      // no hay deshacer. Esto se pregunta siempre.
+                      if (
+                        await confirmar({
+                          titulo: `Eliminar ${y.year}`,
+                          texto: `Se borra el año con todo su detalle (${mesesRellenos(y)}, ingresos extra y viajes). Los movimientos de Gastos no se tocan: no cuelgan del año.`,
+                        })
+                      ) {
+                        run(deleteYear(y.uuid), `Año ${y.year} eliminado`)
+                      }
+                    }}>
                     <Trash2 className="size-3.5" />
                   </button>
                 </span>
               </div>
             </div>
-
-            {confirmando === y.uuid && (
-              <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-danger-bg px-3 py-2 text-[12.5px]">
-                <span className="min-w-0 flex-1">
-                  Eliminar {y.year}: se borra el año <strong>con todo su detalle</strong> (
-                  {mesesRellenos(y)}, ingresos extra y viajes). Los movimientos de Gastos no se
-                  tocan: no cuelgan del año.
-                </span>
-                <button
-                  type="button"
-                  className="rounded-md bg-danger px-2.5 py-1 text-xs font-semibold text-white max-sm:px-3 max-sm:py-2"
-                  disabled={pending}
-                  onClick={() => {
-                    setConfirmando(null)
-                    run(deleteYear(y.uuid), `Año ${y.year} eliminado`)
-                  }}>
-                  Eliminar
-                </button>
-                <button type="button" className={btnIcon} aria-label="Cancelar" onClick={() => setConfirmando(null)}>
-                  <X className="size-3.5" />
-                </button>
-              </div>
-            )}
           </div>
         ))}
       </div>

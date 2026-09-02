@@ -78,10 +78,6 @@ export const eur = (v: number) =>
     useGrouping: 'always',
   })
 
-export const btnPrimary =
-  'inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-3.5 py-1.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50'
-export const btnOutline =
-  'inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3.5 py-1.5 text-sm font-semibold transition-colors hover:border-primary hover:text-primary'
-// p-2 (36px con icono): target táctil suficiente en móvil.
-export const btnIcon =
-  'rounded-md p-2 max-sm:p-2.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40'
+// Escala de botones: fuente única en `ui/botones.ts` (estaba copiada en cinco
+// ficheros). Se re-exporta porque el módulo la importa de aquí.
+export { btnPrimary, btnOutline, btnIcon, chipFiltro } from '@/components/ui/botones'

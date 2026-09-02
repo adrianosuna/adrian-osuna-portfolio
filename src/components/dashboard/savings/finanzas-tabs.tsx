@@ -12,13 +12,9 @@ import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import type { YearSummary } from '@/lib/finance'
 import { useCarga } from '@/components/dashboard/barra-carga'
-
-const barra = 'mb-4 flex max-w-full gap-0.5 overflow-x-auto overflow-y-hidden rounded-lg border border-border bg-card/50 p-0.5'
-const tabClass = (activo: boolean) =>
-  cn(
-    'shrink-0 rounded-md px-4 py-1 text-sm font-semibold transition-colors max-sm:py-1.5',
-    activo ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
-  )
+// Las clases viven en `dashboard/sub-tabs.tsx`: esta misma barra la usa ya la
+// pestaña Usuarios del Panel, y duplicarlas es cómo dejan de verse igual.
+import { barraTabs as barra, claseTab as tabClass } from '@/components/dashboard/sub-tabs'
 
 /** Barra de secciones del módulo (nivel 1). */
 export function FinanzasNav({

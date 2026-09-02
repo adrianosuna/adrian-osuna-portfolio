@@ -10,15 +10,21 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { useCarga } from '@/components/dashboard/barra-carga'
 import {
-  Check, ChevronLeft, ChevronRight, Pencil, Plus, Trash2, TrendingDown, TrendingUp, X,
+  Check, ChevronLeft, ChevronRight, Pencil, Plus, Search, Split, StickyNote, Trash2,
+  TrendingDown, TrendingUp, X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { DateField, NumberField, SelectField, TextField } from '@/components/ui/fields'
+import { MenuAcciones } from '@/components/dashboard/menu-acciones'
+import { Modal } from '@/components/ui/modal'
+import { DateField, Field, NumberField, SelectField, TextField } from '@/components/ui/fields'
 import type {
   AnioMovimientos, CategoriaRow, MesMovimientos, MovimientoRow, ParteCategoria, TipoMovimiento,
 } from '@/lib/gastos'
-import { createGasto, deleteGasto, updateGasto } from '@/app/app/finance/gastos-actions'
+import {
+  createGasto, deleteGasto, dividirGasto, restaurarGasto, updateGasto,
+} from '@/app/app/finance/gastos-actions'
+import { borrarConDeshacer } from '@/components/dashboard/deshacer'
 import { GraficaBarras } from '@/components/ui/charts/barras'
 import { coloresTema } from '@/components/ui/charts/comun'
 import { GraficaDonut } from '@/components/ui/charts/donut'
@@ -27,8 +33,44 @@ import { nivelTope, resumenTopes, type TopeRow } from '@/lib/topes'
 import { etiquetaPeriodo, resumenRecurrentes, type RecurrenteRow } from '@/lib/recurrentes'
 import { ejeEuros, ejeMeses } from './charts'
 import {
-  btnIcon, btnPrimary, cardClass, eur, fmtDia, fmtDiaAnio, SIN_CATEGORIA, TIPOS,
+  btnIcon, btnOutline, btnPrimary, cardClass, chipFiltro, eur, fmtDia, fmtDiaAnio, SIN_CATEGORIA, TIPOS,
 } from './comun'
+import {
+  CabeceraMovil,
+  Celda,
+  Fila,
+  FilaMovil,
+  FilaVacia,
+  Tabla,
+  TarjetaTabla,
+  tdClass,
+  thClass,
+  type Columna,
+} from '@/components/ui/tabla'
+
+/**
+ * Columnas de la lista de movimientos en MÓVIL y su plantilla de rejilla.
+ *
+ * Son cuatro y no cinco: la categoría no tiene columna propia porque en 375 px
+ no cabe — su punto de color viaja pegado al concepto. La plantilla se comparte
+ * entre la cabecera y las filas (ver `CabeceraMovil` en `ui/tabla.tsx`).
+ */
+const PLANTILLA_MOV = 'grid-cols-[2.6rem_minmax(0,1fr)_auto_2.25rem]'
+const COLUMNAS_MOV_MOVIL: Columna[] = [
+  { label: 'Fecha' },
+  { label: 'Concepto' },
+  { label: 'Importe', alineado: 'derecha' },
+  { label: 'Acciones', oculta: true },
+]
+
+/** Columnas de la lista de movimientos del mes. */
+const COLUMNAS_MOV: Columna[] = [
+  { label: 'Fecha' },
+  { label: 'Concepto' },
+  { label: 'Categoría' },
+  { label: 'Importe', alineado: 'derecha' },
+  { label: 'Acciones', alineado: 'derecha', oculta: true },
+]
 
 /** 'YYYY-MM' → 'Agosto 2026'. */
 const nombreMes = (mes: string) => {
@@ -183,7 +225,7 @@ function BarraTope({ nombre, color, gastado, budget, pct, destacada }: {
           {nombre}
         </span>
         <span className="shrink-0 tabular-nums text-muted-foreground max-sm:ml-5 max-sm:flex-1">
-          {eur(gastado)} <span className="text-muted-foreground/70">de {eur(budget)}</span>
+          {eur(gastado)} <span className="text-muted-foreground">de {eur(budget)}</span>
         </span>
         <span className={cn('w-12 shrink-0 text-right font-semibold tabular-nums', texto)}>
           {Math.round(pct)}&nbsp;%
@@ -343,8 +385,10 @@ export function GastosTab({
   const [editando, setEditando] = useState<string | null>(null)
   const [fila, setFila] = useState<{
     type: TipoMovimiento; concept: string; amount: number | null; date: string; cat: string
-  }>({ type: 'GASTO', concept: '', amount: null, date: '', cat: '' })
-  const [confirmando, setConfirmando] = useState<string | null>(null)
+    note: string
+  }>({ type: 'GASTO', concept: '', amount: null, date: '', cat: '', note: '' })
+  // Movimiento que se está dividiendo (su modal), o null.
+  const [dividiendo, setDividiendo] = useState<MovimientoRow | null>(null)
 
   const run = (promise: Promise<{ ok: boolean; message?: string }>, success?: string, luego?: () => void) =>
     startTransition(async () => {
@@ -375,6 +419,147 @@ export function GastosTab({
     )
   }
 
+  /** Abre la edición en línea de un movimiento (botón o gesto de swipe). */
+  /**
+   * Acciones de una fila (editar, dividir, eliminar).
+   *
+   * Como el formulario: las usan la tabla de escritorio y la rejilla de
+   * móvil, así que se declaran una vez.
+   */
+  const accionesDe = (m: MovimientoRow) => (
+    <MenuAcciones
+      className="shrink-0"
+      etiqueta={m.concept}
+      acciones={[
+        {
+          id: 'editar',
+          label: 'Editar',
+          icon: <Pencil className="size-3.5" />,
+          onClick: () => abrirEdicion(m),
+        },
+        {
+          // La compra mixta (súper + farmacia en el mismo
+          // recibo) repartida en varias categorías.
+          id: 'dividir',
+          label: 'Dividir en varias categorías',
+          icon: <Split className="size-3.5" />,
+          onClick: () => setDividiendo(m),
+        },
+        {
+          // Sin "¿seguro?": borra y el aviso ofrece deshacer.
+          id: 'eliminar',
+          label: 'Eliminar',
+          icon: <Trash2 className="size-3.5" />,
+          destructiva: true,
+          disabled: pending,
+          onClick: () => borrarMovimiento(m),
+        },
+      ]}
+    />
+  )
+
+  /**
+   * Formulario de edición de una fila.
+   *
+   * Lo usan LAS DOS vistas —la tabla de escritorio y las filas con gesto de
+   * móvil—, así que vive aquí y no repetido en cada una: son seis campos y una
+   * segunda copia es la que se queda sin el campo que se añada mañana.
+   */
+  const formularioEdicion = (m: MovimientoRow) => (
+    <>
+      <SelectField
+        className="w-24 shrink-0 max-sm:w-full max-sm:basis-full"
+        ariaLabel="Tipo"
+        value={fila.type}
+        onChange={(v) => setFila((f) => ({ ...f, type: v as TipoMovimiento, cat: '' }))}
+        options={TIPOS}
+      />
+      <TextField
+        className="min-w-0 flex-1 max-sm:basis-full"
+        ariaLabel="Concepto"
+        value={fila.concept}
+        onChange={(v) => setFila((f) => ({ ...f, concept: v }))}
+        onEnter={() => guardarFila(m)}
+      />
+      <SelectField
+        className="w-32 shrink-0 max-sm:w-full max-sm:basis-full"
+        ariaLabel="Categoría"
+        value={fila.cat}
+        onChange={(v) => setFila((f) => ({ ...f, cat: v }))}
+        options={opcionesCat(fila.type)}
+      />
+      <DateField
+        className="w-32 shrink-0 max-sm:w-auto max-sm:basis-[calc(50%-0.25rem)]"
+        ariaLabel="Fecha del movimiento"
+        value={fila.date}
+        onChange={(v) => setFila((f) => ({ ...f, date: v }))}
+      />
+      <div className="w-24 shrink-0 max-sm:w-auto max-sm:basis-[calc(50%-0.25rem)]">
+        <NumberField
+          compact
+          step={5}
+          ariaLabel="Importe"
+          value={fila.amount}
+          onChange={(v) => setFila((f) => ({ ...f, amount: v }))}
+          onEnter={() => guardarFila(m)}
+        />
+      </div>
+      {/* Nota: en su propia línea (basis-full) — el contexto
+          se escribe en prosa y no cabe en un hueco de la fila. */}
+      <TextField
+        className="basis-full"
+        ariaLabel="Nota del movimiento"
+        placeholder="Nota"
+        value={fila.note}
+        onChange={(v) => setFila((f) => ({ ...f, note: v }))}
+        onEnter={() => guardarFila(m)}
+      />
+      {/* En móvil, botones a media fila y con texto: dos
+          iconos de 30px para confirmar una edición son poco. */}
+      <span className="flex shrink-0 gap-0.5 max-sm:basis-full max-sm:gap-2">
+        <button
+          type="button"
+          className={cn(btnIcon, 'max-sm:h-10 max-sm:flex-1 max-sm:gap-1.5 max-sm:text-sm max-sm:font-semibold')}
+          aria-label="Guardar"
+          disabled={pending}
+          onClick={() => guardarFila(m)}>
+          <Check className="size-4 text-success" />
+          <span className="sm:hidden">Guardar</span>
+        </button>
+        <button
+          type="button"
+          className={cn(btnIcon, 'max-sm:h-10 max-sm:flex-1 max-sm:gap-1.5 max-sm:text-sm max-sm:font-semibold')}
+          aria-label="Cancelar"
+          onClick={() => setEditando(null)}>
+          <X className="size-4" />
+          <span className="sm:hidden">Cancelar</span>
+        </button>
+      </span>
+    </>
+  )
+
+  const abrirEdicion = (m: MovimientoRow) => {
+    setFila({
+      type: m.type,
+      concept: m.concept,
+      amount: m.amount,
+      date: m.expenseDate,
+      cat: m.categoryUuid ?? '',
+      note: m.note ?? '',
+    })
+    setEditando(m.uuid)
+  }
+
+  /** Borra un movimiento con deshacer (botón o gesto de swipe). */
+  const borrarMovimiento = (m: MovimientoRow) =>
+    startTransition(async () => {
+      await borrarConDeshacer({
+        borrar: () => deleteGasto(m.uuid),
+        restaurar: restaurarGasto,
+        mensaje: 'Movimiento eliminado',
+      })
+    })
+
   const guardarFila = (m: MovimientoRow) => {
     if (!fila.concept.trim() || fila.amount === null) return
     run(
@@ -384,6 +569,7 @@ export function GastosTab({
         amount: fila.amount,
         expenseDate: fila.date,
         categoryUuid: fila.cat || null,
+        note: fila.note,
       }),
       'Movimiento actualizado',
       () => setEditando(null),
@@ -419,7 +605,8 @@ export function GastosTab({
             <button
               type="button"
               className={cn(
-                'rounded-md px-2.5 py-1 text-[13px] font-semibold transition-colors',
+                chipFiltro,
+                'text-[13px]',
                 mostrarAnio ? 'text-muted-foreground hover:text-foreground' : 'bg-muted text-foreground',
               )}
               onClick={() => irAMes(datos.mes)}>
@@ -428,7 +615,8 @@ export function GastosTab({
             <button
               type="button"
               className={cn(
-                'rounded-md px-2.5 py-1 text-[13px] font-semibold transition-colors',
+                chipFiltro,
+                'text-[13px]',
                 mostrarAnio ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
               )}
               onClick={() => {
@@ -439,6 +627,18 @@ export function GastosTab({
             </button>
           </div>
         </div>
+
+        {/* Buscar movimientos en todo el histórico (no solo en este mes) */}
+        <button
+          type="button"
+          className={cn(btnOutline, 'max-sm:w-full')}
+          onClick={() => {
+            iniciar()
+            router.push('/app/finance?s=gastos&buscar=1')
+          }}>
+          <Search className="size-4" />
+          Buscar
+        </button>
       </div>
 
       {mostrarAnio ? (
@@ -473,17 +673,19 @@ export function GastosTab({
           </div>
 
           {/* Lista de movimientos */}
-          <div className={cn(cardClass, 'mt-4')}>
-            <h3 className="border-b border-border px-5 py-3 font-semibold">
-              Movimientos de {nombreMes(datos.mes)}
-            </h3>
-            <div className="px-4 py-3">
+          <TarjetaTabla
+            className="mt-4"
+            titulo={`Movimientos de ${nombreMes(datos.mes)}`}
+            cuenta={datos.movimientos.length}>
+            {/* El alta va FUERA de la tabla, entre la cabecera y las filas:
+                es un formulario, no un movimiento. */}
+            <div className="pt-3">
               {/* ALTA, arriba y pensada para el pulgar: en el móvil se apunta
                   sobre la marcha, y bajar hasta el final de la lista para
                   encontrar el formulario no vale. En móvil va apilada (tipo
                   segmentado, importe y fecha en una fila, botón a lo ancho);
                   desde sm, una sola fila compacta. */}
-              <div className="mb-3 flex flex-wrap gap-2 border-b border-border pb-3">
+              <div className="mb-1 flex flex-wrap gap-2 border-b border-border px-4 pb-3">
                 {/* Tipo: en móvil dos botones grandes (es binario, un select
                     sobra); en escritorio, el select de la fila. */}
                 <div className="flex w-full gap-1 rounded-lg border border-border bg-card/50 p-0.5 sm:hidden">
@@ -556,170 +758,171 @@ export function GastosTab({
                 </button>
               </div>
 
-              {datos.movimientos.length === 0 && (
-                <p className="py-6 text-center text-[13px] text-muted-foreground">
-                  Sin movimientos este mes. Apunta el primero arriba.
-                </p>
-              )}
+              {/* Las CELDAS se declaran una vez y las usan las dos vistas: la
+                  tabla de escritorio y las filas con gesto de móvil. Así el
+                  contenido no se duplica; lo único distinto es el envoltorio,
+                  porque un `<tr>` no se puede arrastrar con el dedo. */}
 
-              {datos.movimientos.map((m) => {
-                const cat = catDe(m.categoryUuid)
-                const esGasto = m.type === 'GASTO'
-                return (
-                  <div
-                    key={m.uuid}
-                    className={cn(
-                      'flex items-center gap-2 border-b border-border/60 py-2 last:border-0',
-                      editando === m.uuid && 'max-sm:flex-wrap',
-                    )}>
-                    {editando === m.uuid ? (
-                      <>
-                        <SelectField
-                          className="w-24 shrink-0 max-sm:w-full max-sm:basis-full"
-                          ariaLabel="Tipo"
-                          value={fila.type}
-                          onChange={(v) => setFila((f) => ({ ...f, type: v as TipoMovimiento, cat: '' }))}
-                          options={TIPOS}
+              {/* Escritorio: la tabla común (ver `ui/tabla.tsx`). */}
+              <div className="hidden sm:block">
+                <Tabla columnas={COLUMNAS_MOV} minAncho="min-w-140" className="pb-1">
+                  {datos.movimientos.length === 0 ? (
+                    <FilaVacia columnas={COLUMNAS_MOV.length}>
+                      Sin movimientos este mes. Apunta el primero arriba.
+                    </FilaVacia>
+                  ) : (
+                    datos.movimientos.map((m) => {
+                      const cat = catDe(m.categoryUuid)
+                      const esGasto = m.type === 'GASTO'
+                      // En edición la fila entera es el formulario: una sola
+                      // celda a todo lo ancho, que es lo que deja respirar a
+                      // los seis campos.
+                      if (editando === m.uuid) {
+                        return (
+                          <Fila key={m.uuid} destacada>
+                            <Celda colSpan={COLUMNAS_MOV.length}>
+                              <div className="flex flex-wrap items-center gap-2">
+                                {formularioEdicion(m)}
+
+                              </div>
+                            </Celda>
+                          </Fila>
+                        )
+                      }
+                      return (
+                        <Fila key={m.uuid}>
+                          <Celda className="tabular-nums text-muted-foreground">
+                            {fmtDia(m.expenseDate)}
+                          </Celda>
+                          <Celda>
+                            <span className="flex min-w-0 items-baseline gap-1.5">
+                              <span className="truncate">{m.concept}</span>
+                              {m.note && (
+                                <span
+                                  className="shrink-0 text-muted-foreground"
+                                  title={m.note}
+                                  aria-label={`Nota: ${m.note}`}>
+                                  <StickyNote className="size-3" />
+                                </span>
+                              )}
+                            </span>
+                          </Celda>
+                          <Celda className="text-muted-foreground">
+                            <span className="flex items-center gap-1.5">
+                              <span
+                                className="inline-block size-2 shrink-0 rounded-xs"
+                                style={{ background: cat?.color ?? SIN_CATEGORIA }}
+                              />
+                              <span className="truncate">{cat?.name ?? 'Sin categoría'}</span>
+                            </span>
+                          </Celda>
+                          <Celda
+                            alineado="derecha"
+                            className={cn(
+                              'font-semibold tabular-nums',
+                              esGasto ? 'text-danger' : 'text-success',
+                            )}>
+                            {esGasto ? '−' : '+'}
+                            {eur(m.amount)}
+                          </Celda>
+                          <Celda alineado="derecha">
+                            {accionesDe(m)}
+                          </Celda>
+                        </Fila>
+                      )
+                    })
+                  )}
+                </Tabla>
+              </div>
+
+              {/* Móvil: filas con gesto (→ editar, ← eliminar). No es una tabla
+                  a propósito: un `<tr>` no se puede arrastrar, y el swipe es lo
+                  que hace usable esta lista con el pulgar. */}
+              <div className="sm:hidden">
+                <CabeceraMovil columnas={COLUMNAS_MOV_MOVIL} plantilla={PLANTILLA_MOV} />
+                {datos.movimientos.length === 0 && (
+                  <p className="py-8 text-center text-sm text-muted-foreground">
+                    Sin movimientos este mes. Apunta el primero arriba.
+                  </p>
+                )}
+                {datos.movimientos.map((m) => {
+                  const cat = catDe(m.categoryUuid)
+                  const esGasto = m.type === 'GASTO'
+                  const enEdicion = editando === m.uuid
+                  const fila_ = enEdicion ? (
+                    // Editando, la fila deja de ser una rejilla de columnas: el
+                    // formulario son seis campos y necesita todo el ancho.
+                    <FilaMovil plantilla="grid-cols-1" destacada>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {formularioEdicion(m)}
+                      </div>
+                    </FilaMovil>
+                  ) : (
+                    <FilaMovil plantilla={PLANTILLA_MOV}>
+                      <span className="text-[12px] tabular-nums text-muted-foreground">
+                        {fmtDia(m.expenseDate)}
+                      </span>
+                      {/* El punto de la categoría va PEGADO al concepto y no en
+                          su propia columna: en 375 px una columna más dejaría el
+                          concepto en nada, y el color ya la identifica (el
+                          nombre, en el tooltip). */}
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span
+                          className="inline-block size-2 shrink-0 rounded-xs"
+                          title={`${esGasto ? 'Gasto' : 'Ingreso'} · ${cat?.name ?? 'Sin categoría'}`}
+                          style={{ background: cat?.color ?? SIN_CATEGORIA }}
                         />
-                        <TextField
-                          className="min-w-0 flex-1 max-sm:basis-full"
-                          ariaLabel="Concepto"
-                          value={fila.concept}
-                          onChange={(v) => setFila((f) => ({ ...f, concept: v }))}
-                          onEnter={() => guardarFila(m)}
-                        />
-                        <SelectField
-                          className="w-32 shrink-0 max-sm:w-full max-sm:basis-full"
-                          ariaLabel="Categoría"
-                          value={fila.cat}
-                          onChange={(v) => setFila((f) => ({ ...f, cat: v }))}
-                          options={opcionesCat(fila.type)}
-                        />
-                        <DateField
-                          className="w-32 shrink-0 max-sm:w-auto max-sm:basis-[calc(50%-0.25rem)]"
-                          ariaLabel="Fecha del movimiento"
-                          value={fila.date}
-                          onChange={(v) => setFila((f) => ({ ...f, date: v }))}
-                        />
-                        <div className="w-24 shrink-0 max-sm:w-auto max-sm:basis-[calc(50%-0.25rem)]">
-                          <NumberField
-                            compact
-                            step={5}
-                            ariaLabel="Importe"
-                            value={fila.amount}
-                            onChange={(v) => setFila((f) => ({ ...f, amount: v }))}
-                            onEnter={() => guardarFila(m)}
-                          />
-                        </div>
-                        {/* En móvil, botones a media fila y con texto: dos
-                            iconos de 30px para confirmar una edición son poco. */}
-                        <span className="flex shrink-0 gap-0.5 max-sm:basis-full max-sm:gap-2">
-                          <button
-                            type="button"
-                            className={cn(btnIcon, 'max-sm:h-10 max-sm:flex-1 max-sm:gap-1.5 max-sm:text-sm max-sm:font-semibold')}
-                            aria-label="Guardar"
-                            disabled={pending}
-                            onClick={() => guardarFila(m)}>
-                            <Check className="size-4 text-success" />
-                            <span className="sm:hidden">Guardar</span>
-                          </button>
-                          <button
-                            type="button"
-                            className={cn(btnIcon, 'max-sm:h-10 max-sm:flex-1 max-sm:gap-1.5 max-sm:text-sm max-sm:font-semibold')}
-                            aria-label="Cancelar"
-                            onClick={() => setEditando(null)}>
-                            <X className="size-4" />
-                            <span className="sm:hidden">Cancelar</span>
-                          </button>
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="w-11 shrink-0 text-[12px] tabular-nums text-muted-foreground">
-                          {fmtDia(m.expenseDate)}
-                        </span>
-                        {/* En móvil el concepto solo tiene ~120px: antes se
-                            cortaba ("Reparación del portáti…"), así que ahí se
-                            reparte en dos líneas. Desde sm sobra el ancho. */}
-                        <span className="min-w-0 flex-1 text-[13.5px] max-sm:line-clamp-2 sm:truncate">
+                        <span className="truncate text-[13.5px]" title={m.concept}>
                           {m.concept}
                         </span>
-                        {/* En móvil solo el punto de color (con tooltip): la
-                            categoría no se pierde y la fila sigue cabiendo. */}
-                        <span
-                          className="flex shrink-0 items-center gap-1.5 text-[12px] text-muted-foreground sm:w-40"
-                          title={`${esGasto ? 'Gasto' : 'Ingreso'} · ${cat?.name ?? 'Sin categoría'}`}>
+                        {m.note && (
                           <span
-                            className="inline-block size-2 shrink-0 rounded-xs"
-                            style={{ background: cat?.color ?? SIN_CATEGORIA }}
-                          />
-                          <span className="hidden min-w-0 truncate sm:block">{cat?.name ?? 'Sin categoría'}</span>
-                        </span>
-                        <span
-                          className={cn(
-                            'shrink-0 text-[13.5px] font-semibold tabular-nums sm:w-24 sm:text-right',
-                            esGasto ? 'text-danger' : 'text-success',
-                          )}>
-                          {esGasto ? '−' : '+'}
-                          {eur(m.amount)}
-                        </span>
-                        <span className="flex shrink-0 items-center gap-0.5">
-                          <button
-                            type="button"
-                            className={btnIcon}
-                            aria-label="Editar"
-                            onClick={() => {
-                              setConfirmando(null)
-                              setFila({
-                                type: m.type,
-                                concept: m.concept,
-                                amount: m.amount,
-                                date: m.expenseDate,
-                                cat: m.categoryUuid ?? '',
-                              })
-                              setEditando(m.uuid)
-                            }}>
-                            <Pencil className="size-3.5" />
-                          </button>
-                          {confirmando === m.uuid ? (
-                            <>
-                              <button
-                                type="button"
-                                className="rounded-md bg-danger px-2 py-1 text-xs font-semibold text-white max-sm:px-3 max-sm:py-2"
-                                onClick={() => {
-                                  setConfirmando(null)
-                                  run(deleteGasto(m.uuid), 'Movimiento eliminado')
-                                }}>
-                                Sí
-                              </button>
-                              <button type="button" className={btnIcon} aria-label="Cancelar" onClick={() => setConfirmando(null)}>
-                                <X className="size-3.5" />
-                              </button>
-                            </>
-                          ) : (
-                            <button
-                              type="button"
-                              className={cn(btnIcon, 'hover:bg-danger-bg hover:text-danger')}
-                              aria-label="Eliminar"
-                              onClick={() => setConfirmando(m.uuid)}>
-                              <Trash2 className="size-3.5" />
-                            </button>
-                          )}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                )
-              })}
-
+                            className="shrink-0 text-muted-foreground"
+                            title={m.note}
+                            aria-label={`Nota: ${m.note}`}>
+                            <StickyNote className="size-3" />
+                          </span>
+                        )}
+                      </span>
+                      <span
+                        className={cn(
+                          'text-right text-[13.5px] font-semibold tabular-nums',
+                          esGasto ? 'text-danger' : 'text-success',
+                        )}>
+                        {esGasto ? '−' : '+'}
+                        {eur(m.amount)}
+                      </span>
+                      {accionesDe(m)}
+                    </FilaMovil>
+                  )
+                  // Sin gestos: editar y borrar salen del menú «⋯» de la fila,
+                  // que es el único camino y lleva las tres acciones.
+                  return <div key={m.uuid}>{fila_}</div>
+                })}
+              </div>
             </div>
-          </div>
+          </TarjetaTabla>
 
           {/* Topes: lo único de esta vista que avisa a tiempo */}
           <Topes topes={datos.topes} mes={datos.mes} />
 
           {/* Recurrentes: lo que va a caer solo */}
           <Recurrentes filas={recurrentes} mes={datos.mes} hoy={hoy} categorias={categorias} />
+
+          {/* División de un movimiento en varias categorías */}
+          {dividiendo && (
+            <DividirModal
+              movimiento={dividiendo}
+              opciones={opcionesCat(dividiendo.type)}
+              pending={pending}
+              onCerrar={() => setDividiendo(null)}
+              onDividir={(partes) =>
+                run(dividirGasto(dividiendo.uuid, partes), 'Movimiento dividido', () =>
+                  setDividiendo(null),
+                )
+              }
+            />
+          )}
 
           {/* Los dos desgloses del mes */}
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
@@ -743,14 +946,163 @@ export function GastosTab({
   )
 }
 
+// ─────────── división de un movimiento ───────────
+
+/**
+ * Reparte un movimiento entre varias categorías (la compra mixta: súper +
+ * farmacia en el mismo recibo).
+ *
+ * La suma tiene que cuadrar con el importe original —lo exige también el
+ * servidor—, así que la cabecera va diciendo cuánto queda por asignar y el
+ * botón no se activa hasta que cuadra: descuadrarlo dejaría el mes mal en
+ * silencio. Arranca con dos partes: la primera con TODO el importe y la segunda
+ * a cero, que es como se reparte de verdad (se le quita a la primera).
+ */
+function DividirModal({
+  movimiento, opciones, pending, onCerrar, onDividir,
+}: {
+  movimiento: MovimientoRow
+  opciones: Array<{ value: string; label: string }>
+  pending: boolean
+  onCerrar: () => void
+  onDividir: (partes: Array<{ concept: string; amount: number; categoryUuid: string | null }>) => void
+}) {
+  const [partes, setPartes] = useState<
+    Array<{ concept: string; amount: number | null; cat: string }>
+  >([
+    { concept: movimiento.concept, amount: movimiento.amount, cat: movimiento.categoryUuid ?? '' },
+    { concept: movimiento.concept, amount: null, cat: '' },
+  ])
+
+  // Céntimos: comparar decimales daría falsos descuadres (0.1 + 0.2 ≠ 0.3).
+  const centimos = (v: number) => Math.round(v * 100)
+  const asignado = partes.reduce((s, p) => s + centimos(p.amount ?? 0), 0)
+  const restante = (centimos(movimiento.amount) - asignado) / 100
+  const cuadra = restante === 0
+  const completas = partes.every((p) => p.concept.trim() && p.amount !== null && p.amount > 0)
+
+  const cambiar = (i: number, patch: Partial<{ concept: string; amount: number | null; cat: string }>) =>
+    setPartes((ps) => ps.map((p, j) => (j === i ? { ...p, ...patch } : p)))
+
+  return (
+    <Modal
+      title="Dividir el movimiento"
+      description={`${movimiento.concept} · ${eur(movimiento.amount)}`}
+      ancho="lg"
+      onClose={onCerrar}
+      footer={
+        <>
+          <button type="button" className={btnOutline} onClick={onCerrar}>
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className={btnPrimary}
+            disabled={pending || !cuadra || !completas || partes.length < 2}
+            onClick={() =>
+              onDividir(
+                partes.map((p) => ({
+                  concept: p.concept,
+                  amount: p.amount ?? 0,
+                  categoryUuid: p.cat || null,
+                })),
+              )
+            }>
+            <Split className="size-4" />
+            Dividir en {partes.length}
+          </button>
+        </>
+      }>
+      {/* Cuánto queda por asignar: la pista que guía el reparto */}
+      <p
+        className={cn(
+          'mb-3 rounded-md px-3 py-2 text-[13px] font-semibold',
+          cuadra ? 'bg-success-bg text-success' : 'bg-warning-bg text-warning',
+        )}>
+        {cuadra
+          ? 'Cuadra con el importe original'
+          : restante > 0
+            ? `Quedan ${eur(restante)} por asignar`
+            : `Te has pasado en ${eur(-restante)}`}
+      </p>
+
+      <div className="flex flex-col gap-3">
+        {partes.map((p, i) => (
+          <div key={i} className="rounded-lg border border-border p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-[12.5px] font-semibold text-muted-foreground">
+                Parte {i + 1}
+              </span>
+              {/* Con solo dos partes no se quita ninguna: dividir en una no es
+                  dividir (para eso se edita el movimiento). */}
+              {partes.length > 2 && (
+                <button
+                  type="button"
+                  className={btnIcon}
+                  aria-label={`Quitar la parte ${i + 1}`}
+                  onClick={() => setPartes((ps) => ps.filter((_, j) => j !== i))}>
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              <Field label="Concepto">
+                <TextField
+                  value={p.concept}
+                  onChange={(v) => cambiar(i, { concept: v })}
+                  ariaLabel={`Concepto de la parte ${i + 1}`}
+                />
+              </Field>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Importe">
+                  <NumberField
+                    value={p.amount}
+                    onChange={(v) => cambiar(i, { amount: v })}
+                    step={5}
+                    ariaLabel={`Importe de la parte ${i + 1}`}
+                  />
+                </Field>
+                <Field label="Categoría">
+                  <SelectField
+                    value={p.cat}
+                    onChange={(v) => cambiar(i, { cat: v })}
+                    options={opciones}
+                    ariaLabel={`Categoría de la parte ${i + 1}`}
+                  />
+                </Field>
+              </div>
+            </div>
+          </div>
+        ))}
+
+        {partes.length < 10 && (
+          <button
+            type="button"
+            className={cn(btnOutline, 'w-full')}
+            onClick={() =>
+              // La parte nueva entra con lo que quede por asignar: es lo que se
+              // va a poner el 90 % de las veces.
+              setPartes((ps) => [
+                ...ps,
+                { concept: movimiento.concept, amount: restante > 0 ? restante : null, cat: '' },
+              ])
+            }>
+            <Plus className="size-4" />
+            Añadir parte
+          </button>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
 // ─────────── vista anual ───────────
 
 function VistaAnio({ anio, onMes }: { anio: AnioMovimientos; onMes: (mes: number) => void }) {
-  // Padding y texto más ajustados en móvil: así las cuatro columnas caben en
-  // 375px y la tabla no necesita scroll horizontal.
-  const thClass =
-    'px-2 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground sm:px-3 sm:text-xs'
-  const tdClass = 'px-2 py-2 text-[12.5px] sm:px-3 sm:text-sm'
+  // Clases comunes de `ui/tabla`: antes esta tabla apretaba el padding y el
+  // texto en móvil para que las cuatro columnas cupieran en 375 px sin
+  // scroll. Se retiró para que TODAS las tablas se vean igual; en móvil
+  // ahora se desplaza, que es lo que ya hacía la del Ahorro.
 
   return (
     <div>
@@ -799,17 +1151,17 @@ function VistaAnio({ anio, onMes }: { anio: AnioMovimientos; onMes: (mes: number
                         <span className="hidden sm:inline">{MESES[m.mes - 1]}</span>
                       </button>
                     </td>
-                    <td className={cn(tdClass, 'text-right tabular-nums', vacio && 'text-muted-foreground/50')}>
+                    <td className={cn(tdClass, 'text-right tabular-nums', vacio && 'text-muted-foreground')}>
                       {vacio ? '—' : eur(m.ingresos)}
                     </td>
-                    <td className={cn(tdClass, 'text-right tabular-nums', vacio && 'text-muted-foreground/50')}>
+                    <td className={cn(tdClass, 'text-right tabular-nums', vacio && 'text-muted-foreground')}>
                       {vacio ? '—' : eur(m.gastos)}
                     </td>
                     <td
                       className={cn(
                         tdClass,
                         'text-right font-semibold tabular-nums',
-                        vacio ? 'text-muted-foreground/50' : balance >= 0 ? 'text-success' : 'text-danger',
+                        vacio ? 'text-muted-foreground' : balance >= 0 ? 'text-success' : 'text-danger',
                       )}>
                       {vacio ? '—' : eur(balance)}
                     </td>

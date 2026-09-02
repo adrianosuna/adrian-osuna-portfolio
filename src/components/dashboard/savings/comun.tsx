@@ -4,18 +4,10 @@
 // componente cliente no puede importarlas).
 import type { YearSummary } from '@/lib/finance'
 
-// Formato de importes: euros sin decimales (mismo criterio que el Excel).
-// `useGrouping: 'always'`: es-ES no agrupa los números de 4 cifras por defecto
-// (daba "3950 €" junto a "12.750 €"); con esto siempre lleva punto de miles.
-export const eur = (v: number | null | undefined) =>
-  v === null || v === undefined || Number.isNaN(v)
-    ? '—'
-    : v.toLocaleString('es-ES', {
-        style: 'currency',
-        currency: 'EUR',
-        maximumFractionDigits: 0,
-        useGrouping: 'always',
-      })
+// Formato de importes: la fuente única es `lib/euros.ts` (decimales solo si el
+// importe los tiene). Se re-exporta aquí porque todo el módulo lo importa de
+// `./comun` desde antes de unificarlo.
+export { eur } from '@/lib/euros'
 
 // Ahorro anual = mensual + extras + sobrante de viajes (lo no gastado en
 // viajes se suma al cierre; si se gastó de más, el exceso resta).
@@ -127,9 +119,6 @@ export const TIPOS: Array<{ value: 'INGRESO' | 'GASTO'; label: string }> = [
 ]
 
 export const cardClass = 'rounded-xl border border-border bg-card'
-export const btnPrimary =
-  'inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-3.5 py-1.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50'
-export const btnOutline =
-  'inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3.5 py-1.5 text-sm font-semibold transition-colors hover:border-primary hover:text-primary'
-// p-2 (36px con icono): target táctil suficiente en móvil.
-export const btnIcon = 'rounded-md p-2 max-sm:p-2.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
+// La escala de botones vive en `ui/botones.ts` (fuente única: estaba copiada
+// en cinco ficheros). Se re-exporta porque todo el módulo la importa de aquí.
+export { btnPrimary, btnOutline, btnIcon, chipFiltro } from '@/components/ui/botones'

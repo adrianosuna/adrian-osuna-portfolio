@@ -17,7 +17,11 @@ const fieldClass =
 // Popover: cierre al hacer clic fuera (del ancla y del panel), con Escape
 // (en captura y frenando la propagación: que no cierre también el modal que
 // lo contiene) o al hacer scroll/resize fuera del panel.
-function usePopover() {
+//
+// Exportado (con `PopoverPanel`) porque lo reutiliza el menú de acciones de
+// `dashboard/menu-acciones.tsx`: el comportamiento de un popover es una sola
+// cosa, y una segunda copia es una segunda copia que se desincroniza.
+export function usePopover() {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null) // contenedor del disparador (ancla)
   const popRef = useRef<HTMLDivElement>(null) // panel, portalizado en <body>
@@ -56,7 +60,7 @@ function usePopover() {
 // ningún contenedor con overflow — los modales con scroll incluidos. Se coloca
 // bajo el ancla (o encima si abajo no cabe) y se recalcula tras cada render
 // (el alto varía, p. ej. al cambiar de mes en el calendario).
-function PopoverPanel({
+export function PopoverPanel({
   anclaRef, popRef, mismaAnchura = false, rol, etiqueta, className, children,
 }: {
   anclaRef: React.RefObject<HTMLDivElement | null>
@@ -230,7 +234,7 @@ export function NumberField({
   }
 
   const flecha =
-    'flex h-3.5 items-center rounded-sm px-0.5 text-muted-foreground/60 transition-colors hover:text-foreground'
+    'flex h-3.5 items-center rounded-sm px-0.5 text-muted-foreground transition-colors hover:text-foreground'
 
   return (
     <div
@@ -460,13 +464,13 @@ export function DateField({
           etiqueta="Calendario"
           className="w-64 rounded-lg border border-border bg-popover p-2.5 shadow-lg">
           <div className="mb-1.5 flex items-center justify-between">
-            <button type="button" className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" aria-label="Mes anterior" onClick={() => mover(-1)}>
+            <button type="button" className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground max-sm:p-2.5" aria-label="Mes anterior" onClick={() => mover(-1)}>
               <ChevronLeft className="size-4" />
             </button>
             <span className="text-sm font-semibold">
               {MESES[vista.m]} {vista.y}
             </span>
-            <button type="button" className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" aria-label="Mes siguiente" onClick={() => mover(1)}>
+            <button type="button" className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground max-sm:p-2.5" aria-label="Mes siguiente" onClick={() => mover(1)}>
               <ChevronRight className="size-4" />
             </button>
           </div>

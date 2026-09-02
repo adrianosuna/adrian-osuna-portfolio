@@ -8,13 +8,18 @@
 // Además, vistas Tabla (todas) e Histórico (archivadas), ambas sobre
 // TablaOportunidades. El detalle/edición y el timeline viven en OportunidadModal.
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import {
-  Archive, CalendarClock, ChevronLeft, ChevronRight, Pencil, Plus, Trash2, X,
+  Archive, CalendarClock, ChevronLeft, ChevronRight, Pencil, Plus, Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { useCarga } from '@/components/dashboard/barra-carga'
 import type { MetricasPipeline } from '@/lib/pipeline'
-import { archiveOpportunity, deleteOpportunity, updateOpportunity } from '@/app/app/pipeline/actions'
+import {
+  archiveOpportunity, deleteOpportunity, restaurarOportunidad, updateOpportunity,
+} from '@/app/app/pipeline/actions'
+import { borrarConDeshacer } from '@/components/dashboard/deshacer'
 import { OportunidadModal } from './oportunidad-modal'
 import { TablaOportunidades } from './tabla-oportunidades'
 import {
@@ -39,15 +44,15 @@ function Metrica({ label, valor }: { label: string; valor: string }) {
 // móvil: mismo contenido, y el control de mover estado (flechas o selector)
 // lo aporta cada variante vía `moverControl`.
 function Tarjeta({
-  o, hoy, pending, confirming, setConfirming, run, onEditar, moverControl, dragProps, className,
+  o, hoy, pending, run, onEditar, onBorrar, moverControl, dragProps, className,
 }: {
   o: OpportunityRow
   hoy: string
   pending: boolean
-  confirming: string | null
-  setConfirming: (v: string | null) => void
   run: Run
   onEditar: () => void
+  /** Borra con deshacer (lo monta el padre, que tiene la transición). */
+  onBorrar: () => void
   /** Control de movimiento (izquierda del pie): ←/→ en escritorio, selector en móvil. */
   moverControl: React.ReactNode
   dragProps?: React.HTMLAttributes<HTMLElement> & { draggable?: boolean }
@@ -124,30 +129,15 @@ function Tarjeta({
           <button type="button" className={btnIcon} aria-label="Editar" onClick={onEditar}>
             <Pencil className="size-3.5" />
           </button>
-          {confirming === o.uuid ? (
-            <>
-              <button
-                type="button"
-                className="rounded-md bg-danger px-2 py-1 text-xs font-semibold text-white max-sm:px-3 max-sm:py-2"
-                onClick={() => {
-                  setConfirming(null)
-                  run(deleteOpportunity(o.uuid), 'Oportunidad eliminada')
-                }}>
-                Sí
-              </button>
-              <button type="button" className={btnIcon} aria-label="Cancelar" onClick={() => setConfirming(null)}>
-                <X className="size-3.5" />
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              className={cn(btnIcon, 'hover:bg-danger-bg hover:text-danger')}
-              aria-label="Eliminar"
-              onClick={() => setConfirming(o.uuid)}>
-              <Trash2 className="size-3.5" />
-            </button>
-          )}
+          {/* Sin "¿seguro?": borra y el aviso ofrece deshacer (con su historial). */}
+          <button
+            type="button"
+            className={cn(btnIcon, 'hover:bg-danger-bg hover:text-danger')}
+            aria-label="Eliminar"
+            disabled={pending}
+            onClick={onBorrar}>
+            <Trash2 className="size-3.5" />
+          </button>
         </span>
       </div>
     </article>
@@ -155,18 +145,46 @@ function Tarjeta({
 }
 
 export function PipelineBoard({
-  rows, archivadas, metricas, hoy,
+  rows, archivadas, metricas, hoy, vista, abrirUuid, nueva,
 }: {
   rows: OpportunityRow[]
   archivadas: OpportunityRow[]
   metricas: MetricasPipeline
   hoy: string // 'YYYY-MM-DD' (Madrid)
+  /** Vista activa, que vive en la URL (`?vista=`). */
+  vista: 'tablero' | 'tabla' | 'historico'
+  /** Ficha a abrir al entrar (`?abrir=`): lo usa la búsqueda de la paleta. */
+  abrirUuid?: string
+  /** Abrir el alta al entrar (`?nueva=1`). */
+  nueva?: boolean
 }) {
+  const router = useRouter()
+  const iniciar = useCarga()
   const [pending, startTransition] = useTransition()
-  const [vista, setVista] = useState<'tablero' | 'tabla' | 'historico'>('tablero')
+  // La vista NAVEGA (no es estado de cliente): así el enlace es compartible y
+  // el botón "atrás" del navegador devuelve a la vista anterior.
+  const setVista = (v: 'tablero' | 'tabla' | 'historico') => {
+    if (v === vista) return
+    iniciar()
+    router.push(v === 'tablero' ? '/app/pipeline' : `/app/pipeline?vista=${v}`)
+  }
+
   // null = cerrado · 'nueva' = alta · fila = edición de esa tarjeta
-  const [modal, setModal] = useState<OpportunityRow | 'nueva' | null>(null)
-  const [confirming, setConfirming] = useState<string | null>(null)
+  const [modal, setModal] = useState<OpportunityRow | 'nueva' | null>(
+    () => (nueva ? 'nueva' : (abrirUuid && [...rows, ...archivadas].find((o) => o.uuid === abrirUuid)) || null),
+  )
+  // Si la URL cambia a otra ficha (otra búsqueda en la paleta), se reabre.
+  // Patrón valor-previo en render: no vale un setState dentro de un efecto.
+  const objetivo = `${abrirUuid ?? ''}|${nueva ? 'n' : ''}`
+  const [prevObjetivo, setPrevObjetivo] = useState(objetivo)
+  if (prevObjetivo !== objetivo) {
+    setPrevObjetivo(objetivo)
+    if (nueva) setModal('nueva')
+    else if (abrirUuid) {
+      const encontrada = [...rows, ...archivadas].find((o) => o.uuid === abrirUuid)
+      if (encontrada) setModal(encontrada)
+    }
+  }
   // Drag&drop (solo escritorio): uuid arrastrado y columna bajo el puntero.
   const [drag, setDrag] = useState<string | null>(null)
   const [over, setOver] = useState<EstadoOportunidad | null>(null)
@@ -176,6 +194,16 @@ export function PipelineBoard({
       const res = await promise
       if (!res.ok) return void toast.error(res.message ?? 'Error')
       if (success) toast.success(success)
+    })
+
+  /** Borra con deshacer: sin confirmación previa, el aviso da la marcha atrás. */
+  const borrar = (uuid: string) =>
+    startTransition(async () => {
+      await borrarConDeshacer({
+        borrar: () => deleteOpportunity(uuid),
+        restaurar: restaurarOportunidad,
+        mensaje: 'Oportunidad eliminada',
+      })
     })
 
   const moverA = (o: OpportunityRow, estado: EstadoOportunidad) => {
@@ -223,7 +251,7 @@ export function PipelineBoard({
           <button
             type="button"
             className={cn(
-              'hidden flex-1 rounded-md px-3 py-1 text-sm font-semibold transition-colors md:block sm:flex-none',
+              'hidden flex-1 rounded-md px-3 py-1 text-sm font-semibold transition-colors md:block sm:flex-none max-sm:py-2.5',
               vista === 'tablero' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
             )}
             onClick={() => setVista('tablero')}>
@@ -232,7 +260,7 @@ export function PipelineBoard({
           <button
             type="button"
             className={cn(
-              'flex-1 rounded-md px-3 py-1 text-sm font-semibold transition-colors sm:flex-none',
+              'flex-1 rounded-md px-3 py-1 text-sm font-semibold transition-colors sm:flex-none max-sm:py-2.5',
               vista === 'tabla' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
               vista === 'tablero' && 'max-md:bg-muted max-md:text-foreground',
             )}
@@ -242,7 +270,7 @@ export function PipelineBoard({
           <button
             type="button"
             className={cn(
-              'flex-1 rounded-md px-3 py-1 text-sm font-semibold transition-colors sm:flex-none',
+              'flex-1 rounded-md px-3 py-1 text-sm font-semibold transition-colors sm:flex-none max-sm:py-2.5',
               vista === 'historico' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
             )}
             onClick={() => setVista('historico')}>
@@ -298,7 +326,7 @@ export function PipelineBoard({
 
                   <div className="flex flex-col gap-2">
                     {tarjetas.length === 0 && (
-                      <p className="px-1.5 py-3 text-center text-xs text-muted-foreground/60">Vacío</p>
+                      <p className="px-1.5 py-3 text-center text-xs text-muted-foreground">Vacío</p>
                     )}
                     {tarjetas.map((o) => (
                       <Tarjeta
@@ -306,8 +334,7 @@ export function PipelineBoard({
                         o={o}
                         hoy={hoy}
                         pending={pending}
-                        confirming={confirming}
-                        setConfirming={setConfirming}
+                        onBorrar={() => borrar(o.uuid)}
                         run={run}
                         onEditar={() => setModal(o)}
                         className={cn('cursor-grab active:cursor-grabbing', drag === o.uuid && 'opacity-50')}

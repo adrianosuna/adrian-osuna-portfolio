@@ -21,7 +21,9 @@ export default async function LoginPage({
   const { error } = await searchParams
 
   return (
-    <div className="pf-public flex min-h-dvh flex-col items-center justify-center bg-background px-4 text-body">
+    // `main` y no `div`: sin un landmark, un lector de pantalla no puede
+    // saltar al contenido — lo caza `landmark-one-main` de axe.
+    <main className="pf-public flex min-h-dvh flex-col items-center justify-center bg-background px-4 text-body">
       <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-8 text-center shadow-[0_10px_40px_var(--pf-shadow)]">
         <span className="text-[26px] font-extrabold tracking-[-0.5px] text-foreground">
           AO<span className="text-accent-teal">.</span>
@@ -67,6 +69,6 @@ export default async function LoginPage({
         <ArrowLeft className="size-4" />
         Volver al portfolio
       </Link>
-    </div>
+    </main>
   )
 }

@@ -70,6 +70,27 @@ model UserSession {
   @@map("user_session")
 }
 
+// Histórico de accesos: una fila por login, que NO se borra al cerrar sesión.
+// `user_session` solo conoce lo vivo (se purga a los 7 días y el logout retira
+// la suya), así que sin esta tabla no hay forma de responder "¿desde qué
+// dispositivo entré la semana pasada?". Append-only: nada la actualiza.
+// Sin FK físico a `user`, por el mismo choque de colaciones que `user_session`;
+// se guarda el correo además del uuid para que el registro siga siendo legible
+// aunque el usuario se borre.
+model LoginEvent {
+  id        Int      @id @default(autoincrement())
+  uuid      String   @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
+  userUuid  String   @map("user_uuid") @db.VarChar(36)
+  userEmail String   @map("user_email") @db.VarChar(255)
+  userAgent String?  @map("user_agent") @db.VarChar(255)
+  createTs  DateTime @default(now()) @map("create_ts") @db.Timestamp(0)
+  updateTs  DateTime @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
+
+  @@index([createTs], map: "idx_login_event_ts")
+  @@index([userUuid], map: "idx_login_event_user")
+  @@map("login_event")
+}
+
 // ─────────── FINANZAS: sistema de ahorro anual ───────────
 // Un registro por año con su objetivo de ahorro; control mensual (ingreso /
 // ahorro general / ahorro para viajes), ingresos extraordinarios y detalle de
@@ -155,7 +176,10 @@ model MaintenanceTask {
   /// hoy no puede pasar: no se deja borrar uno en uso.
   scopeUuid      String?           @map("scope_uuid") @db.VarChar(36)
   notes          String?           @db.Text
-  intervalMonths Int               @map("interval_months") @db.SmallInt
+  /// Cada cuántos meses vuelve a vencer. **null = no se repite**: es un
+  /// recordatorio puntual ("renovar el dominio el 12/03/2027"), que al
+  /// marcarse como hecho se queda hecho en vez de encadenar el siguiente.
+  intervalMonths Int?              @map("interval_months") @db.SmallInt
   nextDue        DateTime          @map("next_due") @db.Date
   lastDone       DateTime?         @map("last_done") @db.Date
   lastNotified   DateTime?         @map("last_notified") @db.Timestamp(0)
@@ -203,6 +227,9 @@ model Opportunity {
   events             OpportunityEvent[]
 
   @@index([nextActionDate], map: "idx_opportunity_next_action")
+  /// Orden por última actividad: lo usan la vista Tabla, el Histórico y la
+  /// búsqueda global. Sin él, MySQL hacía scan + filesort (medido con EXPLAIN).
+  @@index([updateTs], map: "idx_opportunity_updated")
   @@map("opportunity")
 }
 
@@ -331,6 +358,9 @@ model Expense {
   concept       String            @db.VarChar(255)
   amount        Decimal           @default(0.00) @db.Decimal(12, 2)
   expenseDate   DateTime          @map("expense_date") @db.Date
+  /// Nota libre del movimiento: el contexto que no cabe en el concepto
+  /// ("regalo de X", "compartido con Y"). Texto plano, nunca HTML.
+  note          String?           @db.Text
   createTs      DateTime          @default(now()) @map("create_ts") @db.Timestamp(0)
   updateTs      DateTime          @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
   category      ExpenseCategory?  @relation(fields: [categoryUuid], references: [uuid], onDelete: SetNull, onUpdate: NoAction, map: "fk_expense_category")
@@ -350,9 +380,104 @@ model Note {
   uuid     String   @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
   title    String?  @db.VarChar(255)
   content  String   @db.Text
+  /// Fijada arriba (pin): las importantes no se hunden con el tiempo.
+  pinned   Boolean  @default(false)
   createTs DateTime @default(now()) @map("create_ts") @db.Timestamp(0)
   updateTs DateTime @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
 
   @@index([updateTs], map: "idx_note_updated")
   @@map("note")
+}
+
+// ─────────── HISTÓRICO DEL MONITOR DE INFRAESTRUCTURA ───────────
+// El monitor (`lib/infra.ts`) mide en la propia petición: dice cómo está el
+// servidor AHORA, pero no si el disco lleva tres meses llenándose. Esta tabla
+// guarda una muestra al día (la apunta el cron de las 8:00) con las cifras que
+// solo dicen algo en serie: ocupación del disco, tamaño de la BD, días que le
+// quedan al certificado y latencias.
+//
+// UNA fila por día (`sampled_on` único, se reescribe si el cron repite): el
+// valor está en la tendencia de meses, no en muestrear cada minuto — eso sería
+// una base de datos de series temporales, que no toca aquí.
+model InfraSample {
+  id             Int      @id @default(autoincrement())
+  uuid           String   @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
+  /// Día de la muestra (Madrid). Único: una por día.
+  sampledOn      DateTime @map("sampled_on") @db.Date
+  /// Ocupación del disco en % (null si no se pudo leer).
+  discoPct       Int?     @map("disco_pct") @db.SmallInt
+  /// Tamaño total de la BD en bytes (datos + índices).
+  dbBytes        BigInt?  @map("db_bytes")
+  /// Días que le quedan al certificado TLS.
+  sslDias        Int?     @map("ssl_dias") @db.SmallInt
+  /// Antigüedad del último backup, en horas.
+  backupHoras    Int?     @map("backup_horas")
+  /// Latencia de la consulta de prueba a la BD, en ms.
+  dbLatenciaMs   Int?     @map("db_latencia_ms")
+  /// TTFB del dominio público, en ms.
+  webTtfbMs      Int?     @map("web_ttfb_ms")
+  /// Memoria y CPU en el instante de la muestra, en %.
+  memoriaPct     Int?     @map("memoria_pct") @db.SmallInt
+  cpuPct         Int?     @map("cpu_pct") @db.SmallInt
+  createTs       DateTime @default(now()) @map("create_ts") @db.Timestamp(0)
+  updateTs       DateTime @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
+
+  @@unique([sampledOn], map: "uq_infra_sample_day")
+  @@map("infra_sample")
+}
+
+// ─────────── SUSCRIPCIONES A NOTIFICACIONES PUSH ───────────
+// Una fila por NAVEGADOR que ha dado permiso (no por usuario): el mismo admin
+// puede tener el iPhone y el portátil, y cada uno tiene su endpoint y sus
+// claves. El endpoint es la dirección que da el navegador para entregarle el
+// mensaje, y es único.
+//
+// Se borra sola: cuando el servicio de push responde 404/410 (permiso
+// revocado, app desinstalada) la fila se retira en el envío. Sin FK física a
+// `user`, por el mismo choque de colaciones que `user_session`.
+model PushSubscription {
+  id        Int      @id @default(autoincrement())
+  uuid      String   @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
+  userUuid  String   @map("user_uuid") @db.VarChar(36)
+  /// URL del servicio de push para ESTE navegador (larga: 512).
+  endpoint  String   @unique(map: "uq_push_endpoint", length: 255) @db.VarChar(512)
+  /// Claves del cifrado de la carga (las genera el navegador).
+  p256dh    String   @db.VarChar(255)
+  auth      String   @db.VarChar(255)
+  /// Para reconocer el dispositivo en la lista ("Chrome · Windows").
+  userAgent String?  @map("user_agent") @db.VarChar(255)
+  createTs  DateTime @default(now()) @map("create_ts") @db.Timestamp(0)
+  updateTs  DateTime @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
+
+  @@index([userUuid], map: "idx_push_user")
+  @@map("push_subscription")
+}
+
+// ─────────── TOKENS DE LA API (Atajos de iOS y automatizaciones) ───────────
+// Permiten apuntar un gasto o una nota desde fuera del navegador —un Atajo del
+// iPhone, un widget, n8n— sin sesión de Google.
+//
+// Se guarda el SHA-256 del token, nunca el token: si alguien lee la tabla no
+// puede usarlo. El valor completo se muestra UNA vez, al crearlo. `prefix`
+// guarda sus primeros caracteres para poder reconocerlo en la lista ("¿cuál es
+// el del iPhone?") sin exponerlo.
+//
+// Sin FK física a `user`, por el mismo choque de colaciones que `user_session`.
+model ApiToken {
+  id        Int       @id @default(autoincrement())
+  uuid      String    @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
+  userUuid  String    @map("user_uuid") @db.VarChar(36)
+  /// Para qué es ("Atajos del iPhone", "n8n").
+  name      String    @db.VarChar(80)
+  /// SHA-256 del token en hexadecimal (64 caracteres).
+  tokenHash String    @unique(map: "uq_api_token_hash") @map("token_hash") @db.Char(64)
+  /// Primeros caracteres del token, para reconocerlo en la lista.
+  prefix    String    @db.VarChar(12)
+  /// Última vez que se usó (null = nunca): delata los tokens olvidados.
+  lastUsed  DateTime? @map("last_used") @db.Timestamp(0)
+  createTs  DateTime  @default(now()) @map("create_ts") @db.Timestamp(0)
+  updateTs  DateTime  @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
+
+  @@index([userUuid], map: "idx_api_token_user")
+  @@map("api_token")
 }

@@ -188,6 +188,16 @@ que NextAuth necesita, y el 301 de http→https lo pone Caddy sin configurarlo.
   (y al rechazar, ninguna petición a Google). `/privacidad` accesible desde el
   footer y su botón de "cambiar elección" funciona.
 - Probar la landing desde el móvil con datos (no wifi local).
+- **Salud del contenedor**: `curl -s https://adrianosuna.com/api/health` →
+  `{"ok":true}` y `docker compose ps` marca `web` como `healthy` (es la ruta
+  que mira el healthcheck). Y `/api/ready` → `{"ok":true}`: si diera 503, el
+  contenedor está arriba pero **no llega a la base de datos**.
+- **Logs legibles**: `docker compose logs web | tail -5` sale como JSON por
+  línea. Para quedarse solo con lo que importa:
+  `docker compose logs web | jq 'select(.nivel=="error")'`.
+- **API v1** (si se van a usar Atajos de iOS): crear el primer token en
+  Panel → Usuarios → API y probarlo. Sin token, `curl` a
+  `/api/v1/resumen` debe dar **401** — nunca un 200. Receta en `API.md`.
 - Opcional: alta en Google Search Console y envío del sitemap; filtro de
   tráfico interno en GA4 con tu IP para no contar tus propias visitas.
 

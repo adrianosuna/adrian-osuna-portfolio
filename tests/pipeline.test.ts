@@ -2,6 +2,10 @@
 // días hasta el cierre) y el aviso por correo de seguimientos vencidos que
 // dispara el cron (filtro, contenido y marcado del reaviso semanal).
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+// El tope de peticiones vive en memoria y es COMPARTIDO por todo el proceso:
+// sin reiniciarlo, un fichero de tests con muchas actions agotaría la ventana
+// y los siguientes fallarían por algo que no están probando.
+import { reiniciarLimites } from '@/lib/rate-limit'
 
 const { prismaMock, correoMock } = vi.hoisted(() => ({
   prismaMock: { opportunity: { findMany: vi.fn(), updateMany: vi.fn() } },
@@ -23,6 +27,7 @@ vi.mock('@/lib/site', () => ({ SITE_URL: 'https://adrianosuna.com' }))
 const { metricasPipeline, avisarSeguimientos } = await import('@/lib/pipeline')
 
 beforeEach(() => {
+  reiniciarLimites()
   vi.clearAllMocks()
   vi.useRealTimers()
 })

@@ -50,7 +50,8 @@ function Cabecera({ titulo, href, enlace }: { titulo: string; href: string; enla
     // qué se va el dinero en Agosto") el enlace se comprimía a 72px y se
     // partía en dos líneas, con la flecha suelta debajo.
     <div className="flex items-center justify-between gap-2 border-b border-border px-5 py-3">
-      <h3 className="min-w-0 font-semibold">{titulo}</h3>
+      {/* `h2`: primer nivel bajo el `h1` de la página (orden de encabezados). */}
+      <h2 className="min-w-0 font-semibold">{titulo}</h2>
       <Link
         href={href}
         className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap py-1 text-[12.5px] font-semibold text-primary hover:underline">

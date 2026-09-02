@@ -300,7 +300,7 @@ export function Timeline({ uuid }: { uuid: string }) {
                 {!deEstado && (
                   <button
                     type="button"
-                    className="rounded-md p-1 text-muted-foreground/50 transition-colors hover:bg-danger-bg hover:text-danger"
+                    className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-danger-bg hover:text-danger"
                     aria-label="Borrar apunte"
                     disabled={pending}
                     onClick={() => borrar(e.uuid)}>

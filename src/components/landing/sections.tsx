@@ -175,7 +175,7 @@ function ScrollHint() {
     <div
       aria-hidden="true"
       className={cn('flex justify-center transition-opacity duration-500', scrolled && 'opacity-0')}>
-      <ChevronDown className="size-6 animate-bounce text-muted-foreground/60 motion-reduce:animate-none" />
+      <ChevronDown className="size-6 animate-bounce text-muted-foreground motion-reduce:animate-none" />
     </div>
   )
 }
@@ -280,7 +280,7 @@ export function Projects({ t }: { t: Content }) {
                     <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
                       {p.url && (
                         <a
-                          className="flex items-center gap-1.5 font-mono text-[14px] font-semibold text-primary hover:text-primary-dark"
+                          className="flex items-center gap-1.5 py-1 font-mono text-[14px] font-semibold text-primary hover:text-primary-dark"
                           href={p.url}
                           target="_blank"
                           rel="noreferrer"
@@ -290,7 +290,7 @@ export function Projects({ t }: { t: Content }) {
                       )}
                       {p.repo && (
                         <a
-                          className="flex items-center gap-1.5 font-mono text-[14px] font-semibold text-primary hover:text-primary-dark"
+                          className="flex items-center gap-1.5 py-1 font-mono text-[14px] font-semibold text-primary hover:text-primary-dark"
                           href={p.repo}
                           target="_blank"
                           rel="noreferrer"
@@ -483,19 +483,19 @@ export function Footer({ t }: { t: Content }) {
         </div>
         <div className="flex flex-col items-start gap-2.5 text-sm">
           <h3 className="mb-1 text-sm font-semibold tracking-[0.3px] text-foreground">{t.footer.navTitle}</h3>
-          <a className="text-muted-foreground transition-colors hover:text-primary" href="#proyectos">{t.nav.projects}</a>
-          <a className="text-muted-foreground transition-colors hover:text-primary" href="#sobre-mi">{t.nav.about}</a>
-          <a className="text-muted-foreground transition-colors hover:text-primary" href="#experiencia">{t.nav.experience}</a>
-          <a className="text-muted-foreground transition-colors hover:text-primary" href="#contacto">{t.nav.contact}</a>
+          <a className="py-1 text-muted-foreground transition-colors hover:text-primary" href="#proyectos">{t.nav.projects}</a>
+          <a className="py-1 text-muted-foreground transition-colors hover:text-primary" href="#sobre-mi">{t.nav.about}</a>
+          <a className="py-1 text-muted-foreground transition-colors hover:text-primary" href="#experiencia">{t.nav.experience}</a>
+          <a className="py-1 text-muted-foreground transition-colors hover:text-primary" href="#contacto">{t.nav.contact}</a>
         </div>
         <div className="flex flex-col items-start gap-2.5 text-sm">
           <h3 className="mb-1 text-sm font-semibold tracking-[0.3px] text-foreground">{t.footer.contactTitle}</h3>
-          <a className="flex items-center gap-1.5 text-muted-foreground transition-colors hover:text-primary" href={`mailto:${PROFILE.email}`} data-ga="clic_email">
+          <a className="flex items-center gap-1.5 py-1 text-muted-foreground transition-colors hover:text-primary" href={`mailto:${PROFILE.email}`} data-ga="clic_email">
             <Mail className="size-3.5" />
             {PROFILE.email}
           </a>
           <a
-            className="flex items-center gap-1.5 text-muted-foreground transition-colors hover:text-primary"
+            className="flex items-center gap-1.5 py-1 text-muted-foreground transition-colors hover:text-primary"
             href={PROFILE.linkedin}
             target="_blank"
             rel="noreferrer"
@@ -504,7 +504,7 @@ export function Footer({ t }: { t: Content }) {
             LinkedIn
           </a>
           <a
-            className="flex items-center gap-1.5 text-muted-foreground transition-colors hover:text-primary"
+            className="flex items-center gap-1.5 py-1 text-muted-foreground transition-colors hover:text-primary"
             href={PROFILE.github}
             target="_blank"
             rel="noreferrer"
@@ -522,7 +522,7 @@ export function Footer({ t }: { t: Content }) {
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border py-5 text-[13px] text-muted-foreground">
           <span>© {new Date().getFullYear()} {PROFILE.name}</span>
           <span className="flex flex-wrap items-center gap-x-5 gap-y-1">
-            <Link href="/privacidad" className="transition-colors hover:text-primary">
+            <Link href="/privacidad" className="py-1 transition-colors hover:text-primary">
               Política de privacidad
             </Link>
             <span>{t.footer.rights}</span>

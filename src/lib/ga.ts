@@ -11,11 +11,24 @@
 // La service account debe tener acceso de Lector en la propiedad GA4.
 import 'server-only'
 import crypto from 'node:crypto'
+import { log } from '@/lib/log'
 
 /** Fila genérica de ranking (páginas, fuentes, países...). */
 export interface Fila {
   etiqueta: string
   valor: number
+}
+
+/**
+ * Fila de ranking que además trae su valor del periodo anterior.
+ *
+ * La usa el ranking de páginas: el total de visitas ya se compara arriba, pero
+ * lo que dice qué está funcionando es qué PÁGINA ha subido — un total plano
+ * puede esconder que la home baja y un caso de estudio sube.
+ */
+export interface FilaComparada extends Fila {
+  /** Mismo dato en el periodo anterior del mismo tamaño (0 si no aparecía). */
+  previo: number
 }
 
 /** Métrica con su valor de los 30 días previos, para pintar tendencia. */
@@ -44,7 +57,7 @@ export interface VisitasSnapshot {
   conversiones: Fila[] // eventos clic_* instrumentados en la landing
   fuentes: Fila[] // sessionSource: el sitio exacto de procedencia
   canales: Fila[]
-  paginas: Fila[]
+  paginas: FilaComparada[]
   paises: Fila[]
   ciudades: Fila[]
   dispositivos: Fila[]
@@ -127,7 +140,11 @@ async function llamada(propertyId: string, token: string, metodo: string, cuerpo
   )
   if (!res.ok) {
     const detalle = await res.text().catch(() => '')
-    console.error(`[ga] ${metodo} HTTP ${res.status}:`, detalle.slice(0, 500))
+    log.error('ga', 'la Data API respondió con error', {
+      metodo,
+      status: res.status,
+      detalle: detalle.slice(0, 500),
+    })
     throw new Error(`la Data API respondió HTTP ${res.status}`)
   }
   return res.json()
@@ -196,6 +213,33 @@ const filas = (rows: FilaInforme[], mapa?: Record<string, string>): Fila[] =>
     return { etiqueta: mapa?.[bruto] ?? bruto, valor: num(f, 0) }
   })
 
+/**
+ * Agrupa las filas de un informe con DOS rangos de fechas en una fila por
+ * etiqueta, con su valor actual y el del periodo anterior.
+ *
+ * Con dos `dateRanges`, la API añade una dimensión implícita al final
+ * (`date_range_0` = actual, `date_range_1` = previo), así que cada etiqueta
+ * llega repartida en dos filas. Se ordena por lo ACTUAL y se recorta aquí:
+ * ordenar en la API mezclaría los dos periodos.
+ */
+const filasComparadas = (
+  rows: FilaInforme[],
+  tope: number,
+  /** Índice de la dimensión implícita del rango (la última). */
+  iRango = 1,
+): FilaComparada[] => {
+  const mapa = new Map<string, FilaComparada>()
+  for (const f of rows) {
+    const etiqueta = dim(f, 0)
+    const actual = dim(f, iRango) !== 'date_range_1'
+    const fila = mapa.get(etiqueta) ?? { etiqueta, valor: 0, previo: 0 }
+    if (actual) fila.valor = num(f, 0)
+    else fila.previo = num(f, 0)
+    mapa.set(etiqueta, fila)
+  }
+  return [...mapa.values()].sort((a, b) => b.valor - a.valor).slice(0, tope)
+}
+
 /** Solo los usuarios activos en tiempo real (para el refresco automático). */
 export async function visitantesAhora(): Promise<number | null> {
   const cfg = config()
@@ -207,7 +251,7 @@ export async function visitantesAhora(): Promise<number | null> {
     })) as { rows?: FilaInforme[] }
     return datos.rows?.length ? num(datos.rows[0], 0) : 0
   } catch (e) {
-    console.error('[ga] tiempo real fallido:', e)
+    log.error('ga', 'tiempo real fallido', { error: e })
     return null
   }
 }
@@ -238,7 +282,7 @@ export async function pulsoVisitas(): Promise<{ usuarios: number; previos: numbe
     cachePulso = { ts: Date.now(), datos: pulso }
     return pulso
   } catch (e) {
-    console.error('[ga] pulso de visitas fallido:', e)
+    log.error('ga', 'pulso de visitas fallido', { error: e })
     cachePulso = { ts: Date.now(), datos: null } // no reintentar en ráfaga
     return null
   }
@@ -311,7 +355,11 @@ export async function snapshotVisitas(dias: RangoDias = 30): Promise<VisitasSnap
       ]),
       lote(cfg.propertyId, token, [
         {
-          dateRanges: rango,
+          // DOS rangos: cada página vuelve con su cifra actual y la del periodo
+          // anterior (la API añade la dimensión implícita dateRange, así que
+          // cada ruta sale dos veces). El límite se sube en consecuencia y el
+          // orden y el recorte a 8 se hacen ya en casa, sobre lo actual.
+          dateRanges: rangos,
           dimensions: [{ name: 'pagePath' }],
           metrics: [{ name: 'screenPageViews' }],
           // Fuera las rutas internas: la navegación SPA landing → dashboard
@@ -328,7 +376,7 @@ export async function snapshotVisitas(dias: RangoDias = 30): Promise<VisitasSnap
             },
           },
           orderBys: porValor('screenPageViews'),
-          limit: 8,
+          limit: 40,
         },
         {
           dateRanges: rango,
@@ -431,7 +479,7 @@ export async function snapshotVisitas(dias: RangoDias = 30): Promise<VisitasSnap
       conversiones: filas(filasEventos, EVENTOS_ES),
       fuentes: filas(filasFuentes, { '(direct)': 'Directo', '(not set)': 'Desconocida' }),
       canales: filas(filasCanales, CANALES_ES),
-      paginas: filas(filasPaginas),
+      paginas: filasComparadas(filasPaginas, 8),
       paises: filas(filasPaises, PAISES_ES),
       ciudades: filas(filasCiudades, CIUDADES_ES),
       dispositivos: filas(filasDispositivos, DISPOSITIVOS_ES),
@@ -445,7 +493,7 @@ export async function snapshotVisitas(dias: RangoDias = 30): Promise<VisitasSnap
     cacheVisitas.set(dias, { ts: Date.now(), snap })
     return snap
   } catch (e) {
-    console.error('[ga] snapshot fallido:', e)
+    log.error('ga', 'snapshot fallido', { error: e })
     return {
       configurado: true,
       generadoEn,

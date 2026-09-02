@@ -10,11 +10,11 @@ import { filaTooltip, marcoTooltip, mostrarTooltip, ocultarTooltip } from '@/com
 import { serieDiaria } from '@/lib/serie-diaria'
 import Link from 'next/link'
 import {
-  BarChart3, ExternalLink, Eye, MousePointerClick, Radio, Target, TriangleAlert,
-  UserPlus, Users, Zap,
+  BarChart3, ExternalLink, Eye, MousePointerClick, Radio, Target, TrendingDown,
+  TrendingUp, TriangleAlert, UserPlus, Users, Zap,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { Fila, Metrica, RangoDias, VisitasSnapshot } from '@/lib/ga'
+import type { Fila, FilaComparada, Metrica, RangoDias, VisitasSnapshot } from '@/lib/ga'
 import { leerUsuariosAhora } from '@/app/app/panel/actions'
 import { Refrescar } from './ui'
 
@@ -35,7 +35,7 @@ function Tendencia({ m, dias }: { m: Metrica; dias: number }) {
   if (m.actual === 0 && m.previo === 0) return null
   if (m.previo === 0) return <span className="text-[11.5px] font-semibold text-success">Nuevo · sin periodo previo</span>
   const pct = Math.round(((m.actual - m.previo) / m.previo) * 100)
-  if (pct === 0) return <span className="text-[11.5px] text-muted-foreground/70">= vs. {dias} días previos</span>
+  if (pct === 0) return <span className="text-[11.5px] text-muted-foreground">= vs. {dias} días previos</span>
   return (
     <span className={cn('text-[11.5px] font-semibold', pct > 0 ? 'text-success' : 'text-danger')}>
       {pct > 0 ? '↑' : '↓'} {Math.abs(pct)}&nbsp;% vs. {dias} días previos
@@ -155,12 +155,13 @@ function VisitasPorDia({ serie }: { serie: VisitasSnapshot['serie'] }) {
   )
 }
 
-// Lista con barra proporcional (rankings).
-function Ranking({ filas, vacio }: { filas: Fila[]; vacio?: string }) {
+// Lista con barra proporcional (rankings). Si las filas traen `previo`
+// (páginas), cada una muestra además su variación frente al periodo anterior.
+function Ranking({ filas, vacio }: { filas: Array<Fila | FilaComparada>; vacio?: string }) {
   const max = Math.max(...filas.map((f) => f.valor), 1)
   if (!filas.length) {
     return (
-      <p className="py-4 text-center text-[13px] text-muted-foreground/60">
+      <p className="py-4 text-center text-[13px] text-muted-foreground">
         {vacio ?? 'Sin datos en el rango elegido'}
       </p>
     )
@@ -171,7 +172,10 @@ function Ranking({ filas, vacio }: { filas: Fila[]; vacio?: string }) {
         <div key={f.etiqueta}>
           <div className="mb-1 flex items-baseline justify-between gap-3">
             <span className="truncate font-mono text-[12.5px]">{f.etiqueta}</span>
-            <span className="shrink-0 text-[12.5px] font-semibold">{nf(f.valor)}</span>
+            <span className="flex shrink-0 items-baseline gap-1.5 text-[12.5px]">
+              {'previo' in f && <Variacion actual={f.valor} previo={f.previo} />}
+              <span className="font-semibold">{nf(f.valor)}</span>
+            </span>
           </div>
           <div className="h-1.5 overflow-hidden rounded-full bg-muted">
             <div className="h-full rounded-full bg-primary/70" style={{ width: `${(f.valor / max) * 100}%` }} />
@@ -182,10 +186,35 @@ function Ranking({ filas, vacio }: { filas: Fila[]; vacio?: string }) {
   )
 }
 
+/**
+ * Variación de una fila frente al periodo anterior, en compacto.
+ *
+ * Sin dato previo se marca "nueva" en vez de un +100 % engañoso: una página
+ * que antes no existía no ha "subido", ha aparecido.
+ */
+function Variacion({ actual, previo }: { actual: number; previo: number }) {
+  if (previo === 0) {
+    return actual === 0 ? null : (
+      <span className="text-[11px] font-semibold text-primary">nueva</span>
+    )
+  }
+  const pct = Math.round(((actual - previo) / previo) * 100)
+  if (pct === 0) return <span className="text-[11px] text-muted-foreground">=</span>
+  const sube = pct > 0
+  return (
+    <span
+      className={cn('inline-flex items-center text-[11px] font-semibold', sube ? 'text-success' : 'text-danger')}
+      title={`${nf(previo)} en el periodo anterior`}>
+      {sube ? <TrendingUp className="mr-0.5 size-3" /> : <TrendingDown className="mr-0.5 size-3" />}
+      {sube ? '+' : ''}{pct}&nbsp;%
+    </span>
+  )
+}
+
 // Subtítulo para tarjetas con dos rankings (Geografía, Tecnología).
 function Subtitulo({ children, primero }: { children: React.ReactNode; primero?: boolean }) {
   return (
-    <h3 className={cn('mb-2 text-[11.5px] font-semibold uppercase tracking-[0.6px] text-muted-foreground/70', !primero && 'mt-5')}>
+    <h3 className={cn('mb-2 text-[11.5px] font-semibold uppercase tracking-[0.6px] text-muted-foreground', !primero && 'mt-5')}>
       {children}
     </h3>
   )
@@ -203,7 +232,16 @@ const colorCelda = (v: number, max: number) =>
 
 const DIAS_LARGOS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 
-/** Texto accesible de la celda (aria-label): el tooltip visual lo compone aparte. */
+/**
+ * Texto accesible de la celda (`aria-label`): el tooltip visual lo compone
+ * aparte.
+ *
+ * ⚠ La celda lleva `role="img"`. Sin rol, `aria-label` en un `div` está
+ * PROHIBIDO por la especificación —un div genérico no admite nombre
+ * accesible— y el lector de pantalla se lo salta: las 168 etiquetas no las
+ * leía nadie. Con `role="img"` la celda es un gráfico con descripción, que es
+ * lo que es.
+ */
 const tituloCelda = (d: number, h: number, v: number) =>
   `${DIAS_LARGOS[d]} a las ${String(h).padStart(2, '0')}:00 — ${v} ${v === 1 ? 'usuario' : 'usuarios'}`
 
@@ -254,6 +292,7 @@ function MapaHorario({ horario }: { horario: number[][] }) {
               <div
                 key={h}
                 data-celda
+                role="img"
                 data-dia={d}
                 data-hora={h}
                 data-valor={v}
@@ -266,7 +305,7 @@ function MapaHorario({ horario }: { horario: number[][] }) {
         ))}
         <span />
         {Array.from({ length: 24 }, (_, h) => (
-          <span key={h} className="text-center font-mono text-[9.5px] text-muted-foreground/70">
+          <span key={h} className="text-center font-mono text-[9.5px] text-muted-foreground">
             {h % 4 === 0 ? h : ''}
           </span>
         ))}
@@ -282,13 +321,14 @@ function MapaHorario({ horario }: { horario: number[][] }) {
         ))}
         {Array.from({ length: 24 }, (_, h) => (
           <div key={h} className="contents">
-            <span className="pr-1.5 text-right font-mono text-[9.5px] leading-3.5 text-muted-foreground/70">
+            <span className="pr-1.5 text-right font-mono text-[9.5px] leading-3.5 text-muted-foreground">
               {h % 4 === 0 ? `${h}h` : ''}
             </span>
             {horario.map((fila, d) => (
               <div
                 key={d}
                 data-celda
+                role="img"
                 data-dia={d}
                 data-hora={h}
                 data-valor={fila[h]}
@@ -379,7 +419,7 @@ export function VisitasTab({ snapshot }: { snapshot: VisitasSnapshot }) {
           href={`https://analytics.google.com/analytics/web/#/p${snapshot.propertyId}`}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:text-primary">
+          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:text-primary max-sm:px-2.5 max-sm:py-2.5">
           Abrir en Google Analytics <ExternalLink className="size-3" />
         </a>
       </Refrescar>
@@ -389,7 +429,7 @@ export function VisitasTab({ snapshot }: { snapshot: VisitasSnapshot }) {
           icon={<Radio className="size-5" />}
           label="Ahora mismo"
           value={ahora === null ? '—' : nf(ahora)}
-          hint={<span className="text-[11.5px] text-muted-foreground/70">Tiempo real · se actualiza solo</span>}
+          hint={<span className="text-[11.5px] text-muted-foreground">Tiempo real · se actualiza solo</span>}
         />
         <Kpi
           icon={<Users className="size-5" />}
@@ -426,7 +466,7 @@ export function VisitasTab({ snapshot }: { snapshot: VisitasSnapshot }) {
           label="Tasa de conversión"
           value={usuarios > 0 && clics > 0 ? `${Math.round((clics / usuarios) * 100)} %` : '—'}
           hint={
-            <span className="text-[11.5px] text-muted-foreground/70">
+            <span className="text-[11.5px] text-muted-foreground">
               {clics > 0 ? `${nf(clics)} clics / ${nf(usuarios)} usuarios` : 'Sin clics de conversión aún'}
             </span>
           }
@@ -436,7 +476,7 @@ export function VisitasTab({ snapshot }: { snapshot: VisitasSnapshot }) {
           label="Visitantes nuevos"
           value={totalNuevos > 0 ? `${Math.round((nuevos.nuevos / totalNuevos) * 100)} %` : '—'}
           hint={
-            <span className="text-[11.5px] text-muted-foreground/70">
+            <span className="text-[11.5px] text-muted-foreground">
               {totalNuevos > 0
                 ? `${nf(nuevos.nuevos)} nuevos · ${nf(nuevos.recurrentes)} recurrentes`
                 : 'Sin datos en el rango'}
@@ -462,7 +502,9 @@ export function VisitasTab({ snapshot }: { snapshot: VisitasSnapshot }) {
         <Tarjeta titulo="Fuentes de tráfico">
           <Ranking filas={snapshot.fuentes} />
         </Tarjeta>
-        <Tarjeta titulo="Páginas más vistas">
+        {/* Las páginas llevan además su variación frente al periodo anterior:
+            es lo que dice qué está funcionando, más que el total. */}
+        <Tarjeta titulo={`Páginas más vistas · frente a los ${snapshot.dias} días previos`}>
           <Ranking filas={snapshot.paginas} />
         </Tarjeta>
         <Tarjeta titulo="Canales de adquisición">

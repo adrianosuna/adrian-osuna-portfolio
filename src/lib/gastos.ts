@@ -12,6 +12,7 @@ import { SITE_URL } from '@/lib/site'
 import { nombreMes } from '@/lib/fechas'
 import { nivelTope, topesDelMes, UMBRAL_LIMITE, type TopeRow } from '@/lib/topes'
 import { cargosPendientes, MAX_CARGOS, type RecurrenteRow } from '@/lib/recurrentes'
+import { log } from '@/lib/log'
 
 const num = (v: unknown) => (v === null || v === undefined ? 0 : Number(v))
 /** Date de columna DATE → 'YYYY-MM-DD' (las guardamos a medianoche UTC). */
@@ -40,6 +41,8 @@ export interface MovimientoRow {
   amount: number
   expenseDate: string // 'YYYY-MM-DD'
   categoryUuid: string | null
+  /** Nota libre: el contexto que no cabe en el concepto. */
+  note: string | null
 }
 
 /** Reparto por categoría de un tipo (el "desglose" del Excel). */
@@ -182,6 +185,7 @@ export async function getMesMovimientos(
     amount: num(m.amount),
     expenseDate: m.expenseDate.toISOString().slice(0, 10),
     categoryUuid: m.categoryUuid,
+    note: m.note,
   }))
 
   const suma = (tipo: TipoMovimiento) =>
@@ -246,6 +250,131 @@ export async function getAnioMovimientos(
     gastoMedioMes: conMovimiento ? gastos / conMovimiento : 0,
     porCategoriaGasto: desglose(movimientos, 'GASTO', categorias),
     porCategoriaIngreso: desglose(movimientos, 'INGRESO', categorias),
+  }
+}
+
+// ─────────── búsqueda de movimientos ───────────
+
+/** Filtros de la búsqueda de movimientos (todos opcionales, se combinan con Y). */
+export interface FiltrosBusqueda {
+  /** Texto en el concepto O en la nota (la colación de la BD ya ignora
+   *  mayúsculas y acentos). */
+  q?: string
+  tipo?: TipoMovimiento | null
+  /** Rango de fechas 'YYYY-MM-DD' (inclusive por los dos extremos). */
+  desde?: string | null
+  hasta?: string | null
+  /** Rango de importe (inclusive). */
+  min?: number | null
+  max?: number | null
+  /** Página pedida, 1 en adelante (se recorta al número de páginas real). */
+  pagina?: number
+}
+
+export interface ResultadoBusqueda {
+  /** Los de la página pedida. */
+  movimientos: MovimientoRow[]
+  /** Nº total de coincidencias (la lista es solo una página). */
+  total: number
+  /** Sumas del CONJUNTO de coincidencias, no solo de las mostradas. */
+  ingresos: number
+  gastos: number
+  /** Página devuelta (1 en adelante) y cuántas hay. */
+  pagina: number
+  paginas: number
+}
+
+/**
+ * Movimientos por página.
+ *
+ * Antes la búsqueda devolvía las 200 primeras coincidencias y avisaba de que
+ * había recortado: con un histórico de años, "los primeros 200 de 1.340" deja
+ * el resto INALCANZABLE — y son 200 filas en el DOM de golpe. Ahora se pagina:
+ * la consulta pide solo su página (`skip`/`take`, que en MySQL es LIMIT/OFFSET)
+ * y las sumas siguen calculándose sobre todas las coincidencias, que es el dato
+ * que se venía a ver.
+ */
+export const POR_PAGINA = 50
+
+/** ¿Tiene la búsqueda algún filtro con el que consultar? (form vacío → nada). */
+export function hayFiltros(f: FiltrosBusqueda): boolean {
+  return Boolean(
+    f.q?.trim() || f.tipo || f.desde || f.hasta || f.min != null || f.max != null,
+  )
+}
+
+/**
+ * Busca movimientos por concepto, tipo, rango de fechas e importe.
+ *
+ * Las sumas (ingresos/gastos) y el total se calculan sobre TODAS las
+ * coincidencias; las filas vienen de a `POR_PAGINA`. Sin ningún filtro no
+ * consulta: devuelve vacío.
+ */
+export async function buscarMovimientos(f: FiltrosBusqueda): Promise<ResultadoBusqueda> {
+  if (!hayFiltros(f)) {
+    return { movimientos: [], total: 0, ingresos: 0, gastos: 0, pagina: 1, paginas: 0 }
+  }
+
+  const fecha: { gte?: Date; lt?: Date } = {}
+  if (f.desde) fecha.gte = new Date(`${f.desde}T00:00:00Z`)
+  // Rango inclusive: el límite superior es el día siguiente a 'hasta' (exclusivo).
+  if (f.hasta) {
+    const d = new Date(`${f.hasta}T00:00:00Z`)
+    d.setUTCDate(d.getUTCDate() + 1)
+    fecha.lt = d
+  }
+
+  const importe: { gte?: number; lte?: number } = {}
+  if (f.min != null) importe.gte = f.min
+  if (f.max != null) importe.lte = f.max
+
+  const where = {
+    // El texto busca en el concepto Y en la nota: el contexto que se apunta
+    // ahí ("regalo de X") es justo lo que luego se recuerda para buscar.
+    ...(f.q?.trim()
+      ? { OR: [{ concept: { contains: f.q.trim() } }, { note: { contains: f.q.trim() } }] }
+      : {}),
+    ...(f.tipo ? { type: f.tipo } : {}),
+    ...(fecha.gte || fecha.lt ? { expenseDate: fecha } : {}),
+    ...(importe.gte != null || importe.lte != null ? { amount: importe } : {}),
+  }
+
+  // El total se cuenta ANTES de pedir la página: hace falta para saber
+  // cuántas páginas hay, y una página pedida más allá del final se recorta a
+  // la última en vez de devolver una lista vacía (recargar con ?p=9 tras
+  // afinar los filtros no debe dejar la pantalla en blanco).
+  const total = await prisma.expense.count({ where })
+  const paginas = Math.max(1, Math.ceil(total / POR_PAGINA))
+  const pagina = Math.min(Math.max(1, Math.trunc(f.pagina ?? 1)), paginas)
+
+  const [filas, sumas] = await Promise.all([
+    prisma.expense.findMany({
+      where,
+      orderBy: [{ expenseDate: 'desc' }, { id: 'desc' }],
+      skip: (pagina - 1) * POR_PAGINA,
+      take: POR_PAGINA,
+    }),
+    prisma.expense.groupBy({ by: ['type'], where, _sum: { amount: true } }),
+  ])
+
+  const sumaDe = (tipo: TipoMovimiento) =>
+    num(sumas.find((s) => s.type === tipo)?._sum.amount)
+
+  return {
+    movimientos: filas.map((m) => ({
+      uuid: m.uuid,
+      type: m.type as TipoMovimiento,
+      concept: m.concept,
+      amount: num(m.amount),
+      expenseDate: iso(m.expenseDate),
+      categoryUuid: m.categoryUuid,
+      note: m.note,
+    })),
+    total,
+    ingresos: sumaDe('INGRESO'),
+    gastos: sumaDe('GASTO'),
+    pagina,
+    paginas: total === 0 ? 0 : paginas,
   }
 }
 
@@ -321,9 +450,11 @@ async function apuntarCargos(r: FilaRecurrente, hastaIso: string): Promise<numbe
   )
   if (!fechas.length) return 0
   if (truncado) {
-    console.warn(
-      `[recurrentes] "${r.concept}" acumulaba más de ${MAX_CARGOS} cargos: se apuntan los ${MAX_CARGOS} primeros y salta a ${siguiente}`,
-    )
+    log.warn('recurrentes', 'demasiados cargos atrasados: se apuntan los primeros', {
+      concepto: r.concept,
+      tope: MAX_CARGOS,
+      siguiente,
+    })
   }
 
   // Movimientos y adelanto de la fecha, en la misma transacción: si algo
@@ -396,6 +527,7 @@ export async function movimientosDeRecurrente(
       amount: num(m.amount),
       expenseDate: iso(m.expenseDate),
       categoryUuid: m.categoryUuid,
+      note: m.note,
     })),
   }
 }

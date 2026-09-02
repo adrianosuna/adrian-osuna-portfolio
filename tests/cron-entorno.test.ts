@@ -11,6 +11,9 @@ const { cronMock, avisosMock } = vi.hoisted(() => ({
     avisarMesSinRellenar: vi.fn(async () => 0),
     avisarTopes: vi.fn(async () => 0),
     generarRecurrentes: vi.fn(async () => 0),
+    guardarMuestraInfra: vi.fn(async () => true),
+    avisosPendientes: vi.fn(async () => []),
+    avisarPush: vi.fn(async () => 0),
   },
 }))
 
@@ -23,6 +26,13 @@ vi.mock('@/lib/gastos', () => ({
   avisarTopes: avisosMock.avisarTopes,
   generarRecurrentes: avisosMock.generarRecurrentes,
 }))
+// La muestra del monitor cuelga de prisma (y este test no levanta BD).
+vi.mock('@/lib/infra-historico', () => ({
+  guardarMuestraInfra: avisosMock.guardarMuestraInfra,
+}))
+// El aviso push lee los avisos pendientes: los dos módulos tocan prisma.
+vi.mock('@/lib/inicio', () => ({ avisosPendientes: avisosMock.avisosPendientes }))
+vi.mock('@/lib/push', () => ({ avisarPush: avisosMock.avisarPush }))
 
 const entornoOriginal = { ...process.env }
 
@@ -60,6 +70,8 @@ describe('iniciarCron: guarda de entorno', () => {
     expect(avisosMock.avisarMesSinRellenar).not.toHaveBeenCalled()
     expect(avisosMock.avisarTopes).not.toHaveBeenCalled()
     expect(avisosMock.generarRecurrentes).not.toHaveBeenCalled()
+    expect(avisosMock.guardarMuestraInfra).not.toHaveBeenCalled()
+    expect(avisosMock.avisarPush).not.toHaveBeenCalled()
   })
 
   it('en producción programa el diario y dispara la pasada de arranque', async () => {
@@ -73,6 +85,10 @@ describe('iniciarCron: guarda de entorno', () => {
     expect(avisosMock.avisarMesSinRellenar).toHaveBeenCalledOnce()
     expect(avisosMock.generarRecurrentes).toHaveBeenCalledOnce()
     expect(avisosMock.avisarTopes).toHaveBeenCalledOnce()
+    // La muestra del monitor va al margen de los avisos (no depende del correo).
+    expect(avisosMock.guardarMuestraInfra).toHaveBeenCalledOnce()
+    // Y el push también: es otro canal, no cuelga del SMTP.
+    expect(avisosMock.avisarPush).toHaveBeenCalledOnce()
   })
 
   it('CRON_EN_DEV=1 fuerza los avisos en desarrollo', async () => {

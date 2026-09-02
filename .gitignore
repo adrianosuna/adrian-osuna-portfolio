@@ -44,3 +44,16 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Playwright: informes y artefactos de los e2e (se regeneran en cada ejecución).
+/test-results/
+/playwright-report/
+/blob-report/
+/.playwright/
+
+# Informes del analizador de bundle (`pnpm analyze`).
+/.next/analyze/
+
+# Carpetas de build alternativas (NEXT_DIST_DIR): los e2e usan .next-e2e para
+# no pisar el .next del dev server.
+/.next-*

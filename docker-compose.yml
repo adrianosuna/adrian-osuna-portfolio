@@ -60,9 +60,15 @@ services:
       - ${BACKUPS_HOST_DIR:-/home/ubuntu/backups}:/backups:ro
     # Salud real de la app, no solo "el proceso vive": si Next se cuelga
     # respondiendo mal, `restart: unless-stopped` no lo pilla sin esto. La
-    # imagen alpine trae wget (busybox); /robots.txt es estático y barato.
+    # imagen alpine trae wget (busybox).
+    #
+    # Apunta a /api/health (liveness), que NO toca la base de datos: un
+    # healthcheck que la comprobara reiniciaría `web` cada vez que la BD
+    # tarda en arrancar, que es justo el bucle que se quiere evitar. Para
+    # saber si además puede servir datos está /api/ready (503 si la BD no
+    # responde), pensado para un balanceador, no para reiniciar nada.
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:9443/robots.txt || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:9443/api/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3

@@ -7,24 +7,35 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import {
-  ArrowUpRight, Briefcase, CalendarDays, Euro, ExternalLink, Gauge, Receipt,
-  TrendingDown, TrendingUp,
+  Briefcase, CalendarDays, Euro, ExternalLink, Receipt, TrendingDown, TrendingUp,
 } from 'lucide-react'
 import { auth } from '@/auth'
 import { resumenInicio } from '@/lib/inicio'
 import { pulsoVisitas } from '@/lib/ga'
 import { Actividad, Atencion, Tile, TileEsqueleto, cardClass } from '@/components/dashboard/inicio'
+// Mismo formateador que el módulo de finanzas (fuente única): los KPIs de
+// ahorro y gastos de aquí son las mismas cifras que se ven allí.
+import { eur } from '@/lib/euros'
+import { AccesosFijados } from '@/components/dashboard/accesos-fijados'
+import { AbrirAltaAlEntrar } from '@/components/dashboard/abrir-al-entrar'
 import { cn } from '@/lib/utils'
 
-// Euros sin decimales (mismo criterio que el módulo de finanzas, agrupación
-// de miles siempre: es-ES no agrupa los números de 4 cifras por defecto).
-const eur = (v: number) =>
-  v.toLocaleString('es-ES', {
-    style: 'currency',
-    currency: 'EUR',
-    maximumFractionDigits: 0,
-    useGrouping: 'always',
-  })
+/**
+ * Comparativa del gasto del mes frente al anterior (en gastos, subir es malo →
+ * rojo). Sin dato del mes pasado, cae al texto neutro de la tarjeta.
+ */
+function GastoMoM({ actual, previo }: { actual: number; previo: number }) {
+  if (previo <= 0) return <>{actual === 0 ? 'nada registrado todavía' : 'control de gastos'}</>
+  const delta = Math.round(((actual - previo) / previo) * 100)
+  if (delta === 0) return <>igual que el mes pasado</>
+  const sube = delta > 0
+  return (
+    <span className={cn('inline-flex items-center gap-1', sube ? 'text-danger' : 'text-success')}>
+      {sube ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
+      {sube ? '+' : ''}{delta}&nbsp;% frente al mes pasado
+    </span>
+  )
+}
 
 // Saludo según la hora del día (hora española).
 const saludo = () => {
@@ -63,7 +74,15 @@ async function TileVisitas() {
   )
 }
 
-export default async function HomePage() {
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ nuevo?: string }>
+}) {
+  // `?nuevo=gasto` viene del acceso directo del icono (shortcut del manifest):
+  // abre el alta rápida al entrar, sin pasar por Finanzas.
+  const { nuevo } = await searchParams
+  const altaAlEntrar = nuevo === 'ingreso' ? 'INGRESO' : nuevo === 'gasto' ? 'GASTO' : null
   // El layout ya redirige sin sesión, pero layout y página renderizan en
   // paralelo: la página debe protegerse por sí misma.
   const session = await auth()
@@ -114,17 +133,13 @@ export default async function HomePage() {
     )
   }
 
-  const { avisos, ahorro, gastadoMes, pipeline, actividad } = resumen
+  const { avisos, ahorro, gastadoMes, gastadoMesPrevio, pipeline, actividad } = resumen
   const pctObjetivo = ahorro && ahorro.goal ? Math.round((ahorro.total / ahorro.goal) * 100) : null
-
-  const accesos = [
-    { title: 'Finanzas', desc: 'Ahorro anual y gastos', icon: <Euro className="size-4" />, chip: 'bg-primary/10 text-primary', to: '/app/finance' },
-    { title: 'Oportunidades', desc: 'Pipeline y seguimientos', icon: <Briefcase className="size-4" />, chip: 'bg-warning-bg text-warning', to: '/app/pipeline' },
-    { title: 'Panel de control', desc: 'Servidor, visitas y usuarios', icon: <Gauge className="size-4" />, chip: 'bg-success-bg text-success', to: '/app/panel' },
-  ]
 
   return (
     <div>
+      {/* Acceso directo del icono de la app: abre el alta al entrar. */}
+      {altaAlEntrar && <AbrirAltaAlEntrar tipo={altaAlEntrar} />}
       {cabecera}
 
       {/* Lo primero: qué requiere atención hoy */}
@@ -165,7 +180,7 @@ export default async function HomePage() {
           icon={<Receipt className="size-4" />}
           chip="bg-success-bg text-success"
           to={`/app/finance?s=gastos&mes=${new Date().toISOString().slice(0, 7)}`}
-          pie={gastadoMes === 0 ? 'nada registrado todavía' : 'control de gastos'}
+          pie={<GastoMoM actual={gastadoMes} previo={gastadoMesPrevio} />}
         />
         <Tile
           label="Pipeline abierto"
@@ -188,25 +203,10 @@ export default async function HomePage() {
       <div className="mt-4 grid gap-4 lg:grid-cols-[7fr_5fr]">
         <Actividad items={actividad} />
 
-        <div className={cn(cardClass, 'px-4 py-3')}>
-          <h2 className="border-b border-border pb-2.5 text-[15px] font-semibold">Módulos</h2>
-          {accesos.map((a, i) => (
-            <Link
-              key={a.title}
-              href={a.to}
-              className={cn(
-                'group flex items-center gap-3 py-2.5',
-                i < accesos.length - 1 && 'border-b border-border/60',
-              )}>
-              <span className={cn('grid size-8 shrink-0 place-items-center rounded-md', a.chip)}>{a.icon}</span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold">{a.title}</p>
-                <p className="truncate text-[12px] text-muted-foreground">{a.desc}</p>
-              </div>
-              <ArrowUpRight className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
-            </Link>
-          ))}
-        </div>
+        {/* Accesos ELEGIDOS: el catálogo está completo y cada uno fija los que
+            usa (antes eran los tres módulos fijos, que es el mapa del menú, no
+            lo que se abre a diario). */}
+        <AccesosFijados mes={new Date().toISOString().slice(0, 7)} cardClass={cardClass} />
       </div>
     </div>
   )

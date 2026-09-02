@@ -1,15 +1,20 @@
 // Planificador interno de la app (node-cron): la arranca instrumentation.ts
-// una sola vez por proceso. Hoy hace dos cosas al día: APUNTAR los movimientos
-// recurrentes que han vencido y AVISAR por correo (mantenimiento vencido,
-// seguimientos del pipeline, meses de ahorro sin rellenar y topes de gasto
-// alcanzados). El trabajo periódico futuro va aquí.
+// una sola vez por proceso. Hoy hace cuatro cosas al día: APUNTAR los
+// movimientos recurrentes que han vencido, AVISAR por correo (mantenimiento
+// vencido, seguimientos del pipeline, meses de ahorro sin rellenar y topes de
+// gasto alcanzados), EMPUJAR esos mismos avisos al móvil por push y MUESTREAR
+// el estado del servidor para su histórico. El trabajo periódico futuro va aquí.
 import 'server-only'
 import cron from 'node-cron'
 import { correoConfigurado } from '@/lib/correo'
 import { avisarMesSinRellenar } from '@/lib/finance'
 import { avisarTopes, generarRecurrentes } from '@/lib/gastos'
+import { guardarMuestraInfra } from '@/lib/infra-historico'
+import { avisosPendientes } from '@/lib/inicio'
+import { avisarPush } from '@/lib/push'
 import { avisarVencidas } from '@/lib/mantenimiento'
 import { avisarSeguimientos } from '@/lib/pipeline'
+import { log } from '@/lib/log'
 
 // globalThis: el guard sobrevive a los re-imports del hot-reload en desarrollo.
 const marca = globalThis as { __cronIniciado?: boolean }
@@ -23,38 +28,51 @@ export function iniciarCron() {
   // al minuto) y apuntaría recurrentes en la BD de desarrollo.
   // CRON_EN_DEV=1 lo fuerza para poder probarlo a mano.
   if (process.env.NODE_ENV !== 'production' && process.env.CRON_EN_DEV !== '1') {
-    console.log('[cron] desarrollo: sin programar (CRON_EN_DEV=1 para forzarlo)')
+    log.info('cron', 'desarrollo: sin programar (CRON_EN_DEV=1 para forzarlo)')
     return
   }
 
   if (!correoConfigurado()) {
     // Los recurrentes SÍ se apuntan: no tienen nada que ver con el correo.
-    console.log('[cron] SMTP sin configurar: los avisos por correo quedan inactivos')
+    log.info('cron', 'SMTP sin configurar: los avisos por correo quedan inactivos')
+  }
+
+  // Notificación push con los avisos pendientes (al móvil, en el momento).
+  // Va aparte del correo a propósito: son dos canales y no dependen uno del
+  // otro — sin SMTP el push sigue saliendo, y sin claves VAPID el correo también.
+  const empujar = () => {
+    avisosPendientes()
+      .then((avisos) => avisarPush(avisos))
+      .then((n) => {
+        if (n > 0) log.info('cron', 'aviso push entregado', { dispositivos: n })
+      })
+      .catch((e) => log.error('cron', 'aviso push fallido', { error: e }))
   }
 
   // Cada tarea captura sus propios errores: que falle una no frena a las otras.
   const avisar = () => {
+    empujar()
     if (!correoConfigurado()) return
     avisarVencidas()
       .then((n) => {
-        if (n > 0) console.log(`[cron] aviso de mantenimiento enviado (${n} tareas vencidas)`)
+        if (n > 0) log.info('cron', 'aviso de mantenimiento enviado', { vencidas: n })
       })
-      .catch((e) => console.error('[cron] aviso de mantenimiento fallido:', e))
+      .catch((e) => log.error('cron', 'aviso de mantenimiento fallido', { error: e }))
     avisarSeguimientos()
       .then((n) => {
-        if (n > 0) console.log(`[cron] aviso de seguimientos enviado (${n} oportunidades)`)
+        if (n > 0) log.info('cron', 'aviso de seguimientos enviado', { oportunidades: n })
       })
-      .catch((e) => console.error('[cron] aviso de seguimientos fallido:', e))
+      .catch((e) => log.error('cron', 'aviso de seguimientos fallido', { error: e }))
     avisarMesSinRellenar()
       .then((n) => {
-        if (n > 0) console.log(`[cron] recordatorio de ahorro enviado (${n} meses sin rellenar)`)
+        if (n > 0) log.info('cron', 'recordatorio de ahorro enviado', { meses: n })
       })
-      .catch((e) => console.error('[cron] recordatorio de ahorro fallido:', e))
+      .catch((e) => log.error('cron', 'recordatorio de ahorro fallido', { error: e }))
     avisarTopes()
       .then((n) => {
-        if (n > 0) console.log(`[cron] aviso de topes enviado (${n} categorías)`)
+        if (n > 0) log.info('cron', 'aviso de topes enviado', { categorias: n })
       })
-      .catch((e) => console.error('[cron] aviso de topes fallido:', e))
+      .catch((e) => log.error('cron', 'aviso de topes fallido', { error: e }))
   }
 
   // Los recurrentes van PRIMERO y los avisos esperan a que terminen: si hoy es
@@ -64,11 +82,17 @@ export function iniciarCron() {
     generarRecurrentes()
       .then((n) => {
         if (n > 0) {
-          console.log(`[cron] recurrentes apuntados (${n} ${n === 1 ? 'movimiento' : 'movimientos'})`)
+          log.info('cron', 'recurrentes apuntados', { movimientos: n })
         }
       })
-      .catch((e) => console.error('[cron] recurrentes fallidos:', e))
+      .catch((e) => log.error('cron', 'recurrentes fallidos', { error: e }))
       .finally(avisar)
+
+    // Muestra diaria del monitor, al margen de todo lo anterior: no depende del
+    // correo ni de los recurrentes, y ya se traga sus propios errores.
+    guardarMuestraInfra().then((ok) => {
+      if (ok) log.info('cron', 'muestra de infraestructura guardada')
+    })
   }
 
   // Diario a las 8:00 (hora española), y una pasada de arranque al minuto de
@@ -76,5 +100,5 @@ export function iniciarCron() {
   // 8:00, el aviso no se pierde (el reaviso semanal evita duplicados).
   cron.schedule('0 8 * * *', ejecutar, { timezone: 'Europe/Madrid' })
   setTimeout(ejecutar, 60_000)
-  console.log('[cron] programado (diario, 8:00 Europe/Madrid)')
+  log.info('cron', 'programado (diario, 8:00 Europe/Madrid)')
 }

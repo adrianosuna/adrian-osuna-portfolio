@@ -11,11 +11,15 @@ import { Gauge } from 'lucide-react'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
 import { snapshotInfra, snapshotServidor } from '@/lib/infra'
+import { historicoInfra } from '@/lib/infra-historico'
 import { snapshotVisitas, type RangoDias } from '@/lib/ga'
 import { ServidorTab } from '@/components/dashboard/panel/servidor'
 import { VisitasTab } from '@/components/dashboard/panel/visitas'
 import { UsersTable, type UserRow } from '@/components/dashboard/users/users-table'
 import { SessionsList, type SessionRow } from '@/components/dashboard/users/sessions-list'
+import { AccesosList, type AccesoRow } from '@/components/dashboard/users/accesos-list'
+import { ApiTokens, type ApiTokenRow } from '@/components/dashboard/users/api-tokens'
+import { SubTabs } from '@/components/dashboard/sub-tabs'
 import { MantenimientoTab, type MaintenanceRow } from '@/components/dashboard/panel/mantenimiento'
 import { NotasTab } from '@/components/dashboard/panel/notas'
 import { PanelTabsMovil } from '@/components/dashboard/panel/tabs-movil'
@@ -24,6 +28,10 @@ import { dispositivoDe } from '@/lib/dispositivo'
 import { correoConfigurado } from '@/lib/correo'
 import { hoyMadrid, listAmbitos } from '@/lib/mantenimiento'
 import { listNotes } from '@/lib/notas'
+import { listarTokens } from '@/lib/api-token'
+import { EsqueletoTarjetas } from '@/components/dashboard/esqueletos'
+import { SITE_URL } from '@/lib/site'
+import { limiteAbsoluto, textoCaducidad } from '@/lib/sesion-caducidad'
 
 export const metadata: Metadata = { title: 'Panel de control' }
 
@@ -38,23 +46,55 @@ const TABS = [
 // Componentes async separados: es lo que permite al Suspense pintar el
 // esqueleto mientras cada pestaña ejecuta sus comprobaciones.
 async function Servidor() {
-  const [infra, maquina] = await Promise.all([snapshotInfra(), snapshotServidor()])
-  return <ServidorTab infra={infra} maquina={maquina} />
+  const [infra, maquina, historico] = await Promise.all([
+    snapshotInfra(),
+    snapshotServidor(),
+    historicoInfra(),
+  ])
+  return <ServidorTab infra={infra} maquina={maquina} historico={historico} />
 }
 
-// Purga oportunista de sesiones caducadas (el JWT vive 7 días desde el login)
-// y lectura de las vivas. Fuera del componente: trabajo impuro (reloj + BD).
+// Purga oportunista de las sesiones que ya han pasado el tope absoluto, y
+// lectura de las vivas. El plazo NO se repite aquí: sale de
+// `sesion-caducidad.ts`, el mismo que aplica `auth.ts`.
+// Fuera del componente: trabajo impuro (reloj + BD).
 async function cargarSesiones() {
-  const limite = new Date(Date.now() - 7 * 86_400_000)
-  await prisma.userSession.deleteMany({ where: { createTs: { lt: limite } } })
+  await prisma.userSession.deleteMany({ where: { createTs: { lt: limiteAbsoluto() } } })
   const sesiones = await prisma.userSession.findMany({ orderBy: { lastSeen: 'desc' } })
   return { sesiones, ahora: new Date().toISOString() }
 }
 
-async function Usuarios({ meUuid, meSessionUuid }: { meUuid: string; meSessionUuid?: string }) {
-  const [users, { sesiones, ahora }] = await Promise.all([
+/** Últimos accesos del histórico (append-only) y cuántos hay en total. */
+const ACCESOS_VISIBLES = 15
+async function cargarAccesos() {
+  const [accesos, total] = await Promise.all([
+    prisma.loginEvent.findMany({
+      orderBy: [{ createTs: 'desc' }, { id: 'desc' }],
+      take: ACCESOS_VISIBLES,
+    }),
+    prisma.loginEvent.count(),
+  ])
+  return { accesos, total }
+}
+
+/** Sub-pestañas de Usuarios (`?u=`): cuentas, sesiones vivas, histórico y API. */
+type SubUsuarios = 'cuentas' | 'sesiones' | 'accesos' | 'api'
+
+async function Usuarios({
+  meUuid, meSessionUuid, sub,
+}: {
+  meUuid: string
+  meSessionUuid?: string
+  sub: SubUsuarios
+}) {
+  // Se consulta SOLO lo de la sub-pestaña abierta (y las cuentas, que hacen
+  // falta en las tres para cruzar el usuario de cada fila). Antes se traían las
+  // tres cosas siempre para pintarlas juntas.
+  const [users, sesionesData, accesosData, tokens] = await Promise.all([
     prisma.user.findMany({ orderBy: { id: 'asc' } }),
-    cargarSesiones(),
+    sub === 'sesiones' ? cargarSesiones() : null,
+    sub === 'accesos' ? cargarAccesos() : null,
+    sub === 'api' ? listarTokens(meUuid) : null,
   ])
   const rows: UserRow[] = users.map((u) => ({
     uuid: u.uuid,
@@ -69,7 +109,8 @@ async function Usuarios({ meUuid, meSessionUuid }: { meUuid: string; meSessionUu
 
   // Sin FK físico (colaciones dispares local/prod): el cruce se hace aquí.
   const porUuid = new Map(users.map((u) => [u.uuid, u]))
-  const sessionRows: SessionRow[] = sesiones.map((s) => {
+
+  const sessionRows: SessionRow[] = (sesionesData?.sesiones ?? []).map((s) => {
     const u = porUuid.get(s.userUuid)
     return {
       uuid: s.uuid,
@@ -83,15 +124,49 @@ async function Usuarios({ meUuid, meSessionUuid }: { meUuid: string; meSessionUu
     }
   })
 
+  // El correo va guardado en la propia fila del acceso: el registro sigue
+  // siendo legible aunque el usuario se haya borrado después.
+  const accesoRows: AccesoRow[] = (accesosData?.accesos ?? []).map((a) => ({
+    uuid: a.uuid,
+    userName: porUuid.get(a.userUuid)?.name ?? null,
+    userEmail: a.userEmail,
+    userPicture: porUuid.get(a.userUuid)?.picture ?? null,
+    dispositivo: dispositivoDe(a.userAgent),
+    ts: a.createTs.toISOString(),
+  }))
+
+  const base = '/app/panel?tab=usuarios'
   return (
     <div>
-      <UsersTable rows={rows} meUuid={meUuid} />
-      <SessionsList rows={sessionRows} ahora={ahora} />
+      <SubTabs
+        ariaLabel="Secciones de usuarios"
+        activa={sub}
+        tabs={[
+          { id: 'cuentas', label: 'Cuentas', href: base, cuenta: users.length },
+          { id: 'sesiones', label: 'Sesiones', href: `${base}&u=sesiones` },
+          { id: 'accesos', label: 'Accesos', href: `${base}&u=accesos` },
+          { id: 'api', label: 'API', href: `${base}&u=api` },
+        ]}
+        repartir={false}
+      />
+      {sub === 'sesiones' ? (
+        <SessionsList
+          rows={sessionRows}
+          ahora={sesionesData?.ahora ?? ''}
+          politica={textoCaducidad()}
+        />
+      ) : sub === 'accesos' ? (
+        <AccesosList rows={accesoRows} total={accesosData?.total ?? 0} />
+      ) : sub === 'api' ? (
+        <ApiTokens rows={(tokens ?? []) as ApiTokenRow[]} base={SITE_URL} />
+      ) : (
+        <UsersTable rows={rows} meUuid={meUuid} />
+      )}
     </div>
   )
 }
 
-async function Mantenimiento() {
+async function Mantenimiento({ vista }: { vista: 'lista' | 'calendario' }) {
   const [tareas, ambitos] = await Promise.all([
     prisma.maintenanceTask.findMany({ orderBy: { nextDue: 'asc' }, include: { scope: true } }),
     listAmbitos(),
@@ -112,6 +187,7 @@ async function Mantenimiento() {
       ambitos={ambitos}
       hoy={hoyMadrid()}
       smtpListo={correoConfigurado()}
+      vista={vista}
     />
   )
 }
@@ -119,29 +195,17 @@ async function Visitas({ dias }: { dias: RangoDias }) {
   return <VisitasTab snapshot={await snapshotVisitas(dias)} />
 }
 
-async function Notas() {
-  return <NotasTab rows={await listNotes()} />
+async function Notas({ abrir, nueva }: { abrir?: string; nueva?: boolean }) {
+  return <NotasTab rows={await listNotes()} abrirUuid={abrir} nueva={nueva} />
 }
 
-function Esqueleto() {
-  return (
-    <div aria-hidden="true">
-      <div className="mb-3 flex justify-end">
-        <div className="h-8 w-44 animate-pulse rounded-md bg-muted" />
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 6 }, (_, i) => (
-          <div key={i} className="h-32 animate-pulse rounded-xl border border-border bg-card" />
-        ))}
-      </div>
-    </div>
-  )
-}
 
 export default async function PanelPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; dias?: string }>
+  searchParams: Promise<{
+    tab?: string; dias?: string; u?: string; abrir?: string; nueva?: string; vista?: string
+  }>
 }) {
   // El layout ya redirige sin sesión, pero layout y página renderizan en
   // paralelo: la página debe protegerse por sí misma. Módulo solo admin.
@@ -149,12 +213,15 @@ export default async function PanelPage({
   if (!session?.user) redirect('/login')
   if (session.user.role !== 'ADMIN') redirect('/app')
 
-  const { tab, dias: diasParam } = await searchParams
+  const { tab, dias: diasParam, u, abrir, nueva, vista } = await searchParams
+  const vistaMant = vista === 'calendario' ? 'calendario' : 'lista'
   const activa =
     tab === 'visitas' || tab === 'usuarios' || tab === 'mantenimiento' || tab === 'notas'
       ? tab
       : 'servidor'
   const dias: RangoDias = diasParam === '7' ? 7 : diasParam === '90' ? 90 : 30
+  const sub: SubUsuarios =
+    u === 'sesiones' || u === 'accesos' || u === 'api' ? u : 'cuentas'
 
   return (
     <div>
@@ -188,14 +255,16 @@ export default async function PanelPage({
         </div>
       </div>
 
-      <Suspense key={`${activa}-${dias}`} fallback={<Esqueleto />}>
+      {/* La sub-pestaña entra en el key: cambiar de Cuentas a Sesiones vuelve a
+          mostrar el esqueleto mientras se consulta lo suyo. */}
+      <Suspense key={`${activa}-${dias}-${sub}`} fallback={<EsqueletoTarjetas />}>
         {activa === 'servidor' && <Servidor />}
         {activa === 'visitas' && <Visitas dias={dias} />}
         {activa === 'usuarios' && (
-          <Usuarios meUuid={session.user.uuid} meSessionUuid={session.sessionUuid} />
+          <Usuarios meUuid={session.user.uuid} meSessionUuid={session.sessionUuid} sub={sub} />
         )}
-        {activa === 'mantenimiento' && <Mantenimiento />}
-        {activa === 'notas' && <Notas />}
+        {activa === 'mantenimiento' && <Mantenimiento vista={vistaMant} />}
+        {activa === 'notas' && <Notas abrir={abrir} nueva={nueva !== undefined} />}
       </Suspense>
     </div>
   )

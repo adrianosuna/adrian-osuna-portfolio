@@ -1,7 +1,8 @@
 // Autenticación con Google + allowlist en la tabla `user` (mismo modelo que el
 // Portfolio original): solo entra un correo dado de alta. INVITED pasa a ACTIVE
 // en su primer login; DISABLED (o no existente) se rechaza. Sesión JWT en
-// cookie con caducidad de una semana (como la sesión Redis del original).
+// cookie con dos plazos: tope absoluto y cierre por inactividad, los dos
+// configurables (ver `lib/sesion-caducidad.ts`).
 // Cada login registra además una fila en `user_session`: el callback jwt la
 // comprueba en cada petición, así el panel puede listar las sesiones activas
 // y cerrarlas remotamente (borrar la fila mata esa sesión al instante).
@@ -10,12 +11,14 @@ import Google from 'next-auth/providers/google'
 import { headers } from 'next/headers'
 import { AppError } from '@/lib/errors'
 import { prisma } from '@/lib/prisma'
+import { log } from '@/lib/log'
+import { inactivaDemasiado, SEGUNDOS_SESION } from '@/lib/sesion-caducidad'
 
 // Config exportada aparte de NextAuth(): los tests unitarios invocan los
 // callbacks (signIn/jwt/session) y eventos directamente con mocks de Prisma.
 export const authConfig = {
   providers: [Google],
-  session: { strategy: 'jwt', maxAge: 7 * 24 * 60 * 60 },
+  session: { strategy: 'jwt', maxAge: SEGUNDOS_SESION },
   pages: { signIn: '/login' },
   callbacks: {
     async signIn({ user, profile }) {
@@ -56,12 +59,19 @@ export const authConfig = {
         // el login sigue adelante (el registro es control, no seguridad).
         try {
           const ua = (await headers()).get('user-agent')
-          const sesion = await prisma.userSession.create({
-            data: { userUuid: registro.uuid, userAgent: ua ? ua.slice(0, 255) : null },
-          })
+          const userAgent = ua ? ua.slice(0, 255) : null
+          const [sesion] = await Promise.all([
+            prisma.userSession.create({ data: { userUuid: registro.uuid, userAgent } }),
+            // Histórico de accesos: `user_session` solo guarda lo VIVO (se
+            // purga a los 7 días y el logout retira la suya), así que el
+            // registro de "desde dónde entré" tiene que vivir aparte.
+            prisma.loginEvent.create({
+              data: { userUuid: registro.uuid, userEmail: email, userAgent },
+            }),
+          ])
           token.sessionUuid = sesion.uuid
         } catch (e) {
-          console.error('[auth] no se pudo registrar la sesión:', e)
+          log.error('auth', 'no se pudo registrar la sesión', { error: e })
         }
         return token
       }
@@ -75,6 +85,18 @@ export const authConfig = {
         where: { uuid: token.sessionUuid as string },
       })
       if (!sesion) return null
+
+      // Segundo plazo, el de INACTIVIDAD: una sesión que nadie toca se cierra
+      // sola aunque el JWT siga en plazo (ver `sesion-caducidad.ts`). Se borra
+      // la fila, no solo se rechaza el token: si no, seguiría figurando como
+      // activa en el Panel para siempre.
+      if (inactivaDemasiado(sesion.lastSeen)) {
+        await prisma.userSession
+          .delete({ where: { uuid: sesion.uuid } })
+          .catch(() => {}) // ya la pudo borrar otra petición en paralelo
+        return null
+      }
+
       // Última actividad, con freno de 5 min para no escribir en cada petición.
       if (Date.now() - sesion.lastSeen.getTime() > 5 * 60_000) {
         await prisma.userSession.update({
@@ -99,7 +121,7 @@ export const authConfig = {
       const sessionUuid = 'token' in message ? message.token?.sessionUuid : undefined
       if (sessionUuid) {
         await prisma.userSession.deleteMany({ where: { uuid: sessionUuid } }).catch((e) => {
-          console.error('[auth] no se pudo retirar la sesión al salir:', e)
+          log.error('auth', 'no se pudo retirar la sesión al salir', { error: e })
         })
       }
     },

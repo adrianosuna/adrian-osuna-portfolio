@@ -8,6 +8,15 @@ import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/auth'
 import { AppError } from '@/lib/errors'
 import { prisma } from '@/lib/prisma'
+import { log } from '@/lib/log'
+import { avisarFrenado, limitar, LIMITE_ACCIONES } from '@/lib/rate-limit'
+import type { z } from 'zod'
+import {
+  CamposOportunidad,
+  EstadoOportunidad,
+  TituloOportunidad,
+  validar,
+} from '@/lib/esquemas'
 
 type Result = { ok: boolean; message?: string }
 
@@ -15,8 +24,9 @@ const ok: Result = { ok: true }
 const fail = (message: string): Result => ({ ok: false, message })
 const refresh = () => revalidatePath('/app/pipeline')
 
-const ESTADOS = ['CONTACTO', 'CONVERSACION', 'PROPUESTA', 'CERRADO', 'DESCARTADO'] as const
-type Estado = (typeof ESTADOS)[number]
+// El tipo sale del esquema compartido: la lista de estados se declara UNA vez
+// (en `lib/esquemas.ts`) y aquí solo se lee.
+type Estado = z.infer<typeof EstadoOportunidad>
 const TERMINALES: readonly Estado[] = ['CERRADO', 'DESCARTADO']
 
 const ETIQUETA: Record<Estado, string> = {
@@ -33,13 +43,22 @@ type TipoManual = (typeof TIPOS_MANUALES)[number]
 
 // Ejecuta una acción exigiendo rol admin. Solo los mensajes de AppError son
 // aptos para el cliente; el resto (Prisma...) se registra y no se filtra.
-async function guarded(fn: () => Promise<Result>): Promise<Result> {
+async function guarded<T extends Result>(fn: () => Promise<T>): Promise<T | Result> {
   try {
-    await requireAdmin()
+    const sesionActual = await requireAdmin()
+    // Freno por usuario: 120 escrituras por minuto no las alcanza nadie
+    // pulsando botones, pero sí un bucle en el cliente o un doble envío
+    // desbocado — que es lo único de lo que hay que protegerse aquí, porque
+    // llegar hasta este punto ya exige sesión de admin.
+    const freno = limitar(`accion:${sesionActual.user.uuid}`, LIMITE_ACCIONES)
+    if (!freno.ok) {
+      avisarFrenado('pipeline', `accion:${sesionActual.user.uuid}`, freno.esperaS)
+      return fail(`Vas muy rápido: espera ${freno.esperaS} s`)
+    }
     return await fn()
   } catch (e) {
     if (e instanceof AppError) return fail(e.message)
-    console.error('[pipeline]', e)
+    log.error('pipeline', 'error inesperado', { error: e })
     return fail('Error inesperado')
   }
 }
@@ -57,41 +76,37 @@ interface DatosOportunidad {
   nextActionDate?: string | null
 }
 
-// Normaliza los campos de texto (recortados, vacío → null), valida el importe
-// y parsea la fecha de seguimiento (malformada → null, como en el resto de
-// módulos: los campos de fecha propios solo emiten ISO válido).
+/**
+ * Normaliza los campos de la oportunidad con el esquema compartido
+ * (`OportunidadEdicion`): textos recortados y vacío → null, importe validado
+ * y fecha de seguimiento pasada a Date.
+ *
+ * Devuelve `{ error }` para que las actions contesten con el mensaje, igual
+ * que antes de tener Zod: el contrato hacia el cliente no cambia.
+ */
 function limpiar(datos: DatosOportunidad) {
-  const texto = (v: string | null | undefined, max: number) => {
-    const t = (v ?? '').trim().slice(0, max)
-    return t === '' ? null : t
-  }
-  let amount: number | null = null
-  if (datos.amount !== null && datos.amount !== undefined) {
-    const n = Number(datos.amount)
-    if (!Number.isFinite(n) || n < 0 || n >= 1e10) return { error: 'Importe no válido' }
-    amount = n
-  }
-  const fechaIso = typeof datos.nextActionDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(datos.nextActionDate)
-    ? datos.nextActionDate
-    : null
+  const v = validar(CamposOportunidad, datos)
+  if (!v.ok) return { error: v.message }
+  const d = v.datos
   return {
-    company: texto(datos.company, 255),
-    contact: texto(datos.contact, 255),
-    origin: texto(datos.origin, 100),
-    notes: texto(datos.notes, 5000),
-    nextAction: texto(datos.nextAction, 255),
-    nextActionDate: fechaIso === null ? null : new Date(`${fechaIso}T00:00:00Z`),
-    amount,
+    company: d.company ?? null,
+    contact: d.contact ?? null,
+    origin: d.origin ?? null,
+    notes: d.notes ?? null,
+    nextAction: d.nextAction ?? null,
+    nextActionDate: d.nextActionDate ? new Date(`${d.nextActionDate}T00:00:00Z`) : null,
+    amount: d.amount ?? null,
   }
 }
 
 const estadoValido = (v: string | undefined): v is Estado =>
-  typeof v === 'string' && (ESTADOS as readonly string[]).includes(v)
+  EstadoOportunidad.safeParse(v).success
 
 export async function createOpportunity(datos: DatosOportunidad): Promise<Result> {
   return guarded(async () => {
-    const title = (datos.title ?? '').trim().slice(0, 255)
-    if (!title) return fail('El título es obligatorio')
+    const t = validar(TituloOportunidad, datos.title)
+    if (!t.ok) return fail(t.message)
+    const title = t.datos
     const campos = limpiar(datos)
     if ('error' in campos && campos.error) return fail(campos.error)
     const status = estadoValido(datos.status) ? datos.status : 'CONTACTO'
@@ -113,9 +128,9 @@ export async function updateOpportunity(uuid: string, datos: DatosOportunidad): 
   return guarded(async () => {
     const patch: Record<string, unknown> = {}
     if (datos.title !== undefined) {
-      const title = datos.title.trim().slice(0, 255)
-      if (!title) return fail('El título es obligatorio')
-      patch.title = title
+      const t = validar(TituloOportunidad, datos.title)
+      if (!t.ok) return fail(t.message)
+      patch.title = t.datos
     }
     if (
       datos.company !== undefined || datos.contact !== undefined ||
@@ -192,10 +207,123 @@ export async function archiveOpportunity(uuid: string, archived: boolean): Promi
   })
 }
 
-export async function deleteOpportunity(uuid: string): Promise<Result> {
+/**
+ * Lo necesario para devolver una oportunidad borrada a su sitio, **con su
+ * historial**: el FK de `opportunity_event` es CASCADE, así que borrarla se
+ * lleva también el timeline. Sin traerlo aquí, "Deshacer" devolvería la ficha
+ * vacía de historia, que es peor que no ofrecer deshacer.
+ */
+export interface OportunidadRestaurable {
+  uuid: string
+  title: string
+  company: string | null
+  contact: string | null
+  origin: string | null
+  amount: number | null
+  notes: string | null
+  status: string
+  nextAction: string | null
+  nextActionDate: string | null // 'YYYY-MM-DD'
+  closedAt: string | null // ISO
+  archived: boolean
+  createTs: string // ISO
+  eventos: Array<{
+    uuid: string
+    type: string
+    detail: string
+    createTs: string // ISO
+  }>
+}
+
+/** Borra una oportunidad y devuelve con qué restaurarla (con su historial). */
+export async function deleteOpportunity(
+  uuid: string,
+): Promise<Result & { deshacer?: OportunidadRestaurable }> {
   return guarded(async () => {
+    const fila = await prisma.opportunity.findUnique({
+      where: { uuid },
+      include: { events: { orderBy: { id: 'asc' } } },
+    })
+    if (!fila) return fail('Esa oportunidad ya no existe')
     // El historial (opportunity_event) cae en cascada con el FK.
     await prisma.opportunity.delete({ where: { uuid } })
+    refresh()
+    return {
+      ok: true,
+      deshacer: {
+        uuid: fila.uuid,
+        title: fila.title,
+        company: fila.company,
+        contact: fila.contact,
+        origin: fila.origin,
+        amount: fila.amount === null ? null : Number(fila.amount),
+        notes: fila.notes,
+        status: fila.status,
+        nextAction: fila.nextAction,
+        nextActionDate: fila.nextActionDate
+          ? fila.nextActionDate.toISOString().slice(0, 10)
+          : null,
+        closedAt: fila.closedAt ? fila.closedAt.toISOString() : null,
+        archived: fila.archived,
+        createTs: fila.createTs.toISOString(),
+        eventos: fila.events.map((e) => ({
+          uuid: e.uuid,
+          type: e.type,
+          detail: e.detail,
+          createTs: e.createTs.toISOString(),
+        })),
+      },
+    }
+  })
+}
+
+/** Devuelve a su sitio una oportunidad recién borrada, con su historial. */
+export async function restaurarOportunidad(datos: OportunidadRestaurable): Promise<Result> {
+  return guarded(async () => {
+    if (await prisma.opportunity.findUnique({ where: { uuid: datos.uuid } })) {
+      refresh()
+      return ok
+    }
+    if (!estadoValido(datos.status)) return fail('Estado no válido')
+    // Los eventos incluyen los de ESTADO (los apunta el sistema), no solo los
+    // manuales: al restaurar hay que admitir los cinco tipos.
+    const TIPOS_EVENTO = ['ESTADO', ...TIPOS_MANUALES] as const
+    type TipoEvento = (typeof TIPOS_EVENTO)[number]
+    const eventos = (datos.eventos ?? []).filter((e): e is typeof e & { type: TipoEvento } =>
+      (TIPOS_EVENTO as readonly string[]).includes(e.type),
+    )
+
+    await prisma.$transaction([
+      prisma.opportunity.create({
+        data: {
+          uuid: datos.uuid,
+          title: datos.title.slice(0, 255),
+          company: datos.company,
+          contact: datos.contact,
+          origin: datos.origin,
+          amount: datos.amount,
+          notes: datos.notes,
+          status: datos.status,
+          nextAction: datos.nextAction,
+          nextActionDate: datos.nextActionDate
+            ? new Date(`${datos.nextActionDate}T00:00:00Z`)
+            : null,
+          closedAt: datos.closedAt ? new Date(datos.closedAt) : null,
+          archived: Boolean(datos.archived),
+          createTs: new Date(datos.createTs),
+        },
+      }),
+      // El historial vuelve con sus fechas: es lo que le da sentido.
+      prisma.opportunityEvent.createMany({
+        data: eventos.map((e) => ({
+          uuid: e.uuid,
+          opportunityUuid: datos.uuid,
+          type: e.type,
+          detail: e.detail.slice(0, 500),
+          createTs: new Date(e.createTs),
+        })),
+      }),
+    ])
     refresh()
     return ok
   })
@@ -259,7 +387,7 @@ export async function getOpportunityEvents(uuid: string): Promise<
     }
   } catch (e) {
     if (e instanceof AppError) return fail(e.message)
-    console.error('[pipeline]', e)
+    log.error('pipeline', 'error inesperado', { error: e })
     return fail('Error inesperado')
   }
 }

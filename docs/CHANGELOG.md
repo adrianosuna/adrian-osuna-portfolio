@@ -6,7 +6,916 @@ cuando algo se termina, se cuenta aquí con su porqué y desaparece de allí.
 
 ---
 
+## 02/09/2026 (auditoría del dashboard con sesión)
+
+### Recorrido completo del dashboard, escritorio y móvil
+
+Con sesión de verdad en el panel Browser (la extensión de Chrome no estaba
+conectada, y no hacía falta). axe-core sobre cada ruta, a 974 px y a 375 px,
+con datos reales.
+
+**Cinco fallos encontrados y arreglados** — cuatro de accesibilidad y uno de
+contenido:
+
+1. **Contraste insuficiente** (serious). `text-muted-foreground/70` daba
+   **3,63:1** sobre la tarjeta, por debajo del 4,5 de AA. Medidos los tres
+   niveles: `/70` → 3,97 · `/60` → 3,24 · `/50` → 2,62; **sin opacidad, 6,9**.
+   Ninguno pasaba, así que se han quitado las **30 ocurrencias** de 14
+   ficheros. Se colaba porque el token base sí pasa y la opacidad la aplicaba
+   Tailwind aparte.
+2. **168 `aria-label` que nadie leía** (serious). El mapa de calor de Visitas
+   los pone en `div` sin rol, y ahí `aria-label` está PROHIBIDO por la
+   especificación: el lector de pantalla se los salta. La intención estaba en
+   el código («168 divs con aria-label son más accesibles que un canvas») pero
+   no funcionaba. Con `role="img"` cada celda es un gráfico con descripción:
+   336 celdas, «Lunes a las 00:00 — 0 usuarios».
+3. **Aviso de novedades fuera de todo landmark** (`region`): su texto quedaba
+   inalcanzable navegando por landmarks. Envuelto en un `<aside>` con nombre,
+   y el `role="status"` en la franja para que se anuncie al aparecer.
+   ⚠ Primero le puse el `role` al `aside` y eso introdujo otro fallo
+   (`aria-allowed-role`): el rol implícito de `aside` es `complementary` y no
+   admite que se le sobrescriba con uno de live region.
+4. **Orden de encabezados roto** (`heading-order`): las tarjetas titulaban con
+   `h3` bajo el `h1` de la página, saltándose el `h2`; y el bloque «Cómo
+   usarla desde un Atajo» era `h4` bajo un `h2`. Corregidos en `TarjetaTabla`,
+   en las tarjetas del panel de finanzas y en la de tokens.
+5. El ejemplo de la API en pantalla usaba `"categoria": "Compra"`, que **no
+   existe** entre las categorías. Ahora dice `"Supermercado"`, igual que
+   `API.md`.
+
+**Lo que salió limpio, con la medida:**
+
+- **Cero violaciones** en las 11 rutas tras los arreglos: inicio, las cuatro
+  secciones de Finanzas, las cinco pestañas del Panel (con sus cuatro
+  sub-pestañas de Usuarios) y las tres vistas del pipeline.
+- **Las tablas, con datos reales**: los 12 importes de movimientos y su
+  cabecera terminan **todos en x=764** en escritorio; en móvil, la tabla se
+  oculta, la rejilla pinta las 12 filas y los importes quedan a plomo en
+  x=302. La columna de acciones ya se anuncia como «Acciones».
+- **Sin desborde horizontal** en ninguna ruta, ni a 974 px ni a 375.
+- **Ningún campo por debajo de 16 px**, así que iOS no hace zoom al enfocar.
+
+⚠ **Dos trampas del método**, que costaron falsos positivos y quedan
+apuntadas:
+
+- **Auditar mientras Next revela el streaming.** El árbol nuevo viaja dentro
+  de un `div[hidden]` (`S:0`), así que axe informa de «no hay main» y «no hay
+  h1» de una página que sí los tiene. Lo delata
+  `document.querySelector("main").closest("[hidden]")`. Forzar una captura
+  antes de auditar asienta la página; **un bucle de espera largo en la propia
+  página es peor que el problema** — bloquea el hilo y el revelado no llega a
+  ejecutarse (dejó la pestaña colgada).
+- **Comprobar el foco con `.focus()` por script** dice que no hay anillo
+  aunque lo haya: el foco programático no activa `:focus-visible`. Con un Tab
+  de verdad el anillo sale.
+
+---
+
+## 02/09/2026 (auditoría de accesibilidad)
+
+### Auditoría completa, escritorio y móvil
+
+Pasada con **axe-core 4.13** sobre las rutas públicas en el navegador real (a
+1280 px y a 375 px) y sobre los componentes del dashboard en jsdom, más
+medidas a mano de contraste, objetivos táctiles, foco y zoom de iOS.
+
+**Tres fallos encontrados y arreglados:**
+
+1. **`/login` y el 404 no tenían landmark `<main>`** (axe:
+   `landmark-one-main` + `region`, 6 nodos). Sin un landmark, un lector de
+   pantalla no puede saltar al contenido. Los dos contenedores pasan de `div`
+   a `main`.
+2. **Diez objetivos táctiles por debajo de 24 px** en la landing (WCAG 2.2 AA,
+   2.5.8): los siete enlaces del footer, los dos de cada caso de estudio
+   («Probarla en vivo», «Ver el código») y el de la política. Medían 20-21 px
+   porque su caja pulsable era justo la del texto; con `py-1` suben a 28-29 sin
+   mover nada de sitio (los contenedores usan `gap`).
+3. **La columna de acciones dejaba un `<th>` vacío** (axe:
+   `empty-table-header`), así que el lector anunciaba una columna sin nombre.
+   `Columna` gana `oculta`: la cabecera se llama "Acciones" para quien la
+   escucha y sigue sin título para quien la ve. Arreglado en la pieza común y
+   en la tabla del pipeline, que tiene marcado propio.
+
+**Lo que salió limpio, con la medida:**
+
+- **Contraste**: los 13 pares de tokens que se usan de verdad, calculados
+   sobre el CSS compilado (componiendo los translúcidos sobre su fondo). El
+   peor es `--viajes` a **6,03:1**, sobre el 4,5 que pide AA; el mejor, 17,25.
+- **axe en las cuatro rutas públicas**, a 1280 y a 375 px: **cero
+   violaciones** tras los arreglos.
+- **Sin desborde horizontal** a 375 px en ninguna ruta.
+- **Zoom de iOS**: ningún campo por debajo de 16 px (es lo que dispara el zoom
+   automático al enfocar).
+- **Movimiento reducido**: `prefers-reduced-motion` ya se respeta en
+   `globals.css`, en el contador y en `Reveal`.
+- **Foco visible**: anillo global de 2 px en `--primary`. ⚠ Aquí me equivoqué
+   primero: una comprobación con `.focus()` por script dijo que 26 elementos no
+   tenían anillo, y era **falso** — el foco por script no activa
+   `:focus-visible`. Con un Tab de verdad el anillo sale
+   (`solid 2px rgb(16,185,129)`). Queda apuntado porque el error es fácil de
+   repetir.
+- **Sin imágenes sin `alt`, sin ids duplicados**, `lang="es"` en el html y el
+   primer tabulable es «Saltar al contenido».
+
+**Nuevo `tests/auditoria-a11y.dom.test.tsx`** (8 casos): axe sobre la tabla
+común con datos y vacía, la rejilla móvil, el histórico de accesos, y las
+comprobaciones que no son de axe — que los `th` llevan `scope`, que la
+cabecera de la rejilla va `aria-hidden` (es visual, no una tabla semántica) y
+que la foto de perfil va con `alt` vacío por ser decorativa.
+
+⚠ **Lo que esta auditoría NO cubre**: el dashboard **pulsado a mano**. Vive
+detrás del OAuth de Google y Claude in Chrome no estaba conectado, así que sus
+pantallas se auditaron por componente (jsdom + axe) y por lectura de código,
+no clicando. Lo que sí se comprueba de extremo a extremo son las invariantes
+de los e2e (24 tests).
+
+---
+
+## 02/09/2026 (fuera los gestos)
+
+### Retirados los gestos táctiles de toda la plataforma
+
+A petición de Adrián. Se van los dos componentes y sus usos:
+
+- **`FilaDeslizable`** — el swipe de la lista de movimientos (→ editar,
+  ← eliminar). Editar y borrar salen ahora del menú «⋯» de la fila, que es el
+  único camino y ya llevaba las tres acciones, así que no se pierde nada: lo
+  que había era un atajo, no la única puerta.
+- **`PullToRefresh`** — el tirón para recargar del dashboard. En el navegador
+  esto lo da el sistema; en la PWA instalada queda el botón de recargar de la
+  pestaña Servidor y la propia navegación.
+
+Con ellos desaparece todo el manejo de `onTouchStart` / `onTouchMove` del
+proyecto: no queda ningún gesto táctil (comprobado con un grep). La rejilla
+móvil de las tablas **se queda**: nació para convivir con el swipe, pero se
+sostiene por sí sola — en 375 px un `<table>` obligaría a desplazarse en
+horizontal para ver el importe, y la rejilla reparte las cuatro columnas en el
+ancho que hay.
+
+⚠ Lo que NO se ha tocado: el **drag & drop del kanban** del pipeline. Es de
+ratón, es de escritorio (en móvil el tablero no existe) y tiene los botones
+←/→ al lado. Si también sobra, se retira en un minuto.
+
+---
+
+## 02/09/2026 (tablas unificadas)
+
+### Todas las tablas iguales, con la del Ahorro como referencia
+
+Nuevo `src/components/ui/tabla.tsx`. Las clases de `th` y `td` estaban
+copiadas en **cuatro ficheros con TRES variantes** de padding (`py-1.5`,
+`py-2`, `py-2.5` y una responsive), y encima sesiones, accesos y los tokens
+de la API se pintaban como **`div` apilados** aunque son tabulares: parecidas
+de lejos y distintas de cerca, que es lo que se nota al abrir dos pestañas
+seguidas.
+
+Ahora todo sale de la misma pieza, con la estructura de la tabla del
+**Control mensual** de Ahorro: cabecera en versalitas apagadas, separador por
+fila, celdas compactas y scroll horizontal propio.
+
+- **Convertidas a tabla de verdad** (eran listas de `div`): los tokens de la
+  API —la que peor estaba, y la más reciente—, las sesiones activas y el
+  histórico de accesos. Ganan columnas con nombre en vez de una línea de
+  texto con puntos de separación: `Nombre · Token · Creado · Último uso`,
+  `Usuario · Dispositivo · Inicio · Última actividad`.
+- **Unificadas las cinco que ya eran tablas**: Control mensual, Resumen
+  histórico, Usuarios, Gastos (vista año) y la tabla del pipeline. Con eso
+  desaparecen las cuatro copias de clases.
+- **La lista de movimientos del mes**, que es la más usada del dashboard y la
+  que peor quedaba: era una fila de `span` con la fecha, el concepto, un punto
+  de color y el importe apretados en un flex, sin cabecera ni columnas. Ahora
+  en escritorio es la tabla común (`Fecha · Concepto · Categoría · Importe`,
+  con los importes alineados a la derecha en su columna) y **en móvil la misma
+  estética** con una rejilla (`CabeceraMovil` + `FilaMovil`): cabecera en
+  versalitas, separador por fila e importes a plomo — medido a 375 px, los
+  cuatro terminan en el mismo píxel que la cabecera. La rejilla existe porque
+  la fila lleva **gesto de swipe** y un `<tr>` no se puede arrastrar con el
+  dedo. En móvil van cuatro columnas y no cinco: la categoría no cabe, así que
+  su punto de color viaja pegado al concepto.
+  El formulario de edición y las acciones de fila se extrajeron a
+  `formularioEdicion(m)` y `accionesDe(m)`: los usan las dos vistas, y al
+  partirlas los había duplicado — seis campos y tres acciones por duplicado
+  es justo como se queda una sin el cambio de la otra.
+- **El menú «⋯» se veía transparente en móvil.** Llevaba `bg-card`, y las
+  tarjetas del proyecto son translúcidas a propósito (`--card` es un blanco al
+  4 %): sobre una lista, el panel dejaba leer las filas de debajo. Ahora usa
+  `bg-popover`, el token opaco que ya usaban el modal y los popovers de
+  `fields.tsx` — el proyecto tenía el token bueno y yo puse el otro.
+- El aviso de "aquí no hay nada" pasa a ser una **fila dentro de la tabla**,
+  no un párrafo al lado: así la cabecera sigue enseñando qué columnas tendrá
+  cuando haya datos.
+
+Un cambio de comportamiento a cambio de la consistencia: la tabla del año de
+Gastos tenía el padding y el texto apretados en móvil para que sus cuatro
+columnas cupieran en 375 px sin scroll. Se ha retirado — en pantalla estrecha
+ahora se desplaza, que es lo que ya hacía la del Ahorro.
+
+---
+
+## 02/09/2026 (validación, límites y recordatorios)
+
+### Validación con Zod en TODAS las server actions
+
+Nueva dependencia (`zod`) y un módulo nuevo: **`src/lib/esquemas.ts`**, donde
+vive ahora la validación de todo lo que entra por una action o por la API.
+Antes cada una traía su propia tanda de comprobaciones a mano
+(`Number.isFinite`, `.trim().slice(255)`, un regex de fecha, un `includes`
+para el enum), repetida de fichero en fichero con variaciones — y así es como
+los topes se van separando de las columnas de la BD: cuando eso pasa, el fallo
+llega como el "Error inesperado" genérico en vez de un mensaje que se entienda.
+
+Ahora los límites son los de las columnas y se declaran una vez. Los mensajes
+van en español y **dicen qué pasa** («El importe no puede ser negativo» en vez
+de «Importe no válido»), porque viajan tal cual al aviso del cliente; los tests
+que fijaban el texto viejo se actualizaron.
+
+Migradas las **60 actions** de los cuatro módulos, y también
+`alta-movimiento.ts` y `alta-nota.ts`, que es lo que hace que **la API v1 gane
+la misma validación sin escribir nada aparte** — eran ya el punto compartido.
+
+**Dos trampas de Zod costaron un fallo real cada una**, las dos con test propio
+para que un refactor no las reintroduzca:
+
+1. `z.coerce.number()` dentro de un `union` con `z.null()` **convierte `null`
+   en 0** (`Number(null) === 0`, y la unión prueba las opciones en orden). En
+   el control mensual del ahorro eso escribe un cero donde el mes estaba SIN
+   RELLENAR — que es justo lo que el módulo distingue para avisar por correo.
+   Se detectó probando los esquemas en caliente antes de enchufarlos.
+2. Un campo con `.transform()` **sigue siendo obligatorio**: omitir la clave
+   falla con "expected nonoptional". Hay que marcarlo `.nullish()` antes.
+
+Y una decisión que se tomó a la baja: el identificador **no valida el formato
+canónico de un uuid**. Prisma parametriza, así que un id con mala pinta no
+inyecta nada —en el peor caso no encuentra fila—, la BD heredada mezcla uuids
+v1 y v4, y exigirlo obligaba a reescribir 255 fixtures de los tests a cambio de
+nada. Lo que sí se comprueba es el vacío, el null y las cadenas absurdas. Donde
+el id viene de fuera de verdad —la API— lo que se verifica es que la fila
+**exista**, que es la garantía que importa.
+
+### Rate limiting
+
+`src/lib/rate-limit.ts`: ventana **deslizante** en memoria, con tope en tres
+sitios — la API v1 (por token, y por IP los intentos que no entran), el login
+(`/api/auth/*`) y las escrituras del dashboard (por usuario).
+
+⚠ Esto **no reabre el descarte del 28/08**: lo que se descartó fue el rate
+limit *en Caddy*, porque exigía compilar un Caddy propio. Esto va en la
+aplicación y no necesita nada instalado.
+
+Decisiones que conviene recordar:
+
+- **En memoria, sin Redis**, porque el despliegue es un solo contenedor y ahí
+  un contador en memoria ve todas las peticiones — la condición que hace válida
+  la técnica. Con dos réplicas el límite efectivo se duplicaría; entonces, y
+  solo entonces, tocaría Redis.
+- **Ventana deslizante y no por bloques**: con bloques se cuelan `2 × max`
+  peticiones a caballo entre dos, que es el fallo clásico. Hay test.
+- El límite del **login no es contra la fuerza bruta** (no hay contraseña que
+  probar: es OAuth de Google); es contra el machaque de `/api/auth/*`, que en
+  cada intento consulta la allowlist y escribe en `user_session` y
+  `login_event`.
+- Las cifras están puestas para que **no las note un uso normal**: 30 logins,
+  60 llamadas de API y 120 escrituras por minuto. Un frenazo sale como `429`
+  con `Retry-After` (o como aviso «Vas muy rápido» en una action) y se registra
+  a nivel `warn` con la clave, que es lo único que distingue un bucle propio de
+  un tercero.
+
+**El e2e encontró un agujero de esto mismo**: con la base de datos caída, el
+freno no se aplicaba —la rama `indisponible` salía antes— y cada intento se
+come el tope de 5 s de la autenticación. Es decir: una caída de la BD
+convertía la API en barra libre, y justo cuando atender sale más caro. Ahora el
+**503 cuenta también** para el tope estrecho por IP.
+
+### Recordatorios puntuales («renovar el dominio»)
+
+Migración `recordatorios_puntuales`: `maintenance_task.interval_months` pasa a
+admitir NULL, y **null significa "no se repite"**. Una tarea así es un
+recordatorio suelto: al marcarla como hecha se queda hecha en vez de encadenar
+el siguiente vencimiento (`lastDone` puesto, `nextDue` sin mover — no se borra,
+para que quede el rastro de cuándo se hizo).
+
+Se reutiliza el **módulo de Mantenimiento** en vez de crear una tabla y una
+pantalla nuevas, por el mismo motivo por el que la ITV y las dependencias ya
+comparten módulo: es el mismo problema —algo con fecha de lo que hay que
+acordarse— y una tabla aparte obligaría a duplicar el calendario, los avisos
+del cron, los ámbitos y la interfaz. En el formulario aparece **Repetición:
+«Se repite» / «Una vez»**, y con "Una vez" el campo de los meses desaparece.
+En la lista su periodicidad se lee **«Una vez»**.
+
+Se ofreció sacarlo a una sección propia y **Adrián confirmó dejarlo en
+Mantenimiento**: queda cerrado, no es un pendiente.
+
+En el calendario a 12 meses sale **una sola vez**, en su mes; si ya se pasó,
+en el mes en curso marcado como atrasado; y si cae fuera de la ventana, no
+aparece. Los tres casos con test.
+
+---
+
+## 02/09/2026 (repaso final)
+
+### Correcciones de interfaz
+
+- **Retirada la densidad compacta.** El conmutador «Densidad» del menú de
+  perfil y sus reglas de CSS ya no están: apretar las filas de todas las tablas
+  ahorraba unos píxeles y estropeaba el aspecto, que es un mal cambio. Con él se
+  va la clase `fila-lista`, que solo existía para que la densidad alcanzara a
+  las listas que no son `<table>`. `vista-preferencias.tsx` se queda solo con
+  el aviso de novedades.
+- **Acciones de fila en un menú, en móvil** (`components/dashboard/menu-acciones.tsx`).
+  Con tres o cuatro iconos por fila, en 375 px se comían el ancho: empujaban el
+  concepto y el importe y quedaban tan juntos que se pulsaba el de al lado.
+  Ahora las acciones **se declaran** y el componente decide cómo pintarlas —
+  iconos en línea en escritorio, un «⋯» con menú en móvil—, así que hay una
+  sola definición por fila y no dos maquetaciones. **Medido** a 375 px en la
+  lista de movimientos: el concepto pasa de 105 a **177 px** de ancho útil
+  (+69 %) y el bloque de acciones baja de 106 a 34.
+  En el menú las acciones salen **por su nombre**, no por su icono: en móvil no
+  hay `title` que enseñar al pasar el dedo, así que un icono suelto es una
+  adivinanza. Y una acción apagada **explica el motivo** ahí mismo (por ejemplo,
+  por qué no se puede borrar una categoría en uso), que en un icono solo cabía
+  en un `title` invisible.
+  Aplicado donde de verdad se acumulaban: movimientos de Gastos, categorías y
+  recurrentes de Ajustes, tabla e histórico del pipeline, cuentas de Usuarios y
+  tareas de Mantenimiento. **No** donde hay una o dos acciones (notas, sesiones,
+  tokens, aportaciones del ahorro): esconder dos iconos detrás de un menú son
+  dos toques donde había uno, y por eso el umbral es un parámetro (`desde`).
+  Dos decisiones que se ven en el código: el chevron de un recurrente y el botón
+  «Hecha» de una tarea **se quedan fuera** del menú — el primero es un
+  despliegue, no una acción, y el segundo es LA acción de su tarjeta.
+  El popover se reutiliza de `ui/fields.tsx` (portal con posición fija, ahora
+  exportado): no lo recorta ninguna tabla con overflow ni el cuerpo de un modal,
+  y hereda el cierre con Escape, con clic fuera y al hacer scroll.
+  De paso, las acciones de la tabla de usuarios ganan **nombre accesible**: solo
+  tenían `title`, que un lector de pantalla usa como último recurso y un móvil
+  no enseña nunca.
+- **Recuperado el favicon de la pestaña.** Se perdió el 02/09 al añadir las
+  splash de iOS: **declarar `metadata.icons` hace que Next deje de inyectar los
+  iconos por convención de fichero** (`app/icon.svg`, `app/apple-icon.tsx`), y
+  el `<link rel="icon">` desapareció sin ningún aviso. Ahora los tres van
+  explícitos (`icon`, `apple`, `other`) y queda escrito en el propio fichero
+  para que no vuelva a pasar.
+
+### Y dos de herramientas, que salieron de un «no me carga»
+
+- **El dev server ya no se muere al construir.** `pnpm build` y `pnpm dev`
+  comparten `.next`, así que construir con el dev server levantado lo mataba —
+  y con nada escuchando en el 9444, lo siguiente que falla es todo lo que
+  apunta ahí: el navegador, el móvil en la red local o la extensión de vista
+  responsive. Ahora `distDir` sale de `NEXT_DIST_DIR`, los **e2e construyen en
+  `.next-aparte`** por su cuenta y hay `pnpm build:aislado` para un build a
+  mano sin cortar nada. `pnpm build` se queda en `.next`: es lo que esperan el
+  CI y el Dockerfile.
+  Dos remates de Windows por el camino: las variables van por `env` y no como
+  `VAR=valor comando` —los scripts de pnpm corren en cmd, donde eso no existe,
+  y así estaba **roto el `pnpm analyze`** que se añadió ese mismo día—, y la
+  carpeta alternativa es **una sola**, porque `next build` añade dos entradas a
+  `tsconfig.json` por cada nombre nuevo que ve. `.next-*` también se ignora en
+  ESLint: sin eso, entraba a analizar el código generado (33 000 avisos).
+- **Next ya no escribe en `CLAUDE.md`** (`agentRules: false`). La 16.3.4 —la
+  versión a la que se subió hoy— añade un bloque propio al final del fichero
+  en cada `next dev`. `CLAUDE.md` se mantiene a mano, en español y versionado:
+  una herramienta que lo reescribe sola ensucia el diff en cada arranque.
+  Comprobado con el hash del fichero antes y después de reiniciar: idéntico.
+- **En desarrollo la CSP ya no bloquea.** Va como
+  `Content-Security-Policy-Report-Only` y no se manda `X-Frame-Options` ni
+  `frame-ancestors`. `XFO: DENY` + `frame-ancestors 'none'` + el `frame-src
+  'none'` nuevo impiden cargar la página dentro de un **iframe**, que es cómo
+  funcionan las extensiones de vista responsive; en local esas cabeceras no
+  protegen de nada. Report-only y no "fuera del todo" para conservar lo que sí
+  aportaban en dev: que una violación real se vea aquí y no en producción.
+  Comprobado: en el 9444 la página **ya se carga en un iframe**, y los e2e
+  siguen verificando la versión aplicada contra un build de producción.
+
+---
+## 02/09/2026 (cierre del día)
+
+### API propia para los Atajos de iOS, y el bloque de plataforma
+
+Catorce puntos: la API que se pidió («quiero usar atajos de iOS») y trece de
+endurecimiento, operación y calidad. Una migración nueva (`api_tokens`), tres
+dependencias de desarrollo y **tres variables de entorno opcionales**
+(`LOG_LEVEL`, `SESION_DIAS`, `SESION_INACTIVIDAD_HORAS`).
+
+#### API v1 (`/api/v1/*`) — el motivo de todo esto
+
+Cuatro endpoints para apuntar cosas **sin abrir el navegador**: `POST
+/movimientos`, `POST /notas`, `GET /resumen` y `GET /categorias`. Documentación
+y receta del Atajo en `docs/API.md`.
+
+- **Tokens Bearer** (`lib/api-token.ts` + tabla `api_token`), gestionados en la
+  nueva sub-pestaña **Panel → Usuarios → API**. Se guarda **solo el SHA-256**,
+  nunca el token: por eso el valor se muestra UNA vez y, si se pierde, se revoca
+  y se crea otro. SHA-256 a secas y no bcrypt a propósito — un token son 256
+  bits aleatorios, no una contraseña adivinable, y el hash se comprueba en cada
+  petición. Un token solo vale mientras su cuenta esté **activa y admin**:
+  deshabilitarla los invalida al instante, igual que su sesión del navegador.
+- **La validación es COMPARTIDA con el dashboard** (`lib/alta-movimiento.ts`,
+  `lib/alta-nota.ts`): `createGasto` y `createNote` ahora llaman a las mismas
+  rutinas que la API. Es lo único que evita que dos puertas al mismo dato se
+  separen — el día que cambie el tope del importe o el saneado del HTML, cambia
+  en un sitio porque es un sitio. De paso salió un fallo latente: el alta NO
+  comprobaba que la categoría existiera, y como el FK es `SET NULL`, un uuid
+  inventado se guardaba **sin categoría en silencio**. Ahora se rechaza, y
+  también si la categoría es del tipo contrario.
+- **Detalles pensados para un Atajo, no para un cliente HTTP**: el importe
+  acepta `"12,50"` con coma decimal (es lo que manda iOS); la `categoria` se
+  puede dar **por nombre** —sin tildes ni mayúsculas— porque teclear un uuid en
+  un Atajo no es realista; `tipo` cae a "gasto" y `fecha` a hoy; no se mira el
+  `Content-Type` (los Atajos lo ponen mal); y cada escritura devuelve un
+  `mensaje` ya redactado para que Siri lo lea en voz alta.
+- **Sin CORS a propósito**: la consumen Atajos y scripts, no páginas de
+  terceros. Sin `Access-Control-Allow-Origin`, una web ajena no puede leer la
+  respuesta aunque tuviera el token.
+
+#### Sesiones
+
+- **«Cerrar todas las sesiones»** en la pestaña Sesiones: el botón de pánico
+  para un portátil perdido o un navegador ajeno. **La propia se excluye** —
+  cerrarla también dejaría al admin fuera de la pantalla desde la que acaba de
+  pulsar, sin poder comprobar el resultado. Solo aparece si hay algo que cerrar.
+- **Caducidad más granular** (`lib/sesion-caducidad.ts`). Antes había UN plazo:
+  el JWT vivía 7 días y punto, que deja fuera justo el caso que importa (una
+  sesión olvidada, porque los 7 días corren igual la uses o no). Ahora hay dos:
+  el **tope absoluto** (`SESION_DIAS`, 7) y el **cierre por inactividad**
+  (`SESION_INACTIVIDAD_HORAS`, **48 por defecto** — es un cambio de
+  comportamiento, y se asume porque con Google volver a entrar son dos clics).
+  Al pasarse de inactividad se **borra la fila**, no solo se rechaza el token:
+  si no, seguiría figurando como activa en el Panel para siempre. La política
+  vigente se enseña en la propia pestaña.
+
+#### Seguridad y plataforma
+
+- **CSP ampliada** (`next.config.ts`). Era mínima (`object-src`, `base-uri`,
+  `frame-ancestors`) porque una completa con `script-src` pedía nonces, que
+  están descartados. Ahora fija el **origen de cada tipo de recurso**:
+  `default-src 'self'`, `script-src` (con GTM), `style-src`, `img-src`,
+  `font-src`, `connect-src`, `worker-src`, `manifest-src`, `frame-src 'none'` y
+  `form-action 'self'`. `script-src` sigue con `'unsafe-inline'` —Next hidrata
+  con scripts en línea— pero lo que se gana es lo que remata casi cualquier XSS:
+  **la exfiltración a un servidor ajeno**, que ahora la bloquea `connect-src`.
+  En desarrollo se afloja lo justo (`'unsafe-eval'` y el websocket del HMR), o
+  la CSP de producción rompería el dev server y se descubriría tarde.
+  HSTS revisado: se queda **sin `preload`** a propósito (entrar es fácil, salir
+  tarda meses, y afectaría a cualquier subdominio futuro sin HTTPS).
+- **Healthcheck y readiness**: `/api/health` (vivo, sin tocar la BD) y
+  `/api/ready` (`SELECT 1` con tope de 3 s, **503** si la BD no contesta). Son
+  dos preguntas distintas y mezclarlas tiene consecuencias: el healthcheck de
+  Docker apunta a `/api/health` —antes a `/robots.txt`— porque uno que
+  comprobara la BD **reiniciaría `web` cada vez que la BD tarda en arrancar**,
+  que es el bucle que se quiere evitar. Los dos son públicos y por eso solo
+  dicen sí o no: ni el error, ni la versión, ni cuánto tardó.
+- **Logs estructurados** (`lib/log.ts`): cuatro niveles (`debug` < `info` <
+  `warn` < `error`) con el suelo en `LOG_LEVEL`. En producción, **una línea JSON
+  por evento** (`docker compose logs web | jq 'select(.nivel=="error")'`); en
+  desarrollo, el formato corto de siempre. Migrados los ~45 `console.log` /
+  `console.error` con prefijo a mano que había repartidos, y los recuentos del
+  cron pasan a ser **campos** en vez de texto ("cuántos" sin parsear la frase).
+  Un `Error` se serializa con nombre y mensaje —`JSON.stringify` lo deja en
+  `{}`— y la traza solo fuera de producción. Los componentes de cliente se
+  quedan en `console`: el navegador es donde se miran.
+- **`mariadb` a 3.4.7** (override en `pnpm-workspace.yaml`), que cierra los
+  cuatro avisos que quedaban abiertos. Lo que lo desbloqueó: el parche salió en
+  la **misma minor** que el pin exacto del adapter (3.4.5), no en el 3.5.1 que
+  se temía — un patch, no un salto de versión que Prisma no ha probado. Y
+  `mysql2` a >=3.22.0 (llega vía el CLI de Prisma), **verificado ejercitando la
+  BD de verdad** (`migrate status` y `migrate diff`, que es lo que usa mysql2).
+  `pnpm audit` queda **en cero**. Subidas también `next` 16.3.4,
+  `lucide-react`, `nodemailer`, `tsx` y `shadcn`; los mayores (eslint 10,
+  TypeScript 7, @types/node 26, Prisma 8 RC) se quedan: son migraciones
+  deliberadas, no un `pnpm up`.
+- **Índice `idx_opportunity_updated`** en `opportunity.update_ts`, con
+  `EXPLAIN` delante: la tabla y el histórico se ordenan por última actividad y
+  salía `type: ALL` + `Using filesort`. Los otros dos que se pidieron **no se
+  ponen, y por evidencia**: `concept LIKE '%x%'` no puede usar un índice BTREE
+  (`key: null`), y `expense_date` ya resuelve por `idx_expense_date`.
+
+#### Calidad
+
+- **Tests e2e (Playwright)**, en `e2e/`, contra un build de **producción**. No
+  cubren los flujos autenticados —meter un navegador por el OAuth de Google con
+  su captcha no es un test, es una fuente de falsos rojos— sino **las
+  invariantes que se ven desde fuera**, que son justo lo que los unitarios no
+  pueden afirmar porque ahí `auth()` está mockeado: que ninguna ruta del
+  dashboard suelte contenido sin sesión, que la API rechace sin token, que las
+  cabeceras estén puestas y que la salud responda. 23 tests.
+  **Y encontraron dos cosas reales**: (1) con la BD caída la API devolvía **500**
+  en vez de un 503 —`identificar()` ahora distingue "token inválido" de "no he
+  podido comprobarlo", porque un 401 le diría a su dueño que revoque el token y
+  cree otro, y el nuevo tampoco funcionaría—; y (2) esa misma petición se
+  quedaba **20 segundos** colgada esperando al pool de Prisma, así que la
+  autenticación lleva tope de 5 s (un Atajo que no responde ya ha fallado para
+  quien lo pulsó). De paso quedó documentado que Next resuelve el redirect de
+  `/app/panel` con un 200 + `NEXT_REDIRECT` en el payload, no con un 307:
+  viaja el `<title>` de la página (metadata) y **ningún dato**, y el test lo
+  comprueba marcador por marcador.
+- **Auditoría axe** (`tests/accesibilidad.dom.test.tsx`): axe-core sobre el
+  modal común, los campos de `fields.tsx` y las sub-pestañas. Se auditan los
+  **cimientos** y no cada pantalla porque un fallo de rol o de nombre accesible
+  está casi siempre en la pieza reutilizada, y probarla una vez cubre las veinte
+  que la montan. Sin violaciones. `color-contrast` va desactivada —jsdom no
+  calcula estilos, así que no es evaluable— y el contraste ya se midió a mano en
+  el navegador (de ahí salió el blanco sobre `--danger`, 2,77:1, corregido).
+  `region` también, que es una regla de página y aquí se audita un fragmento.
+- **Paginación de verdad en las listas largas.** La búsqueda de movimientos
+  devolvía las 200 primeras coincidencias y avisaba de que había recortado: con
+  un histórico de años, "los primeros 200 de 1.340" deja el resto
+  **inalcanzable**. Ahora pagina de 50 en el servidor (`skip`/`take`, `?p=`),
+  con las sumas seguidas calculándose sobre TODAS las coincidencias, que es el
+  dato que se venía a ver. La tabla del pipeline pinta de 50 en 50 con «Ver
+  más»: ahí el filtro es de cliente (busca en seis campos), así que paginar en
+  el servidor rompería la búsqueda — lo que se recorta es lo que se PINTA.
+- **Más Suspense** (`components/dashboard/esqueletos.tsx`): finanzas y pipeline
+  bloqueaban la página entera hasta la última consulta. Ahora el título y la
+  navegación salen al instante y solo el bloque de datos espera, con esqueleto
+  por forma de vista (panel, lista, tarjetas, tablero). Los esqueletos viven en
+  un módulo común porque el del Panel ya estaba copiado.
+- **Analizador de bundle**: `pnpm analyze` (`@next/bundle-analyzer` tras
+  `ANALYZE=1`, apagado en el build normal para no abrir tres pestañas en cada
+  `pnpm build`).
+- **CI en dos jobs**: `verificar` (lint + tsc + test + build, más un
+  `pnpm audit` **informativo** que no rompe el CI — un aviso en una transitiva
+  que aún no se puede subir no debe bloquear un despliegue) y `e2e` aparte,
+  porque necesita navegador y build de producción; solo corre si `verificar`
+  pasa, y sube el informe de Playwright si falla.
+
+#### Lo que NO se hizo, y por qué
+
+- **Límites y sanitizado de subidas**: el proyecto **no tiene subidas de
+  ficheros** en ninguna parte (se comprobó). No hay formulario, ni endpoint, ni
+  almacenamiento. Escribir límites para algo que no existe sería código muerto
+  que envejece; queda para cuando se añadan adjuntos de verdad — y entonces el
+  sitio natural es el mismo patrón del tope de 8 KB de la API.
+
+---
+
+## 02/09/2026 (noche)
+
+### Móvil y PWA: push, offline, gestos y los remates de iPhone
+
+Nueve del bloque «Móvil / PWA» de `SUGERENCIAS.md`. Una migración nueva
+(`notificaciones_push`), una dependencia (`web-push`) y **dos variables de
+entorno opcionales**.
+
+- **Notificaciones push web** — `lib/push.ts` + `push-actions.ts` + tabla
+  `push_subscription` + el service worker. Es el mismo aviso que ya manda el
+  cron por correo, pero llegando al móvil en el momento; el correo se sigue
+  enviando (son dos canales, y el correo es el que queda como registro). Una
+  fila por **NAVEGADOR**, no por usuario: el iPhone y el portátil son dos
+  suscripciones con su endpoint y sus claves. Se limpian solas — cuando el
+  servicio de push responde 404/410 (permiso revocado, app desinstalada) la fila
+  se retira en el propio envío. Los avisos van **agrupados en una sola
+  notificación**: una por aviso sería un carrusel de tres cada mañana.
+  Degrada como GA y el SMTP: **sin claves VAPID no hace nada** y el interruptor
+  lo dice en vez de fallar. ⚠ En iPhone el push exige la app **instalada** en la
+  pantalla de inicio (iOS 16.4+); en Safari a pelo el navegador ni ofrece el
+  permiso, y el interruptor lo explica.
+- **Vista offline** — `public/sw.js` + `/offline`. Si una navegación falla por
+  falta de red se sirve una pantalla propia en vez del error del navegador (que
+  en una app instalada es una pantalla en blanco, peor). **No cachea las páginas
+  del dashboard a propósito**: son datos personales que cambian a cada rato, y
+  servir una versión vieja sería peor que decir "sin conexión". El service worker
+  son 60 líneas en `/public` y no un plugin (next-pwa y compañía): así no hay una
+  capa de build que envejezca sola.
+- **Shortcuts del manifest** — «Nuevo gasto», «Gastos del mes» y «Nueva nota» en
+  el menú del icono. El primero abre el alta al entrar (`/app?nuevo=gasto`, que
+  el inicio entiende). ⚠ Safari en iOS **no los implementa**: se declaran porque
+  son gratis, valen en Android y escritorio, y el día que los soporte ya están.
+- **Splash screens de iOS** — `lib/splash.ts` + `/splash/[dim]`. Sin ellas,
+  abrir la app instalada enseña un fogonazo blanco. iOS exige una imagen POR
+  TAMAÑO de pantalla con su media query; se generan en runtime con ImageResponse
+  (como el `apple-icon`) en vez de commitear 13 PNG, y la ruta tiene
+  **allowlist** para que una URL inventada no pida una imagen de 20 000 px.
+- **Safe-area / notch** — `viewport-fit=cover` más las clases `.safe-*`. Ahora
+  la página llega a los bordes físicos como una app, y la barra superior, el
+  contenido y el menú móvil se apartan del notch, de la isla dinámica y de la
+  barra de gestos. Los `env()` valen 0 donde no hay recortes, así que en
+  escritorio no cambia nada.
+- **Pull-to-refresh** — En el navegador esto lo da el sistema, pero una PWA
+  instalada no tiene barra ni gesto de recarga: si un dato se queda viejo no hay
+  forma de pedirlo otra vez. Llama a `router.refresh()` (no recarga la página,
+  no se pierde el estado). Para no pelearse con el scroll: solo arranca con la
+  página **arriba del todo** y con el dedo claramente en vertical.
+- **Gestos** — `FilaDeslizable` en la lista de movimientos: → editar,
+  ← eliminar. Se permite **borrar por gesto ahí precisamente porque tiene
+  deshacer**; donde no hay marcha atrás (categorías, años) no se pone gesto, se
+  pregunta. Solo entra en modo gesto si el dedo va horizontal, así el scroll
+  vertical y el pull-to-refresh nunca se secuestran.
+- **Zoom de iOS** — El **editor de notas** tenía 14 px y iOS hace zoom al
+  enfocar un `contentEditable` por debajo de 16, dejando la página descuadrada.
+  Ahora el editor es de 16 px en móvil; las tarjetas (solo lectura) se quedan en
+  14, que ahí no hay riesgo. El resto de campos ya estaba con `text-base sm:text-sm`.
+- **Auditoría de tamaños táctiles** — barrido de TODAS las vistas, no solo las
+  nuevas. Cuatro interactivos por debajo del criterio: las flechas de mes del
+  calendario (28→36), el conmutador de vista del pipeline (28→40), «Cerrar
+  sesión» de la lista de sesiones (26→40) y el enlace de Visitas (26→40). Los
+  chips que son `<span>`/`<p>` no se tocan: no se pulsan.
+
+**Tests**: 379 (7 nuevos) para la tabla de splashes, que es de las cosas que
+**fallan en silencio**: si una media query no cuadra con ningún dispositivo, iOS
+simplemente no pinta la imagen y no hay error que lo delate. Se comprueba que el
+tamaño físico es el lógico por la densidad, que no hay medias repetidas y que
+cada `<link>` apunta a un tamaño de la allowlist de la ruta.
+
+## 02/09/2026 (tarde)
+
+### Productividad transversal: deshacer, búsqueda global, atajos y preferencias
+
+Las diez sugerencias del bloque «Productividad transversal». Comparten tres
+piezas nuevas, que es lo que hace que no sean diez parches sueltos:
+
+- **`lib/preferencias.ts`** — preferencias de INTERFAZ en el navegador. ⚠ No
+  resucita los ajustes por usuario en BD que se retiraron el 31/08 (columna
+  `user.prefs` incluida): aquí solo viven comodidades de la vista (densidad,
+  accesos fijados, confirmaciones silenciadas, versión ya vista), que son de
+  ESE dispositivo y no cambian datos ni permisos. Se lee con
+  `useSyncExternalStore` y no con un efecto **a propósito**: leer localStorage
+  en un `useEffect` obliga a un `setState` síncrono dentro del efecto, que es
+  justo lo que prohíbe el React Compiler. De paso se sincroniza entre pestañas.
+- **`dashboard/confirmar.tsx`** — un solo diálogo de confirmación para todo el
+  dashboard, pedido con una promesa (`await confirmar({...})`). Sustituye a los
+  **seis confirmadores de dos pasos** que cada lista se había montado por su
+  cuenta, con aspecto distinto en cada una.
+- **`dashboard/deshacer.ts`** — borrado con marcha atrás.
+
+Y luego, una por una:
+
+- **Deshacer tras borrar** (movimientos, notas y oportunidades). Ya no
+  preguntan: borran y el aviso ofrece «Deshacer» 8 s. El motivo es que un
+  «¿seguro?» no evita el error —se pulsa «Sí» por inercia— y sí cobra peaje en
+  cada borrado legítimo. Las tres acciones devuelven un **paquete de
+  restauración** y vuelven con **su uuid original** (no un duplicado); la
+  oportunidad se restaura **con su historial**, porque el FK de
+  `opportunity_event` es CASCADE y devolver la ficha sin timeline sería peor que
+  no ofrecer deshacer. Restaurar dos veces (doble clic) no duplica nada.
+- **Confirmaciones con «no volver a preguntar»**: lo que NO se puede devolver
+  entero sigue preguntando (categorías, recurrentes, mantenimiento, sesiones),
+  pero con casilla para silenciar esa acción concreta. Dos se preguntan
+  **siempre**, sin casilla: eliminar un usuario y borrar un año de ahorro. Y
+  como silenciar algo sin poder recuperarlo es una trampa, el menú de perfil
+  ofrece «Volver a preguntar al eliminar» — solo si hay algo silenciado.
+- **Búsqueda global unificada** (`buscar-actions.ts` + `lib/buscar.ts`): la
+  paleta ⌘K busca ahora en movimientos (concepto y nota), oportunidades (título,
+  empresa, contacto y notas) y notas (título y contenido), con freno de 250 ms.
+  El "buscando" se **deriva** comparando la consulta con la de los resultados,
+  para no meter otro estado (y otro setState en un efecto). ⚠ Los tipos y las
+  constantes viven en `lib/buscar.ts` porque un módulo `'use server'` **solo
+  puede exportar funciones async**: tenerlos dentro dejaba al módulo sin exports
+  y el build fallaba.
+- **Más acciones en ⌘K**: «Nueva nota» y «Nueva oportunidad» (que abren el
+  formulario en su página vía `?nueva=1`), «Atajos de teclado», y un mes escrito
+  a mano — «marzo», «mar», «marzo 2025», «2026-03» — abre sus gastos
+  (`mesEscrito`, función pura y probada: con menos de tres letras NO adivina,
+  porque «ma» sería marzo o mayo).
+- **Atajos de teclado globales**: `g`+letra para saltar de módulo (secuencia, no
+  combinación), `n` para apuntar un movimiento, `/` para la paleta y `?` para la
+  chuleta. Las teclas sueltas se ignoran mientras se escribe en un campo; ⌘K es
+  la excepción, porque es la vía de entrada desde cualquier sitio.
+- **Estado en la URL**: la vista del pipeline (`?vista=`) y la de mantenimiento
+  (`?vista=calendario`) dejan de ser estado de cliente, y se añaden `?abrir=` y
+  `?nueva=1` en pipeline y notas. Así el enlace es compartible, el botón «atrás»
+  devuelve donde estabas y la búsqueda de la paleta puede abrir **una ficha
+  concreta** en vez de dejarte en la lista.
+- **Centro de notificaciones in-app** (`notificaciones.tsx`): campana en la
+  barra superior con los mismos avisos accionables del inicio, visibles desde
+  cualquier página — el cron ya avisa por correo, pero eso se lee fuera y a las
+  8:00. **No hay tabla de notificaciones**: un aviso es una CONSULTA sobre el
+  estado actual, no un registro, y si la tarea se hace desaparece solo. Para no
+  duplicar criterios, la construcción de avisos se extrajo a `construirAvisos`
+  (pura) y se añadió `avisosPendientes()` con sus propias consultas mínimas. Lo
+  "leído" recuerda la HUELLA del aviso (clave + texto): si pasa de 2 a 3
+  seguimientos vuelve a contar como nuevo.
+- **Accesos fijados personalizables** en el inicio: el catálogo completo son
+  diez y cada uno fija los que usa, en su orden. Antes eran los tres módulos
+  fijos, que es el mapa del menú y no lo que se abre a diario. Por defecto
+  quedan esos tres, así que sin tocar nada el inicio se ve igual.
+- **Densidad / modo compacto**: conmutador en el menú de perfil que pone
+  `data-densidad` en `<html>`; el CSS aprieta las celdas de **todas** las tablas
+  con selectores de elemento (la especificidad `[atributo]`+elemento gana a la
+  utilidad de Tailwind sin `!important`), en vez de cambiar clases componente a
+  componente. Las listas que no son `<table>` se marcan con `.fila-lista`.
+- **Aviso de novedades**: franja discreta cuando la versión desplegada no es la
+  última vista en ese navegador. No enlaza a ningún listado de cambios porque el
+  proyecto no publica uno (el CHANGELOG vive en el repo): dice QUE hay versión
+  nueva, que es lo que no se puede saber desde dentro de la app.
+
+**Sin cambios de esquema**: las diez salen con las tablas que ya había.
+
+### Repaso de accesibilidad en móvil (375 px)
+
+Medido de verdad en un viewport de 375 px, no a ojo. Como el dashboard va tras
+el login de Google, se montó una **página temporal** que renderizaba los
+componentes nuevos con datos falsos, se midió con el DOM (anchos, objetivos
+táctiles, contraste real calculado) y **se borró al terminar**. Lo que salió:
+
+- ⚠ **El panel de avisos se salía 117 px por la izquierda.** Iba anclado a la
+  campana con `right-0`, y la campana NO está en el borde derecho —detrás van
+  buscar, «+» y la hamburguesa—, así que un panel de 320 px colgado de ella no
+  cabe en 375. Arreglado con `max-sm:static` en el contenedor: en móvil el
+  bloque de referencia pasa a ser la barra superior (que es sticky) y el panel
+  ocupa el ancho de la pantalla con márgenes. Ahora mide 343 px y no se sale.
+- ⚠ **Contraste por debajo de AA: 2,77:1.** El badge de la campana y el botón
+  destructivo del diálogo usaban texto **blanco** sobre `--danger` (#f87171),
+  que da 2,77:1 cuando AA pide 4,5. Es exactamente el motivo por el que
+  `--primary-foreground` ya era oscuro en este proyecto ("el blanco sobre
+  esmeralda no da contraste AA"), así que se aplica el mismo criterio: texto
+  oscuro sobre el color. Quedan en **6,72:1** y **6,01:1**. Solo afectaba a
+  estos dos componentes nuevos; el `bg-btn` de la landing ya estaba elegido
+  (#047857) precisamente para pasar AA.
+- **Objetivos táctiles** por debajo del criterio del proyecto (40 px en móvil,
+  el de `btnIcon`), todos en piezas nuevas: campana 36→40, cerrar el aviso de
+  novedades 28→36, conmutador de densidad 22→38, «Elegir» de los accesos 26→38,
+  botones del diálogo 34→42 y la fila de la casilla «No volver a preguntar»
+  20→40 (la casilla sola eran 16 px). Las sub-pestañas pasan de 32 a 40, y como
+  las clases son compartidas, **también mejoran las secciones de Finanzas**.
+- **Escape en la paleta**: solo cerraba con el foco dentro del campo (era un
+  `onKeyDown` del input), y en cuanto se pulsaba un resultado con el ratón
+  dejaba de funcionar. Ahora hay un listener a nivel de documento, en captura.
+- Verificado además: **cero desbordamiento horizontal** en toda la página,
+  ningún interactivo sin nombre accesible, `aria-expanded`/`aria-haspopup` en la
+  campana, `aria-current` en las sub-pestañas, `aria-pressed` en los
+  conmutadores, y el anillo de foco (2 px esmeralda) sale con teclado.
+
+### La escala de botones, a 40 px en móvil (y en un solo sitio)
+
+A petición, la subida que se había dejado fuera del repaso anterior:
+`btnPrimary` y `btnOutline` pasan de **34 a 40 px** en móvil, y los chips de
+filtro y conmutadores (Mes/Año, Lista/Calendario, filtros por ámbito o por tipo)
+de **28-35 a 40**. En escritorio **no cambia nada**: es `max-sm:py-2.5`, así que
+a 1280 px siguen midiendo 32/34/28 como siempre. Verificado midiendo el DOM en
+las dos anchuras.
+
+Para poder hacerlo hubo que unificar antes: la escala estaba **copiada en cinco
+ficheros** (`savings/comun`, `pipeline/comun`, `panel/mantenimiento`,
+`panel/notas` y `users/users-table`) con las clases palabra por palabra, y ya
+había empezado a divergir — tres copias de `btnOutline` sin los estados
+`disabled:` y tres variantes distintas de `btnIcon`. Ahora vive en
+**`ui/botones.ts`** (`btnPrimary`, `btnOutline`, `btnIcon`, `chipFiltro`), los
+dos `comun` la re-exportan porque medio proyecto la importa de ahí, y no queda
+ninguna copia suelta. Se tomó como canónica la variante más completa de cada
+una: `btnOutline` con sus `disabled:` y `btnIcon` con los `disabled:hover:*` que
+solo tenía `users-table` (un botón inhabilitado no debe reaccionar al hover).
+
+`btnIcon` se queda en **34 px** a propósito, y está comentado en el módulo: no
+es un botón de formulario sino una acción de fila, y subirlo estiraría cada fila
+de las listas largas (movimientos, sesiones) sin ganar nada — sigue holgadamente
+por encima del mínimo de WCAG 2.2 AA (24 px).
+
+**Tests**: 372 (10 nuevos) — el paquete de restauración de una nota y su
+restaurado (con re-saneado del HTML y sin duplicar al segundo clic), y el parser
+de mes de la paleta.
+
+## 02/09/2026
+
+### Notas con etiquetas y tareas, gastos con nota y división, y panel con histórico
+
+Nueve mejoras del backlog de `SUGERENCIAS.md`, en tres módulos. Todo el esquema
+va en **una sola migración** (`20260902090000_notas_tareas_gastos_y_accesos`):
+dos columnas nuevas (`expense.note`, `note.pinned`) y dos tablas
+(`login_event`, `infra_sample`).
+
+**Gastos**
+
+- **Nota por movimiento** (`expense.note`). El contexto que no cabe en el
+  concepto ("regalo de X", "compartido con Y"): se edita en la fila (en su
+  propia línea, que la prosa no cabe en un hueco) y en el alta rápida global;
+  en la lista sale un icono con la nota en el tooltip, sin robar ancho. **El
+  buscador también busca en la nota**: es justo lo que uno recuerda después.
+- **Dividir un movimiento en varias categorías** (`dividirGasto`). La compra
+  mixta (súper + farmacia en el mismo recibo) hasta ahora había que borrarla y
+  teclearla dos veces. Las partes heredan tipo, fecha y nota, y **la suma tiene
+  que cuadrar** con el importe original —comparada en céntimos, porque en
+  decimales 0.1 + 0.2 no da 0.3—: cuadrarla a medias descuadraría el mes en
+  silencio. Todo en una transacción (se crean las partes y desaparece el
+  original), así que los totales no cambian ni por un instante. El modal va
+  diciendo cuánto queda por asignar y el botón no se activa hasta que cuadra.
+
+**Notas** (`?tab=notas`)
+
+- **Buscador** sobre título y contenido, sin tildes ni mayúsculas. Busca el
+  TEXTO plano, no el HTML (`strong` no es una palabra de la nota): se calcula en
+  el servidor (`textoDe`) para no repetirlo en cada tecla.
+- **Fijar (pin)** las importantes (`note.pinned`): salen primero y no se hunden.
+- **Listas de tareas marcables**: `<ul class="tareas">` con `<li data-check>`,
+  casilla **dibujada con CSS** (no un `<input>`: el HTML de una nota sigue
+  siendo texto con formato, sin controles en la allowlist del saneador). Se
+  marcan **desde la propia tarjeta**, sin abrir el editor, y el toggle se aplica
+  en el SERVIDOR sobre el HTML ya saneado (`alternarTarea` por índice) en vez de
+  reenviar el documento: así marcar una tarea no puede reescribir la nota. En el
+  editor solo alterna al pulsar la casilla — en el resto del `li` el clic tiene
+  que poder colocar el cursor. La tarjeta muestra el progreso (3/7).
+
+**Panel de control**
+
+- **Mantenimiento: vista calendario a 12 meses.** La lista contesta "qué tengo
+  pendiente"; el calendario, "qué se me viene encima". Encadena cada tarea desde
+  su vencimiento sumando su periodicidad (`proximosMeses`, función pura y
+  probada: meses cortos, febrero y cruce de año), y lo ya vencido sale en el mes
+  en curso marcado, con su fecha real. Los meses vacíos también se pintan: un
+  hueco es información.
+- **Monitor con histórico** (`infra_sample` + `lib/infra-historico.ts`). El
+  monitor medía solo el instante de la petición: ahora el cron apunta **una
+  muestra al día** y la pestaña Servidor tiene un bloque **Evolución** con la
+  ocupación del disco, el tamaño de la BD y los días del certificado, cada uno
+  con su frase de tendencia ("+4 puntos en 90 días"). CPU y memoria se guardan
+  pero NO se grafican: son de un instante concreto del día y su serie no
+  significaría nada. Una muestra al día a propósito — muestrear por minuto es
+  una base de datos de series temporales, otro problema y otra herramienta.
+  Los huecos arrastran el último valor en vez de caer a cero (una caída falsa se
+  lee como un disco que se vacía). El tipo y los cálculos puros viven en
+  `lib/infra-series.ts` **sin `server-only`**, compartidos por el cron y las
+  tarjetas del cliente — mismo criterio que `topes.ts` y `recurrentes.ts`.
+- **Histórico de accesos** (`login_event`, append-only). `user_session` solo
+  conoce lo VIVO (se purga a los 7 días y el logout retira la suya), así que un
+  acceso de hace dos semanas no dejaba rastro. Cada login apunta ahora su fila
+  con dispositivo y correo (guardado en la propia fila: el registro sigue siendo
+  legible aunque el usuario se borre), y la pestaña Usuarios lista los últimos
+  15 con **fecha absoluta** — en un registro de accesos, "hace 12 días" no sirve
+  para comprobar nada. Sin FK físico, por el mismo choque de colaciones que
+  `user_session`.
+- **Visitas: comparativa POR página.** Las páginas más vistas y la comparativa
+  global de totales ya existían; lo que faltaba era saber **qué página** ha
+  subido — un total plano puede esconder que la home baja y un caso de estudio
+  sube. El informe de `pagePath` pide ahora los dos rangos y cada fila lleva su
+  variación (una página que antes no existía se marca "nueva", no +100 %).
+
+**Tests**: 353 (29 nuevos) — saneado y alternado de checklists (incluida la
+normalización de un `data-check` con basura y que un `<input>` no entra),
+proyección del calendario, guardas de `dividirGasto` (suma en céntimos, mínimo
+y máximo de partes) y el emparejado de páginas por rango en GA.
+
+### Matices sobre lo anterior (mismo día)
+
+- **Decimales en los importes** — `src/lib/euros.ts`, fuente única. Finanzas
+  redondeaba a euros: un gasto de 12,50 € se veía como «13 €» aunque la columna
+  es `DECIMAL(12,2)` y el céntimo estaba guardado. Ahora los decimales se
+  muestran **solo si el importe los tiene** ("45,80 €" pero "60 €"), en Gastos y
+  en Ahorro: siempre dos habría llenado de «,00» una columna de cifras redondas.
+  El formateador estaba **duplicado en tres sitios** (`savings/comun.tsx`,
+  `app/page.tsx` y el pipeline); los dos primeros pasan a la fuente única y el
+  pipeline se queda como estaba (sus importes son ofertas redondas). Se redondea
+  a céntimos también **al guardar** (`limpiar` de las actions): antes lo hacía
+  la columna por su cuenta, y entonces lo guardado no coincidía con lo que
+  validó la división en partes. Los avisos por correo siguen en euros enteros.
+- **Etiquetas de las notas, retiradas.** Se quitaron el mismo día que se
+  hicieron, a petición: el buscador ya encuentra por contenido y los chips de
+  filtro solo añadían un campo más al formulario. Se fue con su columna
+  (`note.tags`), retirada de la migración —que **no se había desplegado**— en
+  vez de dejar un par añadir/quitar en el historial; la BD local se reconcilió
+  (columna borrada + `migrate resolve --applied`, cero drift). El **pin** y el
+  buscador se quedan.
+- **La pestaña Usuarios, en tres sub-pestañas**: Cuentas · Sesiones · Accesos,
+  con la misma barra que las secciones de Finanzas. Las tres listas colgaban una
+  debajo de otra en una página cada vez más larga (y el histórico de accesos la
+  remató). La barra se extrajo a `dashboard/sub-tabs.tsx` para que los dos
+  módulos compartan clases en vez de copiarlas, y **cada sub-pestaña consulta
+  solo lo suyo** (antes se traían sesiones y accesos incluso para ver cuentas);
+  la sub-pestaña entra en el `key` del Suspense, así que el cambio pinta su
+  esqueleto. Va por query param (`?tab=usuarios&u=sesiones`), enlazable y con la
+  barra de carga como el resto.
+
+**Tests**: 362 (9 más) para la regla de decimales, incluido el ruido binario
+(`0.1 + 0.2` → "0,30 €", pero `100.00000000000001` → "100 €", sin un ",00"
+inventado).
+
 ## 01/09/2026
+
+### Acciones rápidas (⌘K + alta), búsqueda de movimientos, comparativa y PWA
+
+Mejoras pensadas para el día a día del dashboard:
+
+- **Paleta de comandos (⌘K / Ctrl+K)** — `dashboard/acciones-rapidas.tsx`.
+  Buscar y saltar a cualquier sección o lanzar una acción sin ratón, desde
+  cualquier página: navegación (Inicio, las cuatro secciones de Finanzas,
+  Oportunidades, las pestañas del Panel, portfolio) y acciones ("Nuevo gasto",
+  "Nuevo ingreso"). Filtra **sin tildes ni mayúsculas** (`sinAcentos`) sobre
+  etiqueta + sinónimos, se recorre con ↑/↓ y se ejecuta con Enter. La abre el
+  botón "Buscar" de la barra superior (con su atajo a la vista) o el teclado.
+- **Alta rápida de movimiento** — mismo fichero. Un "+" en la barra superior
+  (y la paleta) abre un modal para apuntar un gasto/ingreso **sin ir a
+  Finanzas**: la fricción de registrarlo es justo lo que hace que se deje de
+  registrar. Reutiliza `createGasto`; las categorías se cargan al abrir
+  (`categoriasParaAlta`, con guarda de admin) y al guardar refresca la página
+  actual para que el alta se note ya (p. ej. el KPI del inicio). Ambas cuelgan
+  del layout, envolviendo top-nav y contenido (`AccionesRapidasProvider`).
+- **Búsqueda de movimientos** — `savings/buscar-gastos.tsx` +
+  `buscarMovimientos` en `lib/gastos.ts`. A diferencia de la vista del mes (que
+  solo mira UN mes), barre todo el histórico por **concepto, tipo, rango de
+  fechas e importe** para responder "¿cuánto llevo gastado en X este año?". Las
+  sumas (ingresos/gastos/balance) y el total son del CONJUNTO de coincidencias;
+  la lista se recorta a 200 (con aviso). Es de consulta: cada fila lleva a su
+  mes, donde se edita. Se entra por el botón "Buscar" de la vista de Gastos o
+  por la paleta (`?s=gastos&buscar=1`, con los filtros en la URL saneados en el
+  servidor).
+- **Comparativa mes vs. mes en el inicio.** El KPI "Gastos del mes" muestra el
+  delta frente al mes anterior (subir es malo → rojo; bajar → verde), con el
+  gasto previo añadido a `resumenInicio` (`lib/inicio.ts`).
+- **App instalable (PWA), a medida de iPhone** — `app/manifest.ts` +
+  `appleWebApp` en el layout raíz. "Añadir a pantalla de inicio" abre el sitio a
+  **pantalla completa** (sin la barra de Safari) y directo al dashboard
+  (`start_url: /app`), con la barra de estado en negro y el monograma AO. ya
+  existente (`apple-icon.tsx` / `icon.svg`). Se emiten las dos metas de
+  capacidad (`mobile-web-app-capable` moderna + `apple-mobile-web-app-capable`
+  para iOS antiguos). iOS no admite share-target, así que no se incluye.
 
 ### Buscador en los selects, feedback de carga y retoques
 

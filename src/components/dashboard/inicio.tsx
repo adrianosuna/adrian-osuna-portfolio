@@ -116,7 +116,9 @@ export function Actividad({ items }: { items: ActividadItem[] }) {
     <div className={cn(cardClass, 'px-4 py-3')}>
       <div className="flex items-center justify-between border-b border-border pb-2.5">
         <h2 className="text-[15px] font-semibold">Actividad reciente</h2>
-        <Link href="/app/pipeline" className="text-[12.5px] font-semibold text-primary hover:underline">
+        {/* `py-1`: sin él la caja pulsable mide 19 px de alto, por debajo de
+            los 24 que pide WCAG 2.2 AA (2.5.8). */}
+        <Link href="/app/pipeline" className="py-1 text-[12.5px] font-semibold text-primary hover:underline">
           Oportunidades
         </Link>
       </div>

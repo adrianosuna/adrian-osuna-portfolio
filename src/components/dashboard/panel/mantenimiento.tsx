@@ -7,18 +7,24 @@
 // siguiente vencimiento; el cron de la app avisa por correo de las vencidas
 // (diario a las 8:00, reaviso semanal).
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import {
-  CalendarClock, Check, Pencil, Plus, Tag, Trash2, X,
+  CalendarClock, CalendarDays, Check, List, Pencil, Plus, Tag, Trash2, X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Modal } from '@/components/ui/modal'
+import { useConfirmar } from '@/components/dashboard/confirmar'
+import { useCarga } from '@/components/dashboard/barra-carga'
 import { DateField, Field, NumberField, SelectField, TextField, TextareaField } from '@/components/ui/fields'
+import { MESES, sumarMeses } from '@/lib/fechas'
 import type { AmbitoRow } from '@/lib/mantenimiento'
 import {
   completeMaintenance, createAmbito, createMaintenance, deleteAmbito, deleteMaintenance,
   updateAmbito, updateMaintenance,
 } from '@/app/app/panel/actions'
+import { btnIcon, btnOutline, btnPrimary, chipFiltro } from '@/components/ui/botones'
+import { MenuAcciones } from '@/components/dashboard/menu-acciones'
 
 export interface MaintenanceRow {
   uuid: string
@@ -27,7 +33,8 @@ export interface MaintenanceRow {
   /** Nombre de su ámbito (null solo si el ámbito se borró). */
   scopeName: string | null
   notes: string | null
-  intervalMonths: number
+  /** null = no se repite (recordatorio puntual). */
+  intervalMonths: number | null
   nextDue: string // 'YYYY-MM-DD'
   lastDone: string | null // 'YYYY-MM-DD'
 }
@@ -50,8 +57,15 @@ const fmt = (iso: string) => iso.split('-').reverse().join('/')
 const dias = (desde: string, hasta: string) =>
   Math.round((Date.parse(`${hasta}T00:00:00Z`) - Date.parse(`${desde}T00:00:00Z`)) / 86_400_000)
 
-/** Periodicidad en una palabra: "cada 1 mes" no lo dice nadie. */
-export function periodicidad(meses: number): string {
+/**
+ * Periodicidad en una palabra: "cada 1 mes" no lo dice nadie.
+ *
+ * `null` es un **recordatorio puntual**: no se repite. Se nombra "Una vez"
+ * y no "Sin periodicidad" porque lo que hay que entender de un vistazo en la
+ * lista es que esa fila pasará una sola vez.
+ */
+export function periodicidad(meses: number | null): string {
+  if (meses === null) return 'Una vez'
   const nombres: Record<number, string> = {
     1: 'Mensual', 2: 'Bimestral', 3: 'Trimestral', 4: 'Cuatrimestral',
     6: 'Semestral', 12: 'Anual', 24: 'Cada 2 años',
@@ -92,12 +106,173 @@ export function antiguedad(lastDone: string, hoy: string): string {
   return años === 1 ? 'hecha hace un año' : `hecha hace ${años} años`
 }
 
-const btnPrimary =
-  'inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-3.5 py-1.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50'
-const btnOutline =
-  'inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3.5 py-1.5 text-sm font-semibold transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50'
-const btnIcon =
-  'rounded-md p-2 max-sm:p-2.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40'
+
+/** Una tarea cayendo en un mes concreto de la proyección. */
+export interface Ocurrencia {
+  uuid: string
+  title: string
+  scopeName: string | null
+  /** Fecha del vencimiento, 'YYYY-MM-DD'. */
+  fecha: string
+  /** Venció antes del mes en curso (arrastra retraso). */
+  atrasada: boolean
+}
+
+/** Un mes de la proyección con lo que vence en él. */
+export interface MesProyectado {
+  /** 'YYYY-MM' */
+  mes: string
+  tareas: Ocurrencia[]
+}
+
+// Tope de saltos al proyectar UNA tarea: con periodicidad mensual, 12 meses son
+// 12 saltos; el tope solo existe para que una fecha absurda (o un intervalo
+// corrupto) no cuelgue el bucle.
+const MAX_SALTOS = 600
+
+/**
+ * Proyecta los vencimientos de los próximos `meses` meses (el actual incluido).
+ *
+ * Encadena cada tarea desde su próximo vencimiento sumando su periodicidad, así
+ * que una tarea mensual sale doce veces y la ITV una. Lo que ya venció antes de
+ * este mes se muestra en el mes en curso marcado como atrasado —es lo que hay
+ * que hacer ya— y a partir de ahí sigue su serie normal.
+ *
+ * Es una función pura para poder probarla: la aritmética de meses cortos y el
+ * cruce de año son justo donde esto se rompe.
+ */
+export function proximosMeses(
+  rows: MaintenanceRow[],
+  hoy: string,
+  meses = 12,
+): MesProyectado[] {
+  const inicio = `${hoy.slice(0, 7)}-01`
+  const fin = sumarMeses(inicio, meses) // primer día del mes siguiente a la ventana
+  const cubos = new Map<string, Ocurrencia[]>()
+  const orden: string[] = []
+  for (let i = 0; i < meses; i++) {
+    const m = sumarMeses(inicio, i).slice(0, 7)
+    orden.push(m)
+    cubos.set(m, [])
+  }
+
+  for (const t of rows) {
+    // Un recordatorio puntual sale UNA vez, en su mes (o en el actual si ya
+    // se pasó): no hay serie que encadenar.
+    if (t.intervalMonths === null) {
+      const atrasada = t.nextDue < inicio
+      const cubo = atrasada ? orden[0] : t.nextDue.slice(0, 7)
+      if (atrasada || t.nextDue < fin) {
+        cubos.get(cubo)?.push({
+          uuid: t.uuid,
+          title: t.title,
+          scopeName: t.scopeName,
+          fecha: t.nextDue,
+          atrasada,
+        })
+      }
+      continue
+    }
+    const paso = Math.max(1, t.intervalMonths)
+    let f = t.nextDue
+    if (f < inicio) {
+      // Atrasada: se enseña en el mes en curso con su fecha real, y luego se
+      // adelanta su serie hasta entrar en la ventana.
+      cubos.get(orden[0])?.push({
+        uuid: t.uuid, title: t.title, scopeName: t.scopeName, fecha: f, atrasada: true,
+      })
+      let saltos = 0
+      while (f < inicio && saltos++ < MAX_SALTOS) f = sumarMeses(f, paso)
+    }
+    let saltos = 0
+    while (f < fin && saltos++ < MAX_SALTOS) {
+      cubos.get(f.slice(0, 7))?.push({
+        uuid: t.uuid, title: t.title, scopeName: t.scopeName, fecha: f, atrasada: false,
+      })
+      f = sumarMeses(f, paso)
+    }
+  }
+
+  return orden.map((mes) => ({
+    mes,
+    tareas: (cubos.get(mes) ?? []).sort((a, b) => a.fecha.localeCompare(b.fecha)),
+  }))
+}
+
+/**
+ * Calendario de los próximos 12 meses: qué vence y cuándo.
+ *
+ * La lista contesta "qué tengo pendiente"; esto contesta "qué se me viene
+ * encima" — con la ITV, el seguro y la caldera repartidos, el mes cargado se ve
+ * de un vistazo. Los meses sin nada también salen (en gris): un hueco es
+ * información, y saltárselos descolocaría la rejilla.
+ */
+function Calendario({ meses, hoy }: { meses: MesProyectado[]; hoy: string }) {
+  const mesActual = hoy.slice(0, 7)
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {meses.map((m) => {
+        const [y, mm] = m.mes.split('-').map(Number)
+        const esActual = m.mes === mesActual
+        return (
+          <div
+            key={m.mes}
+            className={cn(
+              'rounded-xl border bg-card p-3.5',
+              esActual ? 'border-primary/40' : 'border-border',
+              m.tareas.length === 0 && 'opacity-60',
+            )}>
+            <div className="mb-2 flex items-baseline justify-between gap-2 border-b border-border/60 pb-2">
+              <p className="text-sm font-semibold">
+                {MESES[mm - 1]}
+                {/* El año, solo cuando cambia: en una ventana de 12 meses la
+                    mitad son del año que viene. */}
+                {y !== Number(mesActual.slice(0, 4)) && (
+                  <span className="ml-1 font-normal text-muted-foreground">{y}</span>
+                )}
+              </p>
+              {esActual ? (
+                <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-semibold text-primary">
+                  Este mes
+                </span>
+              ) : (
+                m.tareas.length > 0 && (
+                  <span className="text-[11px] text-muted-foreground">{m.tareas.length}</span>
+                )
+              )}
+            </div>
+            {m.tareas.length === 0 ? (
+              <p className="py-1 text-[12.5px] text-muted-foreground">Nada previsto</p>
+            ) : (
+              <ul className="flex flex-col gap-1.5">
+                {m.tareas.map((t) => (
+                  // La clave lleva la fecha: una tarea mensual sale una vez por
+                  // mes, y en el mes en curso puede salir además su atraso.
+                  <li key={`${t.uuid}-${t.fecha}`} className="flex items-baseline gap-2 text-[12.5px]">
+                    <span
+                      className={cn(
+                        'w-11 shrink-0 tabular-nums',
+                        t.atrasada ? 'font-semibold text-danger' : 'text-muted-foreground',
+                      )}
+                      title={t.atrasada ? `Vencía el ${fmt(t.fecha)}` : `Vence el ${fmt(t.fecha)}`}>
+                      {t.atrasada ? 'Vencida' : fmt(t.fecha).slice(0, 5)}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="font-semibold">{t.title}</span>
+                      {t.scopeName && (
+                        <span className="text-muted-foreground"> · {t.scopeName}</span>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 interface Borrador {
   title: string
@@ -113,21 +288,32 @@ const BORRADOR_VACIO: Borrador = {
 
 
 export function MantenimientoTab({
-  rows, ambitos, hoy, smtpListo,
+  rows, ambitos, hoy, smtpListo, vista,
 }: {
   rows: MaintenanceRow[]
   ambitos: AmbitoRow[]
   hoy: string // 'YYYY-MM-DD' en horario de Madrid (calculado en el servidor)
   smtpListo: boolean
+  /** Vista activa, que vive en la URL (`?vista=`). */
+  vista: 'lista' | 'calendario'
 }) {
+  const router = useRouter()
+  const iniciar = useCarga()
   const [pending, startTransition] = useTransition()
   // null = cerrado · 'nueva' = alta · uuid = edición
   const [modal, setModal] = useState<string | null>(null)
   const [borrador, setBorrador] = useState<Borrador>(BORRADOR_VACIO)
-  const [confirming, setConfirming] = useState<string | null>(null)
+  const confirmar = useConfirmar()
   // 'todos' o el uuid de un ámbito.
   const [filtro, setFiltro] = useState<string>('todos')
   const [gestionAmbitos, setGestionAmbitos] = useState(false)
+  // La vista NAVEGA (vive en la URL): el enlace al calendario es compartible y
+  // el botón "atrás" devuelve a la lista.
+  const setVista = (v: 'lista' | 'calendario') => {
+    if (v === vista) return
+    iniciar()
+    router.push(v === 'calendario' ? '/app/panel?tab=mantenimiento&vista=calendario' : '/app/panel?tab=mantenimiento')
+  }
 
   const opcionesAmbito = ambitos.map((a) => ({ value: a.uuid, label: a.name }))
   const nombreAmbito = (uuid: string) => ambitos.find((a) => a.uuid === uuid)?.name ?? ''
@@ -162,7 +348,8 @@ export function MantenimientoTab({
       title: borrador.title,
       scopeUuid: borrador.scopeUuid,
       notes: borrador.notes || null,
-      intervalMonths: borrador.intervalMonths ?? 0,
+      // null llega tal cual: es "no se repite", no un cero.
+      intervalMonths: borrador.intervalMonths,
       nextDue: borrador.nextDue,
     }
     if (modal === 'nueva') run(createMaintenance(datos), 'Tarea creada')
@@ -191,7 +378,7 @@ export function MantenimientoTab({
                 key={a.uuid}
                 type="button"
                 className={cn(
-                  'whitespace-nowrap rounded-md px-2.5 py-1 text-[12.5px] font-semibold transition-colors max-sm:flex-1 max-sm:py-2',
+                  chipFiltro,
                   filtro === a.uuid
                     ? 'bg-muted text-foreground'
                     : 'text-muted-foreground hover:text-foreground',
@@ -203,6 +390,30 @@ export function MantenimientoTab({
           </div>
         )}
         <span className="flex-1" />
+        {/* Lista / Calendario: la lista gestiona, el calendario planifica */}
+        <div
+          className="flex rounded-lg border border-border bg-card/50 p-0.5 max-sm:w-full"
+          role="group"
+          aria-label="Vista">
+          {([
+            { id: 'lista', label: 'Lista', icon: List },
+            { id: 'calendario', label: 'Calendario', icon: CalendarDays },
+          ] as const).map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              className={cn(
+                chipFiltro,
+                'inline-flex items-center justify-center gap-1.5',
+                vista === v.id ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
+              )}
+              aria-pressed={vista === v.id}
+              onClick={() => setVista(v.id)}>
+              <v.icon className="size-3.5" />
+              {v.label}
+            </button>
+          ))}
+        </div>
         <button
           type="button"
           className={cn(btnOutline, 'max-sm:w-full')}
@@ -216,11 +427,13 @@ export function MantenimientoTab({
 
       {visibles.length === 0 ? (
         <div className="rounded-xl border border-border bg-card p-6 text-center text-sm text-muted-foreground">
-          <CalendarClock className="mx-auto mb-2 size-6 text-muted-foreground/60" />
+          <CalendarClock className="mx-auto mb-2 size-6 text-muted-foreground" />
           {rows.length === 0
             ? 'Sin tareas todavía. Ejemplos útiles: revisar dependencias cada mes, comprobar backups cada mes, la ITV cada 12 meses o la revisión de la caldera cada año.'
             : `Ninguna tarea de ${nombreAmbito(filtro).toLowerCase()}.`}
         </div>
+      ) : vista === 'calendario' ? (
+        <Calendario meses={proximosMeses(visibles, hoy)} hoy={hoy} />
       ) : (
         <div className="flex flex-col divide-y divide-border/60 rounded-xl border border-border bg-card">
           {visibles.map((t) => {
@@ -265,7 +478,7 @@ export function MantenimientoTab({
                       escritorio caben en 1-2 líneas y el clamp queda de red por
                       si alguna nota fuera larguísima. */}
                   {t.notes && (
-                    <p className="mt-0.5 text-[12px] leading-snug text-muted-foreground/70 max-sm:line-clamp-none sm:line-clamp-2">
+                    <p className="mt-0.5 text-[12px] leading-snug text-muted-foreground max-sm:line-clamp-none sm:line-clamp-2">
                       {t.notes}
                     </p>
                   )}
@@ -284,34 +497,40 @@ export function MantenimientoTab({
                     <Check className="size-4" />
                     <span className="text-xs font-semibold sm:hidden">Hecha</span>
                   </button>
-                  <button type="button" className={btnIcon} aria-label="Editar" disabled={pending} onClick={() => abrirEdicion(t)}>
-                    <Pencil className="size-3.5" />
-                  </button>
-                  {confirming === t.uuid ? (
-                    <>
-                      <button
-                        type="button"
-                        className="rounded-md bg-danger px-2 py-1 text-xs font-semibold text-white max-sm:px-3 max-sm:py-2"
-                        onClick={() => {
-                          setConfirming(null)
-                          run(deleteMaintenance(t.uuid), 'Tarea eliminada')
-                        }}>
-                        Sí
-                      </button>
-                      <button type="button" className={btnIcon} aria-label="Cancelar" onClick={() => setConfirming(null)}>
-                        <X className="size-3.5" />
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      type="button"
-                      className={cn(btnIcon, 'hover:bg-danger-bg hover:text-danger')}
-                      aria-label="Eliminar"
-                      disabled={pending}
-                      onClick={() => setConfirming(t.uuid)}>
-                      <Trash2 className="size-3.5" />
-                    </button>
-                  )}
+                  {/* "Hecha" se queda fuera: es LA acción de la tarjeta, y en
+                      móvil lleva su etiqueta. Lo secundario (editar, borrar)
+                      se recoge en el menú para que no compita con ella. */}
+                  <MenuAcciones
+                    etiqueta={t.title}
+                    desde={2}
+                    acciones={[
+                      {
+                        id: 'editar',
+                        label: 'Editar',
+                        icon: <Pencil className="size-3.5" />,
+                        disabled: pending,
+                        onClick: () => abrirEdicion(t),
+                      },
+                      {
+                        id: 'eliminar',
+                        label: 'Eliminar',
+                        icon: <Trash2 className="size-3.5" />,
+                        destructiva: true,
+                        disabled: pending,
+                        onClick: async () => {
+                          if (
+                            await confirmar({
+                              clave: 'borrar-mantenimiento',
+                              titulo: 'Eliminar la tarea',
+                              texto: `Se eliminará «${t.title}» y su historial de fechas.`,
+                            })
+                          ) {
+                            run(deleteMaintenance(t.uuid), 'Tarea eliminada')
+                          }
+                        },
+                      },
+                    ]}
+                  />
                 </span>
               </div>
             )
@@ -357,7 +576,38 @@ export function MantenimientoTab({
                   options={opcionesAmbito}
                 />
               </Field>
+              {/* Repetición: "Una vez" es lo que convierte esta pantalla en un
+                  recordatorio suelto ("renovar el dominio") en vez de solo una
+                  tarea que caduca cada N meses. Con "Una vez" el campo de los
+                  meses desaparece: no hay periodicidad que pedir. */}
               <div className="grid grid-cols-2 gap-3">
+                <Field label="Repetición *">
+                  <SelectField
+                    ariaLabel="Repetición de la tarea"
+                    value={borrador.intervalMonths === null ? 'una' : 'repite'}
+                    onChange={(v) =>
+                      setBorrador((b) => ({
+                        ...b,
+                        // Al volver a "Se repite" se ofrece el mensual, que es
+                        // el caso más común y deja el campo ya usable.
+                        intervalMonths: v === 'una' ? null : (b.intervalMonths ?? 1),
+                      }))
+                    }
+                    options={[
+                      { value: 'repite', label: 'Se repite' },
+                      { value: 'una', label: 'Una vez' },
+                    ]}
+                  />
+                </Field>
+                <Field label={borrador.intervalMonths === null ? 'Fecha *' : 'Próximo vencimiento *'}>
+                  <DateField
+                    ariaLabel="Fecha de vencimiento"
+                    value={borrador.nextDue}
+                    onChange={(v) => setBorrador((b) => ({ ...b, nextDue: v }))}
+                  />
+                </Field>
+              </div>
+              {borrador.intervalMonths !== null && (
                 <Field label="Cada (meses) *">
                   <NumberField
                     ariaLabel="Periodicidad en meses"
@@ -366,14 +616,7 @@ export function MantenimientoTab({
                     onChange={(v) => setBorrador((b) => ({ ...b, intervalMonths: v }))}
                   />
                 </Field>
-                <Field label="Próximo vencimiento *">
-                  <DateField
-                    ariaLabel="Próximo vencimiento"
-                    value={borrador.nextDue}
-                    onChange={(v) => setBorrador((b) => ({ ...b, nextDue: v }))}
-                  />
-                </Field>
-              </div>
+              )}
               <Field label="Notas (salen en el correo)">
                 <TextareaField
                   ariaLabel="Notas"

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { SITE_URL } from "@/lib/site";
 import { CONTENT } from "@/lib/landing/content";
+import { LINKS_SPLASH } from "@/lib/splash";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -23,6 +24,31 @@ export const metadata: Metadata = {
   description:
     "Portfolio de Adrián Osuna, desarrollador web full-stack especializado en React y Node.js. Aplicaciones web eficientes y escalables, de la base de datos a la interfaz.",
   keywords: ["Adrián Osuna", "desarrollador web", "full stack", "React", "Node.js", "Next.js", "portfolio"],
+  // Instalable en iPhone/iPad ("Añadir a pantalla de inicio"): se abre a
+  // pantalla completa (sin la barra de Safari) y directo al dashboard. La barra
+  // de estado en negro combina con el tema oscuro sin solaparse con el contenido.
+  appleWebApp: {
+    capable: true,
+    title: "AO.",
+    statusBarStyle: "black",
+  },
+  // Next emite el estándar moderno `mobile-web-app-capable`; el `apple-`
+  // (deprecado, pero aún leído por iOS antiguos) lo añadimos a mano para que
+  // "Añadir a pantalla de inicio" abra a pantalla completa también ahí.
+  other: { "apple-mobile-web-app-capable": "yes" },
+  // ⚠ Al declarar `icons`, Next DEJA DE inyectar los iconos por convención de
+  // fichero (`app/icon.svg` y `app/apple-icon.tsx`) — y el favicon de la
+  // pestaña desaparece sin más aviso. Por eso van los tres explícitos:
+  //   · `icon`  — el de la pestaña del navegador (app/icon.svg).
+  //   · `apple` — el del icono en la pantalla de inicio (app/apple-icon.tsx).
+  //   · `other` — las pantallas de arranque de iOS: sin ellas, abrir la app
+  //     instalada enseña un fogonazo blanco. Una por familia de pantalla (ver
+  //     `lib/splash.ts`); las imágenes las genera `/splash/[dim]` en runtime.
+  icons: {
+    icon: { url: "/icon.svg", type: "image/svg+xml" },
+    apple: "/apple-icon",
+    other: LINKS_SPLASH,
+  },
   // Sin límite de snippet e imágenes grandes en previsualizaciones: los
   // resúmenes generativos (AI Overviews y similares) citan mejor sin recortes.
   robots: {
@@ -60,6 +86,12 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   // Tiñe la interfaz del navegador móvil con el fondo (el sitio es siempre oscuro).
   themeColor: "#0a1512",
+  // `cover`: la página llega hasta los bordes físicos de la pantalla, que es lo
+  // que se espera de una app instalada. A cambio, todo lo que se pega a un
+  // borde tiene que respetar `env(safe-area-inset-*)` para no quedar debajo del
+  // notch, de la isla dinámica o de la barra de gestos — eso lo hacen las
+  // reglas `.safe-*` de globals.css.
+  viewportFit: "cover",
 };
 
 // Datos estructurados (JSON-LD): resultado enriquecido en buscadores y

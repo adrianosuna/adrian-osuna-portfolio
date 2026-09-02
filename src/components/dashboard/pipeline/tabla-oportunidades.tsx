@@ -7,18 +7,27 @@
 // En móvil esta ES la vista de trabajo del pipeline (el kanban no existe
 // ahí): con `onMover`, las tarjetas cambian de estado con un selector.
 import { useState, useTransition } from 'react'
-import { Archive, ArchiveRestore, CalendarClock, Pencil, Search, Trash2, X } from 'lucide-react'
+import { Archive, ArchiveRestore, CalendarClock, Pencil, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { SelectField, TextField } from '@/components/ui/fields'
-import { archiveOpportunity, deleteOpportunity } from '@/app/app/pipeline/actions'
 import {
-  CLASE_URGENCIA, cuandoSeguimiento, COLUMNAS, TERMINALES, btnIcon, eur, fmtFecha, urgenciaSeguimiento,
+  archiveOpportunity, deleteOpportunity, restaurarOportunidad,
+} from '@/app/app/pipeline/actions'
+import { borrarConDeshacer } from '@/components/dashboard/deshacer'
+import { MenuAcciones, type AccionFila } from '@/components/dashboard/menu-acciones'
+import {
+  CLASE_URGENCIA, cuandoSeguimiento, COLUMNAS, TERMINALES, btnOutline, eur, fmtFecha,
+  urgenciaSeguimiento,
   type EstadoOportunidad, type OpportunityRow,
 } from './comun'
+import { tdClass, thClass } from '@/components/ui/tabla'
 
 const chipEstado = (estado: OpportunityRow['status']) =>
   COLUMNAS.find((c) => c.estado === estado)
+
+/** Filas por tanda. 50 caben de sobra en una pantalla larga sin pesar. */
+const POR_TANDA = 50
 
 export function TablaOportunidades({
   rows, hoy, contexto, onEditar, onMover,
@@ -32,7 +41,8 @@ export function TablaOportunidades({
 }) {
   const [pending, startTransition] = useTransition()
   const [busqueda, setBusqueda] = useState('')
-  const [confirming, setConfirming] = useState<string | null>(null)
+  const [tanda, setTanda] = useState(POR_TANDA)
+  const [qPrevio, setQPrevio] = useState('')
   const conSeguimiento = contexto === 'todas'
 
   const run = (promise: Promise<{ ok: boolean; message?: string }>, success: string) =>
@@ -49,6 +59,22 @@ export function TablaOportunidades({
           .some((campo) => campo?.toLowerCase().includes(q)),
       )
     : rows
+
+  // Se pinta de a tandas. El filtro es de CLIENTE (busca en seis campos, notas
+  // incluidas), así que paginar en el servidor rompería la búsqueda: lo que se
+  // recorta es lo que se PINTA, no lo que se consulta. Con el histórico de unos
+  // años son cientos de filas —y cada una con su selector de estado en móvil—,
+  // y ese DOM se nota al escribir en el buscador.
+  const visibles = filtradas.slice(0, tanda)
+  const quedan = filtradas.length - visibles.length
+
+  // Al cambiar la búsqueda se vuelve a la primera tanda. Ajuste EN RENDER (no
+  // en un efecto): así no hay un pintado intermedio con la tanda anterior, y
+  // `react-hooks/set-state-in-effect` no lo permitiría de otro modo.
+  if (qPrevio !== q) {
+    setQPrevio(q)
+    setTanda(POR_TANDA)
+  }
 
   if (rows.length === 0) {
     return (
@@ -85,61 +111,55 @@ export function TablaOportunidades({
     return <span className="text-muted-foreground">—</span>
   }
 
-  const acciones = (o: OpportunityRow) => (
-    <span className="flex items-center justify-end">
-      <button type="button" className={btnIcon} aria-label="Editar" title="Editar" onClick={() => onEditar(o)}>
-        <Pencil className="size-3.5" />
-      </button>
-      {TERMINALES.includes(o.status) && !o.archived && (
-        <button
-          type="button"
-          className={btnIcon}
-          title="Archivar (mover al histórico)"
-          aria-label="Archivar"
-          disabled={pending}
-          onClick={() => run(archiveOpportunity(o.uuid, true), 'Archivada en el histórico')}>
-          <Archive className="size-3.5" />
-        </button>
-      )}
-      {o.archived && (
-        <button
-          type="button"
-          className={btnIcon}
-          title="Restaurar al tablero"
-          aria-label="Restaurar al tablero"
-          disabled={pending}
-          onClick={() => run(archiveOpportunity(o.uuid, false), 'Devuelta al tablero')}>
-          <ArchiveRestore className="size-3.5" />
-        </button>
-      )}
-      {confirming === o.uuid ? (
-        <>
-          <button
-            type="button"
-            className="rounded-md bg-danger px-2 py-1 text-xs font-semibold text-white max-sm:px-3 max-sm:py-2"
-            onClick={() => {
-              setConfirming(null)
-              run(deleteOpportunity(o.uuid), 'Oportunidad eliminada')
-            }}>
-            Sí
-          </button>
-          <button type="button" className={btnIcon} aria-label="Cancelar" onClick={() => setConfirming(null)}>
-            <X className="size-3.5" />
-          </button>
-        </>
-      ) : (
-        <button
-          type="button"
-          className={cn(btnIcon, 'hover:bg-danger-bg hover:text-danger')}
-          aria-label="Eliminar definitivamente"
-          title="Eliminar definitivamente"
-          disabled={pending}
-          onClick={() => setConfirming(o.uuid)}>
-          <Trash2 className="size-3.5" />
-        </button>
-      )}
-    </span>
-  )
+  // Las acciones se DECLARAN y `MenuAcciones` decide cómo pintarlas: iconos en
+  // escritorio, menú de tres puntos en móvil (aquí siempre son tres).
+  const acciones = (o: OpportunityRow) => {
+    const lista: AccionFila[] = [
+      {
+        id: 'editar',
+        label: 'Editar',
+        icon: <Pencil className="size-3.5" />,
+        onClick: () => onEditar(o),
+      },
+    ]
+    if (TERMINALES.includes(o.status) && !o.archived) {
+      lista.push({
+        id: 'archivar',
+        label: 'Archivar en el histórico',
+        icon: <Archive className="size-3.5" />,
+        disabled: pending,
+        onClick: () => run(archiveOpportunity(o.uuid, true), 'Archivada en el histórico'),
+      })
+    }
+    if (o.archived) {
+      lista.push({
+        id: 'restaurar',
+        label: 'Restaurar al tablero',
+        icon: <ArchiveRestore className="size-3.5" />,
+        disabled: pending,
+        onClick: () => run(archiveOpportunity(o.uuid, false), 'Devuelta al tablero'),
+      })
+    }
+    // Sin "¿seguro?": borra y el aviso ofrece deshacer (con su historial).
+    lista.push({
+      id: 'eliminar',
+      label: 'Eliminar',
+      icon: <Trash2 className="size-3.5" />,
+      destructiva: true,
+      disabled: pending,
+      onClick: () =>
+        startTransition(async () => {
+          await borrarConDeshacer({
+            borrar: () => deleteOpportunity(o.uuid),
+            restaurar: restaurarOportunidad,
+            mensaje: 'Oportunidad eliminada',
+          })
+        }),
+    })
+    // `desde: 2` porque la fila del histórico tiene dos y en 360 px de ancho
+    // ya compiten con el título de la oportunidad.
+    return <MenuAcciones acciones={lista} etiqueta={o.title} desde={2} />
+  }
 
   const estado = (o: OpportunityRow) => {
     const chip = chipEstado(o.status)
@@ -179,33 +199,37 @@ export function TablaOportunidades({
         <div className="hidden overflow-hidden rounded-xl border border-border md:block">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border bg-card/60 text-left text-xs text-muted-foreground">
-                <th className="px-3.5 py-2.5 font-semibold">Oportunidad</th>
-                <th className="px-3.5 py-2.5 font-semibold">Origen</th>
-                <th className="px-3.5 py-2.5 text-right font-semibold">Importe</th>
-                <th className="px-3.5 py-2.5 font-semibold">Estado</th>
-                {conSeguimiento && <th className="px-3.5 py-2.5 font-semibold">Seguimiento</th>}
-                <th className="px-3.5 py-2.5 font-semibold">Cierre</th>
-                <th className="px-3.5 py-2.5" />
+              <tr className="border-b border-border">
+                <th className={thClass}>Oportunidad</th>
+                <th className={thClass}>Origen</th>
+                <th className={cn(thClass, 'text-right')}>Importe</th>
+                <th className={thClass}>Estado</th>
+                {conSeguimiento && <th className={thClass}>Seguimiento</th>}
+                <th className={thClass}>Cierre</th>
+                {/* La columna de acciones se NOMBRA para el lector de pantalla:
+                    un `<th>` vacío deja una columna sin nombre. */}
+                <th className={thClass} scope="col">
+                  <span className="sr-only">Acciones</span>
+                </th>
               </tr>
             </thead>
             <tbody>
-              {filtradas.map((o) => (
-                <tr key={o.uuid} className="border-b border-border/60 last:border-0">
-                  <td className="px-3.5 py-2.5">
+              {visibles.map((o) => (
+                <tr key={o.uuid} className="border-b border-border/50">
+                  <td className={tdClass}>
                     <p className="font-semibold leading-snug">{o.title}</p>
                     {o.company && <p className="text-xs text-muted-foreground">{o.company}</p>}
                   </td>
-                  <td className="px-3.5 py-2.5 text-muted-foreground">{o.origin ?? '—'}</td>
-                  <td className="px-3.5 py-2.5 text-right tabular-nums">
+                  <td className={cn(tdClass, 'text-muted-foreground')}>{o.origin ?? '—'}</td>
+                  <td className={cn(tdClass, 'text-right tabular-nums')}>
                     {o.amount === null ? '—' : eur(o.amount)}
                   </td>
-                  <td className="px-3.5 py-2.5">{estado(o)}</td>
-                  {conSeguimiento && <td className="max-w-56 px-3.5 py-2.5">{seguimiento(o)}</td>}
-                  <td className="px-3.5 py-2.5 text-muted-foreground">
+                  <td className={tdClass}>{estado(o)}</td>
+                  {conSeguimiento && <td className={cn(tdClass, 'max-w-56')}>{seguimiento(o)}</td>}
+                  <td className={cn(tdClass, 'text-muted-foreground')}>
                     {o.closedAt ? fmtFecha(o.closedAt) : '—'}
                   </td>
-                  <td className="px-2 py-2.5">{acciones(o)}</td>
+                  <td className={tdClass}>{acciones(o)}</td>
                 </tr>
               ))}
             </tbody>
@@ -216,7 +240,7 @@ export function TablaOportunidades({
       {/* Móvil: tarjetas */}
       {filtradas.length > 0 && (
         <div className="flex flex-col gap-2 md:hidden">
-          {filtradas.map((o) => (
+          {visibles.map((o) => (
             <article key={o.uuid} className="rounded-xl border border-border bg-card p-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
@@ -250,6 +274,22 @@ export function TablaOportunidades({
               </div>
             </article>
           ))}
+        </div>
+      )}
+
+      {/* Ver más: fuera de las dos listas, para que valga igual en escritorio
+          y en móvil. Solo aparece si queda algo por pintar. */}
+      {quedan > 0 && (
+        <div className="flex flex-col items-center gap-1 py-3">
+          <button
+            type="button"
+            className={btnOutline}
+            onClick={() => setTanda((n) => n + POR_TANDA)}>
+            Ver más
+          </button>
+          <span className="text-xs text-muted-foreground">
+            {visibles.length} de {filtradas.length}
+          </span>
         </div>
       )}
     </div>

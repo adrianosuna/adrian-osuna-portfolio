@@ -12,9 +12,13 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { useConfirmar } from '@/components/dashboard/confirmar'
 import { Modal } from '@/components/ui/modal'
 import { SelectField, TextField } from '@/components/ui/fields'
 import { inviteUser, removeUser, updateUser } from '@/app/app/panel/actions'
+import { btnOutline, btnPrimary } from '@/components/ui/botones'
+import { MenuAcciones } from '@/components/dashboard/menu-acciones'
+import { tdClass, thClass } from '@/components/ui/tabla'
 
 export interface UserRow {
   uuid: string
@@ -43,13 +47,6 @@ const fmtDate = (iso: string | null) => {
   return `${dd}/${mm}/${d.getFullYear()} ${hh}:${mi}`
 }
 
-const btnPrimary =
-  'inline-flex items-center justify-center gap-1.5 rounded-md bg-primary px-3.5 py-1.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50'
-const btnOutline =
-  'inline-flex items-center justify-center gap-1.5 rounded-md border border-border px-3.5 py-1.5 text-sm font-semibold transition-colors hover:border-primary hover:text-primary'
-// p-2 (36px con icono): target táctil suficiente en móvil.
-const btnIcon =
-  'rounded-md p-2 max-sm:p-2.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground'
 
 function Avatar({ row }: { row: UserRow }) {
   if (row.picture) {
@@ -78,7 +75,7 @@ export function UsersTable({ rows, meUuid }: { rows: UserRow[]; meUuid: string }
   const [modalOpen, setModalOpen] = useState(false)
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<'ADMIN' | 'USER'>('USER')
-  const [confirming, setConfirming] = useState<string | null>(null)
+  const confirmar = useConfirmar()
   const [pending, startTransition] = useTransition()
 
   const run = (promise: Promise<{ ok: boolean; message?: string }>, success: string) =>
@@ -99,77 +96,76 @@ export function UsersTable({ rows, meUuid }: { rows: UserRow[]; meUuid: string }
     })
 
   // Acciones sobre OTRO usuario (nunca se pintan para el propio admin).
+  //
+  // Declaradas, no maquetadas: `MenuAcciones` las pinta como iconos en
+  // escritorio y como menú de tres puntos en móvil. De paso cada una gana un
+  // NOMBRE de verdad — antes solo tenían `title`, que un lector de pantalla
+  // usa como último recurso y un móvil no enseña nunca.
   const acciones = (row: UserRow) => {
     const makeAdmin = row.role !== 'ADMIN'
+    const bloqueado = row.status === 'DISABLED'
     return (
-      <span className="inline-flex items-center gap-0.5">
-        <button
-          type="button"
-          className={btnIcon}
-          disabled={pending}
-          title={makeAdmin ? 'Hacer administrador' : 'Quitar administrador'}
-          onClick={() =>
-            run(
-              updateUser(row.uuid, { role: makeAdmin ? 'ADMIN' : 'USER' }),
-              makeAdmin ? 'Ahora es administrador' : 'Ya no es administrador',
-            )
-          }>
-          {makeAdmin ? <Crown className="size-4" /> : <UserRound className="size-4" />}
-        </button>
-
-        {row.status === 'DISABLED' ? (
-          <button
-            type="button"
-            className={cn(btnIcon, 'text-success hover:bg-success-bg hover:text-success')}
-            disabled={pending}
-            title="Activar"
-            onClick={() => run(updateUser(row.uuid, { status: 'ACTIVE' }), 'Usuario activado')}>
-            <CircleCheck className="size-4" />
-          </button>
-        ) : (
-          <button
-            type="button"
-            className={cn(btnIcon, 'hover:bg-danger-bg hover:text-danger')}
-            disabled={pending}
-            title="Bloquear"
-            onClick={() =>
-              run(updateUser(row.uuid, { status: 'DISABLED' }), 'Usuario deshabilitado — su sesión queda cortada')
-            }>
-            <Ban className="size-4" />
-          </button>
-        )}
-
-        {confirming === row.uuid ? (
-          <>
-            <button
-              type="button"
-              className="rounded-md bg-danger px-2 py-1 text-xs font-semibold text-white max-sm:px-3 max-sm:py-2"
-              onClick={() => {
-                setConfirming(null)
+      <MenuAcciones
+        etiqueta={row.name ?? row.email}
+        acciones={[
+          {
+            id: 'rol',
+            label: makeAdmin ? 'Hacer administrador' : 'Quitar administrador',
+            icon: makeAdmin ? <Crown className="size-4" /> : <UserRound className="size-4" />,
+            disabled: pending,
+            onClick: () =>
+              run(
+                updateUser(row.uuid, { role: makeAdmin ? 'ADMIN' : 'USER' }),
+                makeAdmin ? 'Ahora es administrador' : 'Ya no es administrador',
+              ),
+          },
+          bloqueado
+            ? {
+                id: 'activar',
+                label: 'Activar',
+                icon: <CircleCheck className="size-4" />,
+                disabled: pending,
+                onClick: () =>
+                  run(updateUser(row.uuid, { status: 'ACTIVE' }), 'Usuario activado'),
+              }
+            : {
+                id: 'bloquear',
+                label: 'Bloquear',
+                icon: <Ban className="size-4" />,
+                destructiva: true,
+                disabled: pending,
+                onClick: () =>
+                  run(
+                    updateUser(row.uuid, { status: 'DISABLED' }),
+                    'Usuario deshabilitado — su sesión queda cortada',
+                  ),
+              },
+          {
+            id: 'eliminar',
+            label: 'Eliminar',
+            icon: <Trash2 className="size-4" />,
+            destructiva: true,
+            disabled: pending,
+            onClick: async () => {
+              // Sin `clave`: borrar un usuario retira su acceso y sus sesiones,
+              // y no hay marcha atrás. Esto se pregunta siempre.
+              if (
+                await confirmar({
+                  titulo: 'Eliminar el usuario',
+                  texto: `Se eliminará ${row.email} y se cerrarán sus sesiones. No se puede deshacer.`,
+                })
+              ) {
                 run(removeUser(row.uuid), 'Usuario eliminado')
-              }}>
-              Sí
-            </button>
-            <button type="button" className={btnIcon} onClick={() => setConfirming(null)}>
-              No
-            </button>
-          </>
-        ) : (
-          <button
-            type="button"
-            className={cn(btnIcon, 'hover:bg-danger-bg hover:text-danger')}
-            disabled={pending}
-            title="Eliminar"
-            onClick={() => setConfirming(row.uuid)}>
-            <Trash2 className="size-4" />
-          </button>
-        )}
-      </span>
+              }
+            },
+          },
+        ]}
+      />
     )
   }
 
-  const thClass = 'px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground'
-  const tdClass = 'px-3 py-2.5'
+  // Clases de la tabla: las comunes de `ui/tabla` (antes aquí eran `py-2.5`,
+  // media línea más altas que las del Ahorro sin ningún motivo).
 
   return (
     <div>
@@ -206,7 +202,7 @@ export function UsersTable({ rows, meUuid }: { rows: UserRow[]; meUuid: string }
                   {status.label}
                 </span>
                 {row.lastLogin && (
-                  <span className="text-[11.5px] text-muted-foreground/70">
+                  <span className="text-[11.5px] text-muted-foreground">
                     Último acceso: {fmtDate(row.lastLogin)}
                   </span>
                 )}
@@ -269,7 +265,7 @@ export function UsersTable({ rows, meUuid }: { rows: UserRow[]; meUuid: string }
                   </td>
                   <td className={cn(tdClass, 'whitespace-nowrap')}>{fmtDate(row.createTs) ?? '—'}</td>
                   <td className={cn(tdClass, 'text-center')}>
-                    {isMe ? <span className="text-xs text-muted-foreground/50">—</span> : acciones(row)}
+                    {isMe ? <span className="text-xs text-muted-foreground">—</span> : acciones(row)}
                   </td>
                 </tr>
               )

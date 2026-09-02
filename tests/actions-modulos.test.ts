@@ -3,6 +3,10 @@
 // cierre/archivado, timeline) y conceptos del sistema de ahorro (extras y
 // gastos de viaje, fechas malformadas).
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+// El tope de peticiones vive en memoria y es COMPARTIDO por todo el proceso:
+// sin reiniciarlo, un fichero de tests con muchas actions agotaría la ventana
+// y los siguientes fallarían por algo que no están probando.
+import { reiniciarLimites } from '@/lib/rate-limit'
 
 const { requireAdminMock, prismaMock } = vi.hoisted(() => {
   const prismaMock = {
@@ -20,6 +24,7 @@ vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 beforeEach(() => {
+  reiniciarLimites()
   vi.clearAllMocks()
   requireAdminMock.mockResolvedValue({ user: { uuid: 'admin-1', role: 'ADMIN' } })
   prismaMock.savingYear.findUnique.mockResolvedValue(null)
@@ -69,8 +74,19 @@ describe('createOpportunity', () => {
 
   it('rechaza importes negativos, no finitos o desorbitados', async () => {
     const { createOpportunity } = await import('@/app/app/pipeline/actions')
-    for (const amount of [-1, Number.NaN, Number.POSITIVE_INFINITY, 1e10]) {
-      expect(await createOpportunity({ title: 'Oferta', amount })).toEqual({ ok: false, message: 'Importe no válido' })
+    // El mensaje lo pone `lib/esquemas.ts` y dice QUÉ pasa con el importe,
+    // no solo que "no es válido": va tal cual al aviso del cliente.
+    const mensajes: Array<[unknown, string]> = [
+      [-1, 'El importe no puede ser negativo'],
+      [Number.NaN, 'El importe no es válido'],
+      [Number.POSITIVE_INFINITY, 'El importe no es válido'],
+      [1e10, 'El importe es demasiado grande'],
+    ]
+    for (const [amount, message] of mensajes) {
+      expect(await createOpportunity({ title: 'Oferta', amount: amount as number })).toEqual({
+        ok: false,
+        message,
+      })
     }
     expect(prismaMock.opportunity.create).not.toHaveBeenCalled()
   })
@@ -201,7 +217,10 @@ describe('addExtra / addTravel', () => {
   it('el concepto es obligatorio y el importe no admite negativos', async () => {
     const { addExtra } = await import('@/app/app/finance/actions')
     expect(await addExtra('y26', { concept: '  ', amount: 100 })).toEqual({ ok: false, message: 'El concepto es obligatorio' })
-    expect(await addExtra('y26', { concept: 'Paga extra', amount: -5 })).toEqual({ ok: false, message: 'Importe no válido' })
+    expect(await addExtra('y26', { concept: 'Paga extra', amount: -5 })).toEqual({
+      ok: false,
+      message: 'El importe no puede ser negativo',
+    })
     expect(prismaMock.savingExtra.create).not.toHaveBeenCalled()
   })
 

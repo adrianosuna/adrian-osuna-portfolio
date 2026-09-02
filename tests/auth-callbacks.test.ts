@@ -7,7 +7,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const { prismaMock, headersMock } = vi.hoisted(() => ({
   prismaMock: {
     user: { findUnique: vi.fn(), update: vi.fn() },
-    userSession: { create: vi.fn(), findUnique: vi.fn(), update: vi.fn(), deleteMany: vi.fn() },
+    userSession: {
+      create: vi.fn(),
+      findUnique: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+      deleteMany: vi.fn(),
+    },
+    loginEvent: { create: vi.fn() },
   },
   headersMock: vi.fn(),
 }))
@@ -29,6 +36,8 @@ beforeEach(() => {
   prismaMock.user.findUnique.mockResolvedValue(USUARIO)
   prismaMock.userSession.create.mockResolvedValue({ uuid: 'ses-nueva' })
   prismaMock.userSession.deleteMany.mockResolvedValue({ count: 1 })
+  prismaMock.userSession.delete.mockResolvedValue({ uuid: 's-1' })
+  prismaMock.loginEvent.create.mockResolvedValue({ uuid: 'acc-1' })
   headersMock.mockResolvedValue(new Headers({ 'user-agent': 'Mozilla/5.0 Chrome/128' }))
 })
 
@@ -70,6 +79,15 @@ describe('callback jwt (reverificación + registro de sesiones)', () => {
     })
   })
 
+  it('el login también deja su rastro en el histórico de accesos', async () => {
+    // `user_session` se purga (y el logout retira la suya): el histórico es lo
+    // que permite ver después desde dónde se entró.
+    await jwt({ token: {}, user: { email: 'A@B.com' } })
+    expect(prismaMock.loginEvent.create).toHaveBeenCalledWith({
+      data: { userUuid: 'u-1', userEmail: 'a@b.com', userAgent: 'Mozilla/5.0 Chrome/128' },
+    })
+  })
+
   it('si el alta de la sesión falla, el login NO se rompe (registro ≠ seguridad)', async () => {
     const silencio = vi.spyOn(console, 'error').mockImplementation(() => {})
     prismaMock.userSession.create.mockRejectedValue(new Error('BD caída'))
@@ -93,6 +111,22 @@ describe('callback jwt (reverificación + registro de sesiones)', () => {
 
   it('un JWT antiguo sin registro de sesión se invalida (relogin único)', async () => {
     expect(await jwt({ token: { email: 'a@b.com' } })).toBeNull()
+  })
+
+  it('cierra la sesión que se ha pasado de inactividad, y BORRA la fila', async () => {
+    // El segundo plazo (48 h por defecto): una sesión olvidada en un navegador
+    // ajeno se cierra sola aunque el JWT siga en plazo. La fila se borra, no
+    // solo se rechaza el token: si no, seguiría figurando como activa.
+    const { HORAS_INACTIVIDAD } = await import('@/lib/sesion-caducidad')
+    const pasada = new Date(Date.now() - (HORAS_INACTIVIDAD + 1) * 3_600_000)
+    prismaMock.userSession.findUnique.mockResolvedValue({ uuid: 's-vieja', lastSeen: pasada })
+
+    expect(await jwt({ token: { email: 'a@b.com', sessionUuid: 's-vieja' } })).toBeNull()
+    expect(prismaMock.userSession.delete).toHaveBeenCalledWith({
+      where: { uuid: 's-vieja' },
+    })
+    // No se refresca last_seen de una sesión que se está cerrando.
+    expect(prismaMock.userSession.update).not.toHaveBeenCalled()
   })
 
   it('actualiza last_seen solo si han pasado más de 5 minutos (freno de escritura)', async () => {

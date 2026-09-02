@@ -36,6 +36,8 @@ export interface ResumenInicio {
   ahorro: { year: number; total: number; goal: number | null } | null
   /** Gastado en el mes en curso (control de gastos). */
   gastadoMes: number
+  /** Gastado en el mes anterior, para la comparativa del KPI. */
+  gastadoMesPrevio: number
   pipeline: { abiertas: number; valorAbierto: number }
   actividad: ActividadItem[]
 }
@@ -44,8 +46,12 @@ export interface ResumenInicio {
 export async function resumenInicio(hoyIso = hoyMadrid()): Promise<ResumenInicio> {
   const year = Number(hoyIso.slice(0, 4))
   const mesActual = Number(hoyIso.slice(5, 7))
+  // Primer día del mes anterior (cruzando de año), para su gasto comparado.
+  const mesPrevioIso = `${mesActual === 1 ? year - 1 : year}-${String(
+    mesActual === 1 ? 12 : mesActual - 1,
+  ).padStart(2, '0')}-01`
 
-  const [anio, oportunidades, tareas, eventos, gastadoMes] = await Promise.all([
+  const [anio, oportunidades, tareas, eventos, gastadoMes, gastadoMesPrevio] = await Promise.all([
     // Solo el año en curso (no todos, como hacía el inicio anterior).
     prisma.savingYear.findUnique({
       where: { year },
@@ -67,6 +73,7 @@ export async function resumenInicio(hoyIso = hoyMadrid()): Promise<ResumenInicio
       select: { uuid: true, type: true, detail: true, createTs: true, opportunity: { select: { title: true } } },
     }),
     gastadoEnMesDe(hoyIso),
+    gastadoEnMesDe(mesPrevioIso),
   ])
 
   // ── Ahorro del año en curso (misma semántica que el módulo) ──
@@ -92,7 +99,49 @@ export async function resumenInicio(hoyIso = hoyMadrid()): Promise<ResumenInicio
     })),
   )
 
-  // ── Avisos ──
+  return {
+    // Urgentes primero, manteniendo el orden de detección dentro de cada nivel.
+    avisos: construirAvisos({ oportunidades, tareas, meses: anio?.months ?? null, year, mesActual, hoyIso }),
+    ahorro,
+    gastadoMes,
+    gastadoMesPrevio,
+    pipeline: { abiertas: metricas.abiertas, valorAbierto: metricas.valorAbierto },
+    actividad: eventos.map((e) => ({
+      uuid: e.uuid,
+      oportunidad: e.opportunity.title,
+      tipo: e.type,
+      detalle: e.detail,
+      cuando: e.createTs.toISOString(),
+    })),
+  }
+}
+
+// ─────────── avisos ───────────
+// La construcción de los avisos es PURA y vive aparte porque la comparten dos
+// consumidores: el inicio (que ya tiene los datos a mano de sus propios KPIs) y
+// el centro de notificaciones de la barra superior (que consulta solo esto).
+// Duplicar los criterios es justo cómo se desincronizan las dos campanas.
+
+interface DatosAvisos {
+  oportunidades: Array<{
+    title: string
+    status: string
+    nextAction: string | null
+    nextActionDate: Date | null
+  }>
+  tareas: Array<{ title: string; nextDue: Date }>
+  /** Meses del año en curso (null si ese año no existe). */
+  meses: Array<{
+    month: number; income: unknown; savingGeneral: unknown; savingTravel: unknown
+  }> | null
+  year: number
+  mesActual: number
+  hoyIso: string
+}
+
+function construirAvisos({
+  oportunidades, tareas, meses, year, mesActual, hoyIso,
+}: DatosAvisos): Aviso[] {
   const avisos: Aviso[] = []
 
   const seguimientos = oportunidades.filter(
@@ -138,8 +187,8 @@ export async function resumenInicio(hoyIso = hoyMadrid()): Promise<ResumenInicio
   }
 
   // Meses de ahorro ya cerrados sin ningún dato (el mes en curso no cuenta).
-  if (anio) {
-    const vacios = mesesSinRellenar(anio.months, mesActual - 1)
+  if (meses) {
+    const vacios = mesesSinRellenar(meses, mesActual - 1)
     if (vacios.length) {
       avisos.push({
         clave: 'ahorro-sin-rellenar',
@@ -149,23 +198,48 @@ export async function resumenInicio(hoyIso = hoyMadrid()): Promise<ResumenInicio
             : `${vacios.length} meses sin rellenar en el ahorro`,
         detalle: vacios.map((m) => MESES[m - 1]).join(', '),
         gravedad: 'aviso',
-        href: `/app/finance?year=${year}`,
+        href: `/app/finance?s=ahorro&year=${year}`,
       })
     }
   }
 
-  return {
-    // Urgentes primero, manteniendo el orden de detección dentro de cada nivel.
-    avisos: avisos.sort((a, b) => Number(b.gravedad === 'urgente') - Number(a.gravedad === 'urgente')),
-    ahorro,
-    gastadoMes,
-    pipeline: { abiertas: metricas.abiertas, valorAbierto: metricas.valorAbierto },
-    actividad: eventos.map((e) => ({
-      uuid: e.uuid,
-      oportunidad: e.opportunity.title,
-      tipo: e.type,
-      detalle: e.detail,
-      cuando: e.createTs.toISOString(),
-    })),
-  }
+  // Urgentes primero, manteniendo el orden de detección dentro de cada nivel.
+  return avisos.sort((a, b) => Number(b.gravedad === 'urgente') - Number(a.gravedad === 'urgente'))
+}
+
+/**
+ * Solo los avisos, con sus propias consultas acotadas.
+ *
+ * Lo usa el centro de notificaciones de la barra superior, que está en TODAS
+ * las páginas del dashboard: por eso consulta lo mínimo (tres selects con los
+ * campos justos) y no el resumen completo del inicio.
+ */
+export async function avisosPendientes(hoyIso = hoyMadrid()): Promise<Aviso[]> {
+  const year = Number(hoyIso.slice(0, 4))
+  const mesActual = Number(hoyIso.slice(5, 7))
+  const [oportunidades, tareas, anio] = await Promise.all([
+    prisma.opportunity.findMany({
+      where: { archived: false },
+      select: { title: true, status: true, nextAction: true, nextActionDate: true },
+    }),
+    prisma.maintenanceTask.findMany({ select: { title: true, nextDue: true } }),
+    prisma.savingYear.findUnique({
+      where: { year },
+      select: {
+        months: {
+          // Los tres campos: un mes "relleno" es el que tiene ALGUNO (lo decide
+          // `mesesSinRellenar`, compartida con el aviso por correo).
+          select: { month: true, income: true, savingGeneral: true, savingTravel: true },
+        },
+      },
+    }),
+  ])
+  return construirAvisos({
+    oportunidades,
+    tareas,
+    meses: anio?.months ?? null,
+    year,
+    mesActual,
+    hoyIso,
+  })
 }

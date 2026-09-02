@@ -13,6 +13,7 @@ import os from 'node:os'
 import { prisma } from '@/lib/prisma'
 import { SITE_URL } from '@/lib/site'
 import pkg from '../../package.json'
+import { log } from '@/lib/log'
 
 export type EstadoCheck = 'ok' | 'aviso' | 'error'
 
@@ -150,7 +151,7 @@ async function checkDB(): Promise<InfraSnapshot['db']> {
         conexiones = { actual: valor('Threads_connected'), max: Number(filaMax.Value) }
       }
     } catch (e) {
-      console.error('[infra] datos del motor MySQL no disponibles:', e)
+      log.error('infra', 'datos del motor MySQL no disponibles', { error: e })
     }
 
     return {
@@ -162,7 +163,7 @@ async function checkDB(): Promise<InfraSnapshot['db']> {
       conexiones,
     }
   } catch (e) {
-    console.error('[infra] ping BD fallido:', e)
+    log.error('infra', 'ping BD fallido', { error: e })
     return {
       estado: 'error',
       latenciaMs: null,
@@ -192,7 +193,7 @@ async function checkAlmacenBD(): Promise<InfraSnapshot['almacenBD']> {
       top: tablas.slice(0, 3),
     }
   } catch (e) {
-    console.error('[infra] tamaño de BD no disponible:', e)
+    log.error('infra', 'tamaño de BD no disponible', { error: e })
     return null
   }
 }
@@ -220,7 +221,7 @@ async function checkWeb(): Promise<InfraSnapshot['web']> {
         : 'El sitio público responde lento'
     return { estado, ttfbMs: ttfb, url, detalle }
   } catch (e) {
-    console.error('[infra] latencia pública fallida:', e)
+    log.error('infra', 'latencia pública fallida', { error: e })
     return { estado: 'error', ttfbMs: null, url, detalle: 'El dominio público no responde' }
   }
 }
@@ -279,7 +280,7 @@ async function checkBackup(): Promise<InfraSnapshot['backup']> {
       detalle,
     }
   } catch (e) {
-    console.error('[infra] lectura de backups fallida:', e)
+    log.error('infra', 'lectura de backups fallida', { error: e })
     return {
       estado: 'error',
       ficheros: 0,
@@ -307,7 +308,7 @@ async function checkDisco(): Promise<InfraSnapshot['disco']> {
       : 'Disco local (equipo de desarrollo)'
     return { estado, usadoPct, libresBytes: libres, totalBytes: total, detalle }
   } catch (e) {
-    console.error('[infra] statfs fallido:', e)
+    log.error('infra', 'statfs fallido', { error: e })
     return {
       estado: 'error',
       usadoPct: null,

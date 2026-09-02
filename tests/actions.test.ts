@@ -2,6 +2,10 @@
 // mockeados): saneado de entradas, autoprotecciones del admin (no puede
 // revocarse, eliminarse ni cerrar su propia sesión) y contrato { ok, message? }.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+// El tope de peticiones vive en memoria y es COMPARTIDO por todo el proceso:
+// sin reiniciarlo, un fichero de tests con muchas actions agotaría la ventana
+// y los siguientes fallarían por algo que no están probando.
+import { reiniciarLimites } from '@/lib/rate-limit'
 import { AppError } from '@/lib/errors'
 
 const { requireAdminMock, prismaMock } = vi.hoisted(() => {
@@ -10,7 +14,7 @@ const { requireAdminMock, prismaMock } = vi.hoisted(() => {
     userSession: { delete: vi.fn(), deleteMany: vi.fn() },
     savingYear: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
     savingMonth: { upsert: vi.fn() },
-    note: { create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    note: { create: vi.fn(), update: vi.fn(), delete: vi.fn(), findUnique: vi.fn() },
     $transaction: vi.fn(async (ops: unknown[]) => ops),
   }
   return { requireAdminMock: vi.fn(), prismaMock }
@@ -25,10 +29,15 @@ vi.mock('@/lib/infra', () => ({ snapshotServidor: vi.fn() }))
 const SESION_ADMIN = { user: { uuid: 'admin-1', role: 'ADMIN' }, sessionUuid: 'sesion-propia' }
 
 beforeEach(() => {
+  reiniciarLimites()
   vi.clearAllMocks()
   requireAdminMock.mockResolvedValue(SESION_ADMIN)
   prismaMock.user.findUnique.mockResolvedValue(null)
   prismaMock.savingYear.findUnique.mockResolvedValue(null)
+  prismaMock.note.create.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({
+    uuid: 'n-nueva',
+    ...data,
+  }))
 })
 
 // ─────────── Gestión de usuarios y sesiones (panel/actions) ───────────
@@ -167,10 +176,65 @@ describe('notas (panel/actions)', () => {
     expect(call.data.content).toBe('<p>ls -la</p>')
   })
 
-  it('deleteNote borra por uuid', async () => {
+  it('deleteNote borra por uuid y devuelve con qué deshacerlo', async () => {
+    // El borrado ya no pregunta antes: devuelve el paquete de restauración y el
+    // aviso ofrece "Deshacer".
+    prismaMock.note.findUnique.mockResolvedValue({
+      uuid: 'n-1',
+      title: 'Comandos',
+      content: '<p>ls -la</p>',
+      pinned: true,
+      createTs: new Date('2026-08-01T10:00:00Z'),
+    })
     const { deleteNote } = await import('@/app/app/panel/actions')
-    expect(await deleteNote('n-1')).toEqual({ ok: true })
+    const res = await deleteNote('n-1')
+    expect(res.ok).toBe(true)
     expect(prismaMock.note.delete).toHaveBeenCalledWith({ where: { uuid: 'n-1' } })
+    expect(res.deshacer).toEqual({
+      uuid: 'n-1',
+      title: 'Comandos',
+      content: '<p>ls -la</p>',
+      pinned: true,
+      createTs: '2026-08-01T10:00:00.000Z',
+    })
+  })
+
+  it('deleteNote no revienta si la nota ya no está', async () => {
+    prismaMock.note.findUnique.mockResolvedValue(null)
+    const { deleteNote } = await import('@/app/app/panel/actions')
+    expect(await deleteNote('fantasma')).toEqual({ ok: false, message: 'Esa nota ya no existe' })
+    expect(prismaMock.note.delete).not.toHaveBeenCalled()
+  })
+
+  it('restaurarNota la devuelve con su uuid y vuelve a sanear el contenido', async () => {
+    prismaMock.note.findUnique.mockResolvedValue(null) // aún no existe
+    const { restaurarNota } = await import('@/app/app/panel/actions')
+    const res = await restaurarNota({
+      uuid: 'n-1',
+      title: 'Comandos',
+      // Viene de un viaje por el cliente: el saneado se repite aquí.
+      content: '<p>ls -la</p><script>robar()</script>',
+      pinned: true,
+      createTs: '2026-08-01T10:00:00.000Z',
+    })
+    expect(res).toEqual({ ok: true })
+    const data = prismaMock.note.create.mock.calls[0][0].data
+    expect(data.uuid).toBe('n-1') // el mismo, no un duplicado
+    expect(data.pinned).toBe(true)
+    expect(data.content).not.toContain('<script')
+    expect(data.content).toContain('ls -la')
+  })
+
+  it('restaurarNota no duplica si ya volvió (doble clic en Deshacer)', async () => {
+    prismaMock.note.findUnique.mockResolvedValue({ uuid: 'n-1' })
+    const { restaurarNota } = await import('@/app/app/panel/actions')
+    expect(
+      await restaurarNota({
+        uuid: 'n-1', title: null, content: '<p>x</p>', pinned: false,
+        createTs: '2026-08-01T10:00:00.000Z',
+      }),
+    ).toEqual({ ok: true })
+    expect(prismaMock.note.create).not.toHaveBeenCalled()
   })
 })
 
@@ -210,5 +274,26 @@ describe('saveMonths', () => {
     expect(prismaMock.savingMonth.upsert).toHaveBeenCalledTimes(1)
     const args = prismaMock.savingMonth.upsert.mock.calls[0][0]
     expect(args.create).toMatchObject({ month: 1, income: 2_000, savingGeneral: null, savingTravel: null })
+  })
+})
+
+describe('tope de peticiones de las actions', () => {
+  it('frena al usuario que se pasa de la ventana, y solo a él', async () => {
+    // No protege de nada malicioso —para llegar aquí ya hace falta sesión de
+    // admin— sino de un bucle en el cliente o un doble envío desbocado.
+    const { closeAllSessions } = await import('@/app/app/panel/actions')
+    const { LIMITE_ACCIONES } = await import('@/lib/rate-limit')
+    prismaMock.userSession.deleteMany.mockResolvedValue({ count: 0 })
+
+    for (let i = 0; i < LIMITE_ACCIONES.max; i++) {
+      expect((await closeAllSessions()).ok, `llamada ${i + 1}`).toBe(true)
+    }
+    const frenada = await closeAllSessions()
+    expect(frenada.ok).toBe(false)
+    expect(frenada.message).toMatch(/Vas muy rápido/)
+
+    // Otro usuario no arrastra el frenazo: la clave es su uuid.
+    requireAdminMock.mockResolvedValue({ user: { uuid: 'otro-admin', role: 'ADMIN' } })
+    expect((await closeAllSessions()).ok).toBe(true)
   })
 })

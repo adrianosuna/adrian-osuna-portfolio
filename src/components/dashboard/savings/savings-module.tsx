@@ -13,6 +13,7 @@ import {
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { NumberField, TextField } from '@/components/ui/fields'
+import { useConfirmar } from '@/components/dashboard/confirmar'
 import type { ConceptRow, MonthRow, YearDetail } from '@/lib/finance'
 import {
   addExtra, addTravel, deleteExtra, deleteTravel,
@@ -22,6 +23,7 @@ import { AhorroPorMes } from '@/components/dashboard/savings/charts'
 import { MESES } from '@/lib/fechas'
 import { GraficaDonut } from '@/components/ui/charts/donut'
 import { btnIcon, btnPrimary, cardClass, esperadoHoy, eur, pct, proyeccionDe } from './comun'
+import { tdClass, thClass } from '@/components/ui/tabla'
 
 
 
@@ -112,11 +114,11 @@ function ConceptList({ items, onDelete, onUpdate, emptyText }: {
   onUpdate: (uuid: string, datos: ConceptPayload) => Promise<boolean>
   emptyText: string
 }) {
+  const confirmar = useConfirmar()
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState<{ concept: string; amount: number | null }>({ concept: '', amount: null })
-  const [confirming, setConfirming] = useState<string | null>(null)
 
-  if (!items.length) return <p className="py-2.5 text-[13px] text-muted-foreground/70">{emptyText}</p>
+  if (!items.length) return <p className="py-2.5 text-[13px] text-muted-foreground">{emptyText}</p>
 
   const startEdit = (it: ConceptRow) => {
     setEditing(it.uuid)
@@ -162,23 +164,23 @@ function ConceptList({ items, onDelete, onUpdate, emptyText }: {
                 <button type="button" className={btnIcon} onClick={() => startEdit(it)} aria-label="Editar">
                   <Pencil className="size-3.5" />
                 </button>
-                {confirming === it.uuid ? (
-                  <>
-                    <button
-                      type="button"
-                      className="rounded-md bg-danger px-2 py-1 text-xs font-semibold text-white max-sm:px-3 max-sm:py-2"
-                      onClick={() => { setConfirming(null); onDelete(it.uuid) }}>
-                      Sí
-                    </button>
-                    <button type="button" className={btnIcon} onClick={() => setConfirming(null)}>
-                      <X className="size-3.5" />
-                    </button>
-                  </>
-                ) : (
-                  <button type="button" className={cn(btnIcon, 'hover:bg-danger-bg hover:text-danger')} onClick={() => setConfirming(it.uuid)} aria-label="Eliminar">
-                    <Trash2 className="size-3.5" />
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className={cn(btnIcon, 'hover:bg-danger-bg hover:text-danger')}
+                  aria-label="Eliminar"
+                  onClick={async () => {
+                    if (
+                      await confirmar({
+                        clave: 'borrar-concepto-ahorro',
+                        titulo: 'Eliminar el concepto',
+                        texto: `Se eliminará «${it.concept}» (${eur(it.amount)}).`,
+                      })
+                    ) {
+                      onDelete(it.uuid)
+                    }
+                  }}>
+                  <Trash2 className="size-3.5" />
+                </button>
               </span>
             </>
           )}
@@ -291,8 +293,8 @@ export function SavingsModule({
       ]
     : []
 
-  const thClass = 'px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground'
-  const tdClass = 'px-3 py-1.5'
+  // Las clases de la tabla vienen de `ui/tabla` (esta tabla es la referencia
+  // del resto: ver la cabecera de ese módulo).
 
   return (
     <div>
@@ -477,7 +479,7 @@ export function SavingsModule({
                             </td>
                             <td className={cn(tdClass, 'text-right font-semibold')}>
                               {rest === null ? (
-                                <span className="text-muted-foreground/50">—</span>
+                                <span className="text-muted-foreground">—</span>
                               ) : (
                                 <span className={rest < 0 ? 'text-danger' : ''}>{eur(rest)}</span>
                               )}

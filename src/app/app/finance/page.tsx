@@ -4,27 +4,39 @@
 //   · Gastos (?s=gastos)    — movimientos del mes (?mes=) o del año (&vista=anio)
 //   · Ajustes (?s=ajustes)  — categorías (y su tope), recurrentes y años
 import type { Metadata } from 'next'
+import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { Euro } from 'lucide-react'
 import { auth } from '@/auth'
 import { getYearDetail, listYears } from '@/lib/finance'
 import {
-  getAnioMovimientos, getMesMovimientos, listCategorias, listRecurrentes,
+  buscarMovimientos, getAnioMovimientos, getMesMovimientos, hayFiltros,
+  listCategorias, listRecurrentes, type FiltrosBusqueda, type TipoMovimiento,
 } from '@/lib/gastos'
 import { hoyMadrid } from '@/lib/mantenimiento'
 import { AjustesTab } from '@/components/dashboard/savings/ajustes'
+import { BuscarGastos } from '@/components/dashboard/savings/buscar-gastos'
 import { AhorroTabs, FinanzasNav } from '@/components/dashboard/savings/finanzas-tabs'
 import { GastosTab } from '@/components/dashboard/savings/gastos'
 import { PanelFinanzas } from '@/components/dashboard/savings/panel-finanzas'
 import { ResumenGeneral } from '@/components/dashboard/savings/resumen-general'
 import { SavingsModule } from '@/components/dashboard/savings/savings-module'
+import {
+  EsqueletoLista,
+  EsqueletoPanel,
+  EsqueletoTarjetas,
+} from '@/components/dashboard/esqueletos'
 
 export const metadata: Metadata = { title: 'Finanzas' }
 
 export default async function FinancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ s?: string; year?: string; mes?: string; vista?: string }>
+  searchParams: Promise<{
+    s?: string; year?: string; mes?: string; vista?: string
+    buscar?: string; q?: string; tipo?: string; desde?: string; hasta?: string
+    min?: string; max?: string
+  }>
 }) {
   // El layout ya redirige sin sesión, pero layout y página renderizan en
   // paralelo: la página debe protegerse por sí misma (aquí hay datos reales).
@@ -33,7 +45,8 @@ export default async function FinancePage({
   if (!session?.user) redirect('/login')
   if (session.user.role !== 'ADMIN') redirect('/app')
 
-  const { s, year: yearParam, mes: mesParam, vista } = await searchParams
+  const sp = await searchParams
+  const { s, year: yearParam, mes: mesParam, vista } = sp
   const hoy = hoyMadrid()
   const seccion =
     s === 'ahorro' ? 'ahorro' : s === 'gastos' ? 'gastos' : s === 'ajustes' ? 'ajustes' : 'panel'
@@ -50,15 +63,36 @@ export default async function FinancePage({
 
       <FinanzasNav seccion={seccion} />
 
-      {seccion === 'ahorro' ? (
-        <SeccionAhorro yearParam={yearParam} hoy={hoy} />
-      ) : seccion === 'gastos' ? (
-        <SeccionGastos mesParam={mesParam} vista={vista} hoy={hoy} />
-      ) : seccion === 'ajustes' ? (
-        <SeccionAjustes hoy={hoy} />
-      ) : (
-        <SeccionPanel hoy={hoy} />
-      )}
+      {/* Cada sección consulta lo suyo dentro de un Suspense: el título y la
+          nav se pintan al instante y solo el bloque de datos espera. La `key`
+          incluye los parámetros para que al cambiar de sección (o de mes, o
+          de año) vuelva a salir el esqueleto en vez de quedarse la vista
+          anterior congelada. */}
+      <Suspense
+        key={`${seccion}-${yearParam ?? ""}-${mesParam ?? ""}-${vista ?? ""}-${sp.buscar ?? ""}`}
+        fallback={
+          seccion === 'ajustes' ? (
+            <EsqueletoTarjetas />
+          ) : seccion === 'gastos' && sp.buscar !== undefined ? (
+            <EsqueletoLista />
+          ) : (
+            <EsqueletoPanel />
+          )
+        }>
+        {seccion === 'ahorro' ? (
+          <SeccionAhorro yearParam={yearParam} hoy={hoy} />
+        ) : seccion === 'gastos' ? (
+          sp.buscar !== undefined ? (
+            <SeccionBuscar sp={sp} />
+          ) : (
+            <SeccionGastos mesParam={mesParam} vista={vista} hoy={hoy} />
+          )
+        ) : seccion === 'ajustes' ? (
+          <SeccionAjustes hoy={hoy} />
+        ) : (
+          <SeccionPanel hoy={hoy} />
+        )}
+      </Suspense>
     </div>
   )
 }
@@ -103,6 +137,49 @@ async function SeccionAjustes({ hoy }: { hoy: string }) {
       recurrentes={recurrentes}
       years={years}
       hoy={hoy}
+    />
+  )
+}
+
+/** Búsqueda de movimientos por concepto, tipo, rango de fechas e importe. */
+async function SeccionBuscar({
+  sp,
+}: {
+  sp: {
+    q?: string
+    tipo?: string
+    desde?: string
+    hasta?: string
+    min?: string
+    max?: string
+    p?: string
+  }
+}) {
+  // Saneado de los parámetros de la URL antes de consultar.
+  const fecha = (v?: string) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null)
+  const importe = (v?: string) => {
+    const n = Number(v)
+    return v !== undefined && v !== '' && Number.isFinite(n) && n >= 0 ? n : null
+  }
+  const filtros: FiltrosBusqueda = {
+    q: sp.q?.slice(0, 100) ?? '',
+    tipo: sp.tipo === 'GASTO' || sp.tipo === 'INGRESO' ? (sp.tipo as TipoMovimiento) : null,
+    desde: fecha(sp.desde),
+    hasta: fecha(sp.hasta),
+    min: importe(sp.min),
+    max: importe(sp.max),
+    pagina: Number(sp.p) >= 1 ? Math.trunc(Number(sp.p)) : 1,
+  }
+  const [categorias, resultado] = await Promise.all([
+    listCategorias(),
+    buscarMovimientos(filtros),
+  ])
+  return (
+    <BuscarGastos
+      filtros={filtros}
+      resultado={resultado}
+      categorias={categorias}
+      tieneFiltros={hayFiltros(filtros)}
     />
   )
 }

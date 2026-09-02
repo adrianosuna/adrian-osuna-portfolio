@@ -9,9 +9,9 @@ import { cn } from '@/lib/utils'
 import type { YearSummary } from '@/lib/finance'
 import { AhorroAcumulado } from './charts'
 import { ahorroAnualDe, cardClass, eur, pct, proyeccionDe, tasaAhorroDe } from './comun'
+import { tdClass, thClass } from '@/components/ui/tabla'
 
-const thClass = 'px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground'
-const tdClass = 'px-3 py-1.5'
+// Clases de la tabla: las comunes de `ui/tabla`.
 
 /** Media de ahorro general por mes relleno (null si no hay ninguno). */
 const ritmoDe = (y: YearSummary) => {

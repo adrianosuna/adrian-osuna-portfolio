@@ -43,9 +43,19 @@ function respuestaLote(cuerpo: { requests: Array<{ dimensions?: Array<{ name: st
   }
   if (primera === 'pagePath') {
     // Lote 2: páginas, países, ciudades, dispositivos, navegadores.
+    // Las páginas piden DOS rangos, así que cada ruta vuelve dos veces con la
+    // dimensión implícita del rango: actual (date_range_0) y previo (_1).
     return {
       reports: [
-        { rows: [fila(['/'], [90])] },
+        {
+          rows: [
+            fila(['/', 'date_range_0'], [90]),
+            fila(['/', 'date_range_1'], [60]),
+            fila(['/privacidad', 'date_range_0'], [12]),
+            // Sin fila previa: /privacidad es "nueva" en este periodo.
+            fila(['/casos', 'date_range_1'], [40]),
+          ],
+        },
         { rows: [fila(['Spain'], [35]), fila(['(not set)'], [2])] },
         { rows: [fila(['Seville'], [8]), fila(['Lucena'], [5])] },
         { rows: [fila(['desktop'], [22]), fila(['mobile'], [18])] },
@@ -131,6 +141,20 @@ describe('snapshotVisitas', () => {
     expect(snap.totales.sesiones).toEqual({ actual: 60, previo: 30 })
     // engagementRate llega en tanto por uno y se expone en porcentaje.
     expect(snap.totales.interaccionPct).toEqual({ actual: 62, previo: 50 })
+  })
+
+  it('empareja cada página con su periodo previo, ordenada por lo actual', async () => {
+    vi.stubGlobal('fetch', mockFetch())
+    const { snapshotVisitas } = await cargarGa()
+    const snap = await snapshotVisitas(30)
+    // Ordenadas por el valor ACTUAL (no por el previo, que es lo que ordena GA
+    // al mezclar los dos rangos en la misma respuesta).
+    expect(snap.paginas.map((p) => p.etiqueta)).toEqual(['/', '/privacidad', '/casos'])
+    expect(snap.paginas[0]).toEqual({ etiqueta: '/', valor: 90, previo: 60 })
+    // Solo en el periodo actual: previo 0 (la UI lo pinta como "nueva").
+    expect(snap.paginas[1]).toEqual({ etiqueta: '/privacidad', valor: 12, previo: 0 })
+    // Solo en el previo: sigue apareciendo, con 0 actual (ha desaparecido).
+    expect(snap.paginas[2]).toEqual({ etiqueta: '/casos', valor: 0, previo: 40 })
   })
 
   it('traduce canales, países, ciudades, dispositivos y eventos', async () => {

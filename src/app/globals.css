@@ -305,6 +305,58 @@ section[id] {
   margin-bottom: 0;
 }
 
+/* Checklists de las notas: `<ul class="tareas">` con `<li data-check="0|1">`.
+   La casilla se DIBUJA con ::before (no es un <input>): así el HTML guardado
+   sigue siendo solo texto con formato —nada de controles de formulario en la
+   allowlist del saneador— y el marcado lo hace una acción del servidor. */
+.contenido-nota :where(ul.tareas) {
+  list-style: none;
+  margin-left: 0;
+}
+.contenido-nota :where(ul.tareas > li) {
+  position: relative;
+  padding-left: 1.6rem;
+  margin: 0.15rem 0;
+}
+.contenido-nota :where(ul.tareas > li)::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.28em;
+  width: 1rem;
+  height: 1rem;
+  border: 1.5px solid var(--border);
+  border-radius: 0.25rem;
+  background: var(--background);
+}
+/* Marcada: fondo esmeralda y una "palomita" con el pseudo-elemento de cierre. */
+.contenido-nota :where(ul.tareas > li[data-check='1'])::before {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.contenido-nota :where(ul.tareas > li[data-check='1'])::after {
+  content: '';
+  position: absolute;
+  left: 0.3rem;
+  top: 0.45em;
+  width: 0.32rem;
+  height: 0.6rem;
+  border: solid var(--primary-foreground);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.contenido-nota :where(ul.tareas > li[data-check='1']) {
+  color: var(--muted-foreground);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in oklab, var(--muted-foreground) 60%, transparent);
+}
+/* En el editor y en la tarjeta la casilla se puede pulsar (el resto de la nota
+   no: en la tarjeta el clic abre el editor, y eso no debe cambiar). */
+.contenido-nota.tareas-pulsables :where(ul.tareas > li) {
+  cursor: pointer;
+  pointer-events: auto;
+}
+
 /* Placeholder del editor de notas cuando está vacío. */
 .editor-nota:empty::before {
   content: attr(data-placeholder);
@@ -337,4 +389,39 @@ section[id] {
 @keyframes barra-carga-desliza {
   from { left: -45%; }
   to { left: 100%; }
+}
+
+
+/* ─────────── Zona segura (notch, isla dinámica, barra de gestos) ───────────
+   Con `viewport-fit=cover` la página llega a los bordes físicos, así que lo que
+   se pega a un borde tiene que apartarse él mismo. Los `env()` valen 0 en
+   pantallas sin recortes, así que estas clases no hacen nada en escritorio. */
+.safe-x {
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+}
+@media (min-width: 640px) {
+  .safe-x {
+    padding-left: max(1.5rem, env(safe-area-inset-left));
+    padding-right: max(1.5rem, env(safe-area-inset-right));
+  }
+}
+/* Barra superior: se aparta del notch por arriba y por los lados (en apaisado
+   el recorte pasa a un costado). */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+/* Último bloque de la página: deja aire sobre la barra de gestos del iPhone. */
+.safe-bottom {
+  padding-bottom: max(1.5rem, calc(env(safe-area-inset-bottom) + 1rem));
+}
+
+/* El EDITOR de notas se escribe: por debajo de 16px, iOS hace zoom al
+   enfocarlo y deja la página descuadrada. Las tarjetas (solo lectura) se
+   quedan en 14px, que ahí no hay riesgo. Va después de `.contenido-nota`
+   a propósito: misma especificidad, gana la última. */
+@media (max-width: 639px) {
+  .editor-nota {
+    font-size: 1rem;
+  }
 }

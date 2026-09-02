@@ -4,7 +4,8 @@ import { ArrowLeft } from 'lucide-react'
 
 export default function NotFound() {
   return (
-    <div className="pf-public flex min-h-dvh flex-col items-center justify-center bg-background px-4 text-center text-body">
+    // `main`: mismo motivo que en el login.
+    <main className="pf-public flex min-h-dvh flex-col items-center justify-center bg-background px-4 text-center text-body">
       <p className="font-mono text-sm uppercase tracking-[2px] text-accent-teal">Error 404</p>
       <h1 className="mt-3 text-[clamp(72px,14vw,140px)] font-extrabold leading-none tracking-[-4px] text-foreground">
         404
@@ -19,6 +20,6 @@ export default function NotFound() {
         <ArrowLeft className="size-4" />
         Volver al inicio
       </Link>
-    </div>
+    </main>
   )
 }
