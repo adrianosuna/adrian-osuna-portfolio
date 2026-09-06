@@ -16,6 +16,7 @@ import { Field, TextField } from '@/components/ui/fields'
 import { Celda, Fila, FilaVacia, Tabla, TarjetaTabla, type Columna } from '@/components/ui/tabla'
 import { useConfirmar } from '@/components/dashboard/confirmar'
 import { createApiToken, revokeApiToken } from '@/app/app/panel/actions'
+import { Tooltip } from '@/components/ui/tooltip'
 
 export interface ApiTokenRow {
   uuid: string
@@ -142,11 +143,11 @@ export function ApiTokens({ rows, base }: { rows: ApiTokenRow[]; base: string })
                   {t.lastUsed ? fmt(t.lastUsed) : 'Sin usar todavía'}
                 </Celda>
                 <Celda alineado="derecha">
+                  <Tooltip texto="Revocar" envuelto={pending}>
                   <button
                     type="button"
                     className={btnIcon}
                     disabled={pending}
-                    title="Revocar"
                     aria-label={`Revocar el token ${t.name}`}
                     onClick={async () => {
                       if (
@@ -162,6 +163,7 @@ export function ApiTokens({ rows, base }: { rows: ApiTokenRow[]; base: string })
                     }}>
                     <Trash2 className="size-4" />
                   </button>
+                  </Tooltip>
                 </Celda>
               </Fila>
             ))

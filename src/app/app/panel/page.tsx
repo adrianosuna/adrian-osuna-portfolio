@@ -20,7 +20,9 @@ import { SessionsList, type SessionRow } from '@/components/dashboard/users/sess
 import { AccesosList, type AccesoRow } from '@/components/dashboard/users/accesos-list'
 import { ApiTokens, type ApiTokenRow } from '@/components/dashboard/users/api-tokens'
 import { SubTabs } from '@/components/dashboard/sub-tabs'
-import { MantenimientoTab, type MaintenanceRow } from '@/components/dashboard/panel/mantenimiento'
+import {
+  MantenimientoTab, type MaintenanceRow, type Vista as VistaMant,
+} from '@/components/dashboard/panel/mantenimiento'
 import { NotasTab } from '@/components/dashboard/panel/notas'
 import { PanelTabsMovil } from '@/components/dashboard/panel/tabs-movil'
 import { cn } from '@/lib/utils'
@@ -166,10 +168,34 @@ async function Usuarios({
   )
 }
 
-async function Mantenimiento({ vista }: { vista: 'lista' | 'calendario' }) {
-  const [tareas, ambitos] = await Promise.all([
+async function Mantenimiento({ vista }: { vista: VistaMant }) {
+  // El calendario reúne las TRES fuentes con fecha, así que los recurrentes y
+  // los seguimientos solo se piden en esa vista: en la lista no se usan y
+  // serían dos consultas de más en cada carga.
+  const conCalendario = vista === 'calendario'
+  const [tareas, ambitos, recurrentes, seguimientos] = await Promise.all([
     prisma.maintenanceTask.findMany({ orderBy: { nextDue: 'asc' }, include: { scope: true } }),
     listAmbitos(),
+    conCalendario
+      ? prisma.recurringExpense.findMany({
+          where: { active: true },
+          orderBy: { nextDate: 'asc' },
+          select: {
+            uuid: true, concept: true, type: true, amount: true,
+            intervalMonths: true, nextDate: true, dayAnchor: true, active: true,
+          },
+        })
+      : [],
+    conCalendario
+      ? prisma.opportunity.findMany({
+          where: { archived: false, nextActionDate: { not: null } },
+          orderBy: { nextActionDate: 'asc' },
+          select: {
+            uuid: true, title: true, company: true,
+            nextAction: true, nextActionDate: true, archived: true,
+          },
+        })
+      : [],
   ])
   const rows: MaintenanceRow[] = tareas.map((t) => ({
     uuid: t.uuid,
@@ -188,6 +214,25 @@ async function Mantenimiento({ vista }: { vista: 'lista' | 'calendario' }) {
       hoy={hoyMadrid()}
       smtpListo={correoConfigurado()}
       vista={vista}
+      // Props planas para el cliente: `Decimal` a number y `Date` a ISO.
+      recurrentes={recurrentes.map((r) => ({
+        uuid: r.uuid,
+        concept: r.concept,
+        type: r.type as 'INGRESO' | 'GASTO',
+        amount: Number(r.amount),
+        intervalMonths: r.intervalMonths,
+        nextDate: r.nextDate.toISOString().slice(0, 10),
+        dayAnchor: r.dayAnchor,
+        active: r.active,
+      }))}
+      seguimientos={seguimientos.map((o) => ({
+        uuid: o.uuid,
+        title: o.title,
+        company: o.company,
+        nextAction: o.nextAction,
+        nextActionDate: o.nextActionDate ? o.nextActionDate.toISOString().slice(0, 10) : null,
+        archived: o.archived,
+      }))}
     />
   )
 }
@@ -214,7 +259,7 @@ export default async function PanelPage({
   if (session.user.role !== 'ADMIN') redirect('/app')
 
   const { tab, dias: diasParam, u, abrir, nueva, vista } = await searchParams
-  const vistaMant = vista === 'calendario' ? 'calendario' : 'lista'
+  const vistaMant: VistaMant = vista === 'calendario' ? 'calendario' : 'lista'
   const activa =
     tab === 'visitas' || tab === 'usuarios' || tab === 'mantenimiento' || tab === 'notas'
       ? tab

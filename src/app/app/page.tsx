@@ -15,7 +15,7 @@ import { pulsoVisitas } from '@/lib/ga'
 import { Actividad, Atencion, Tile, TileEsqueleto, cardClass } from '@/components/dashboard/inicio'
 // Mismo formateador que el módulo de finanzas (fuente única): los KPIs de
 // ahorro y gastos de aquí son las mismas cifras que se ven allí.
-import { eur } from '@/lib/euros'
+import { eurEntero } from '@/lib/euros'
 import { AccesosFijados } from '@/components/dashboard/accesos-fijados'
 import { AbrirAltaAlEntrar } from '@/components/dashboard/abrir-al-entrar'
 import { cn } from '@/lib/utils'
@@ -152,7 +152,7 @@ export default async function HomePage({
       <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Tile
           label={ahorro ? `Ahorro en ${ahorro.year}` : 'Ahorro'}
-          valor={ahorro ? eur(ahorro.total) : '—'}
+          valor={ahorro ? eurEntero(ahorro.total) : '—'}
           icon={<Euro className="size-4" />}
           chip="bg-primary/10 text-primary"
           to={ahorro ? `/app/finance?s=ahorro&year=${ahorro.year}` : '/app/finance?s=ahorro'}
@@ -176,7 +176,7 @@ export default async function HomePage({
         />
         <Tile
           label="Gastos del mes"
-          valor={eur(gastadoMes)}
+          valor={eurEntero(gastadoMes)}
           icon={<Receipt className="size-4" />}
           chip="bg-success-bg text-success"
           to={`/app/finance?s=gastos&mes=${new Date().toISOString().slice(0, 7)}`}
@@ -184,7 +184,7 @@ export default async function HomePage({
         />
         <Tile
           label="Pipeline abierto"
-          valor={eur(pipeline.valorAbierto)}
+          valor={eurEntero(pipeline.valorAbierto)}
           icon={<Briefcase className="size-4" />}
           chip="bg-warning-bg text-warning"
           to="/app/pipeline"

@@ -14,6 +14,31 @@ import { cn } from '@/lib/utils'
 const ENFOCABLES =
   'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
+/**
+ * Pila de modales abiertos, para que **Escape cierre solo el de arriba**.
+ *
+ * ⚠ El listener de Escape es de `document`, así que con dos modales apilados
+ * —y se apilan: una confirmación se pinta sobre el modal que la pidió— la tecla
+ * llegaba a los dos y cerraba el de abajo también. El síntoma es raro de leer:
+ * cancelas una confirmación y se te va la pantalla entera de detrás.
+ *
+ * La identidad es el propio objeto que mete cada modal al montarse (no un
+ * contador: con StrictMode montando dos veces, un número se descuadra).
+ */
+const pila: object[] = []
+
+/**
+ * El `overflow` que tenía la página ANTES del primer modal, para devolverlo
+ * cuando se cierre el último.
+ *
+ * ⚠ Module-level y no una copia por modal: el segundo modal se abre cuando el
+ * body ya está en `hidden`, así que su copia ES "hidden" — y si se desmonta
+ * DESPUÉS del primero (el orden no está garantizado: dos hermanos del mismo
+ * árbol se limpian en orden de documento), era él quien restauraba, y la
+ * página se quedaba sin scroll para siempre. Lo encontró un test.
+ */
+let overflowPrevio = ''
+
 export function Modal({
   title, description, onClose, footer, ancho = 'md', children,
 }: {
@@ -28,13 +53,18 @@ export function Modal({
 }) {
   const panel = useRef<HTMLDivElement>(null)
   const cuerpo = useRef<HTMLDivElement>(null)
+  /** Marca de este modal en la pila (ver `pila`). */
+  const yo = useRef({})
 
   // Scroll del fondo y foco, SOLO al abrir y al cerrar: va aparte del listener
   // de teclado a propósito. Ese depende de `onClose`, que en varias llamadas es
   // una función inline y cambia en cada render; si el foco viviera en el mismo
   // efecto, cada render lo devolvería al primer campo mientras escribes.
   useEffect(() => {
-    const previo = document.body.style.overflow
+    const marca = yo.current
+    // El original lo guarda solo el PRIMERO de la pila (ver `overflowPrevio`).
+    if (!pila.length) overflowPrevio = document.body.style.overflow
+    pila.push(marca)
     document.body.style.overflow = 'hidden'
 
     // Quien tenía el foco al abrir, para devolvérselo al cerrar: si no, el foco
@@ -52,7 +82,12 @@ export function Modal({
     }
 
     return () => {
-      document.body.style.overflow = previo
+      const i = pila.lastIndexOf(marca)
+      if (i !== -1) pila.splice(i, 1)
+      // El scroll del fondo se recupera solo cuando NO queda ningún modal: con
+      // dos apilados, cerrar el de arriba devolvía el scroll a la página de
+      // detrás mientras el de abajo seguía abierto.
+      document.body.style.overflow = pila.length ? 'hidden' : overflowPrevio
       antes?.focus?.()
     }
   }, [])
@@ -62,6 +97,9 @@ export function Modal({
   // dentro del modal en vez de escaparse a la página de detrás.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Solo el modal de ARRIBA atiende las teclas: si no, Escape cerraría
+      // también el de debajo y el Tab de los dos pelearía por el foco.
+      if (pila[pila.length - 1] !== yo.current) return
       if (e.key === 'Escape') {
         onClose()
         return

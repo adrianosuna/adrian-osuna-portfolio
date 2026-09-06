@@ -11,7 +11,7 @@ import type { YearSummary } from '@/lib/finance'
 import type { MesMovimientos } from '@/lib/gastos'
 import { nombreMes as mesDe } from '@/lib/fechas'
 import { GraficaDonut } from '@/components/ui/charts/donut'
-import { ahorroAnualDe, cardClass, esperadoHoy, eur, pct, proyeccionDe, tasaAhorroDe } from './comun'
+import { ahorroAnualDe, cardClass, esperadoHoy, eur, eurEntero, pct, proyeccionDe, tasaAhorroDe } from './comun'
 
 
 
@@ -131,7 +131,7 @@ export function PanelFinanzas({
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Kpi
           label={`Ahorrado en ${añoActual}`}
-          valor={ahorro === null ? '—' : eur(ahorro)}
+          valor={ahorro === null ? '—' : eurEntero(ahorro)}
           Icon={PiggyBank}
           tono="primary"
           to="/app/finance?s=ahorro"
@@ -155,7 +155,7 @@ export function PanelFinanzas({
         />
         <Kpi
           label={`Ingresos de ${nombreMes}`}
-          valor={eur(mes.ingresos)}
+          valor={eurEntero(mes.ingresos)}
           Icon={TrendingUp}
           tono="success"
           to={enlaceGastos}
@@ -165,7 +165,7 @@ export function PanelFinanzas({
         />
         <Kpi
           label={`Gastos de ${nombreMes}`}
-          valor={eur(mes.gastos)}
+          valor={eurEntero(mes.gastos)}
           Icon={Receipt}
           tono="danger"
           to={enlaceGastos}
@@ -190,7 +190,7 @@ export function PanelFinanzas({
         />
         <Kpi
           label={`Balance de ${nombreMes}`}
-          valor={eur(mes.balance)}
+          valor={eurEntero(mes.balance)}
           Icon={Scale}
           tono={mes.balance >= 0 ? 'success' : 'danger'}
           to={enlaceGastos}

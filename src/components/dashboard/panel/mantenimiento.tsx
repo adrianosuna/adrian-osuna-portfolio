@@ -6,22 +6,25 @@
 // ámbitos son una tabla editable, no una lista fija. "Hecho" encadena el
 // siguiente vencimiento; el cron de la app avisa por correo de las vencidas
 // (diario a las 8:00, reaviso semanal).
-import { useState, useTransition } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  CalendarClock, CalendarDays, Check, List, Pencil, Plus, Tag, Trash2, X,
+  CalendarClock, CalendarDays, Check, List, Pencil, Plus, RotateCcw, Tag, Trash2, X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { Tooltip } from '@/components/ui/tooltip'
 import { Modal } from '@/components/ui/modal'
 import { useConfirmar } from '@/components/dashboard/confirmar'
 import { useCarga } from '@/components/dashboard/barra-carga'
 import { DateField, Field, NumberField, SelectField, TextField, TextareaField } from '@/components/ui/fields'
-import { MESES, sumarMeses } from '@/lib/fechas'
 import type { AmbitoRow } from '@/lib/mantenimiento'
+import type { RecurrenteCal, SeguimientoCal } from '@/lib/calendario'
+import { cumplida, estadoDe } from '@/lib/tareas'
+import { Calendario } from './calendario'
 import {
   completeMaintenance, createAmbito, createMaintenance, deleteAmbito, deleteMaintenance,
-  updateAmbito, updateMaintenance,
+  reopenMaintenance, updateAmbito, updateMaintenance,
 } from '@/app/app/panel/actions'
 import { btnIcon, btnOutline, btnPrimary, chipFiltro } from '@/components/ui/botones'
 import { MenuAcciones } from '@/components/dashboard/menu-acciones'
@@ -43,14 +46,14 @@ const ESTADO_TAREA = {
   vencida: { className: 'bg-danger-bg text-danger', label: 'Vencida' },
   proxima: { className: 'bg-warning-bg text-warning', label: 'Esta semana' },
   aldia: { className: 'bg-success-bg text-success', label: 'Al día' },
+  // Una puntual ya hecha no vuelve: ni vence ni está "al día", está cumplida.
+  hecha: { className: 'bg-muted text-muted-foreground', label: 'Hecha' },
 } as const
 
-// Mismo criterio que el cron (src/lib/mantenimiento.ts), sobre el "hoy" del servidor.
-const estadoDe = (nextDue: string, hoy: string): keyof typeof ESTADO_TAREA => {
-  if (nextDue <= hoy) return 'vencida'
-  const dias = (new Date(`${nextDue}T00:00:00Z`).getTime() - new Date(`${hoy}T00:00:00Z`).getTime()) / 86_400_000
-  return dias <= 7 ? 'proxima' : 'aldia'
-}
+/** El estado que se pinta: `estadoDe` sobre el "hoy" del servidor, con las
+ *  puntuales cumplidas aparte (antes salían «Vencida» para siempre). */
+const chipDe = (t: MaintenanceRow, hoy: string): keyof typeof ESTADO_TAREA =>
+  cumplida(t) ? 'hecha' : estadoDe(t.nextDue, hoy)
 
 const fmt = (iso: string) => iso.split('-').reverse().join('/')
 
@@ -106,196 +109,58 @@ export function antiguedad(lastDone: string, hoy: string): string {
   return años === 1 ? 'hecha hace un año' : `hecha hace ${años} años`
 }
 
-
-/** Una tarea cayendo en un mes concreto de la proyección. */
-export interface Ocurrencia {
-  uuid: string
-  title: string
-  scopeName: string | null
-  /** Fecha del vencimiento, 'YYYY-MM-DD'. */
-  fecha: string
-  /** Venció antes del mes en curso (arrastra retraso). */
-  atrasada: boolean
-}
-
-/** Un mes de la proyección con lo que vence en él. */
-export interface MesProyectado {
-  /** 'YYYY-MM' */
-  mes: string
-  tareas: Ocurrencia[]
-}
-
-// Tope de saltos al proyectar UNA tarea: con periodicidad mensual, 12 meses son
-// 12 saltos; el tope solo existe para que una fecha absurda (o un intervalo
-// corrupto) no cuelgue el bucle.
-const MAX_SALTOS = 600
-
-/**
- * Proyecta los vencimientos de los próximos `meses` meses (el actual incluido).
- *
- * Encadena cada tarea desde su próximo vencimiento sumando su periodicidad, así
- * que una tarea mensual sale doce veces y la ITV una. Lo que ya venció antes de
- * este mes se muestra en el mes en curso marcado como atrasado —es lo que hay
- * que hacer ya— y a partir de ahí sigue su serie normal.
- *
- * Es una función pura para poder probarla: la aritmética de meses cortos y el
- * cruce de año son justo donde esto se rompe.
- */
-export function proximosMeses(
-  rows: MaintenanceRow[],
-  hoy: string,
-  meses = 12,
-): MesProyectado[] {
-  const inicio = `${hoy.slice(0, 7)}-01`
-  const fin = sumarMeses(inicio, meses) // primer día del mes siguiente a la ventana
-  const cubos = new Map<string, Ocurrencia[]>()
-  const orden: string[] = []
-  for (let i = 0; i < meses; i++) {
-    const m = sumarMeses(inicio, i).slice(0, 7)
-    orden.push(m)
-    cubos.set(m, [])
-  }
-
-  for (const t of rows) {
-    // Un recordatorio puntual sale UNA vez, en su mes (o en el actual si ya
-    // se pasó): no hay serie que encadenar.
-    if (t.intervalMonths === null) {
-      const atrasada = t.nextDue < inicio
-      const cubo = atrasada ? orden[0] : t.nextDue.slice(0, 7)
-      if (atrasada || t.nextDue < fin) {
-        cubos.get(cubo)?.push({
-          uuid: t.uuid,
-          title: t.title,
-          scopeName: t.scopeName,
-          fecha: t.nextDue,
-          atrasada,
-        })
-      }
-      continue
-    }
-    const paso = Math.max(1, t.intervalMonths)
-    let f = t.nextDue
-    if (f < inicio) {
-      // Atrasada: se enseña en el mes en curso con su fecha real, y luego se
-      // adelanta su serie hasta entrar en la ventana.
-      cubos.get(orden[0])?.push({
-        uuid: t.uuid, title: t.title, scopeName: t.scopeName, fecha: f, atrasada: true,
-      })
-      let saltos = 0
-      while (f < inicio && saltos++ < MAX_SALTOS) f = sumarMeses(f, paso)
-    }
-    let saltos = 0
-    while (f < fin && saltos++ < MAX_SALTOS) {
-      cubos.get(f.slice(0, 7))?.push({
-        uuid: t.uuid, title: t.title, scopeName: t.scopeName, fecha: f, atrasada: false,
-      })
-      f = sumarMeses(f, paso)
-    }
-  }
-
-  return orden.map((mes) => ({
-    mes,
-    tareas: (cubos.get(mes) ?? []).sort((a, b) => a.fecha.localeCompare(b.fecha)),
-  }))
-}
-
-/**
- * Calendario de los próximos 12 meses: qué vence y cuándo.
- *
- * La lista contesta "qué tengo pendiente"; esto contesta "qué se me viene
- * encima" — con la ITV, el seguro y la caldera repartidos, el mes cargado se ve
- * de un vistazo. Los meses sin nada también salen (en gris): un hueco es
- * información, y saltárselos descolocaría la rejilla.
- */
-function Calendario({ meses, hoy }: { meses: MesProyectado[]; hoy: string }) {
-  const mesActual = hoy.slice(0, 7)
-  return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {meses.map((m) => {
-        const [y, mm] = m.mes.split('-').map(Number)
-        const esActual = m.mes === mesActual
-        return (
-          <div
-            key={m.mes}
-            className={cn(
-              'rounded-xl border bg-card p-3.5',
-              esActual ? 'border-primary/40' : 'border-border',
-              m.tareas.length === 0 && 'opacity-60',
-            )}>
-            <div className="mb-2 flex items-baseline justify-between gap-2 border-b border-border/60 pb-2">
-              <p className="text-sm font-semibold">
-                {MESES[mm - 1]}
-                {/* El año, solo cuando cambia: en una ventana de 12 meses la
-                    mitad son del año que viene. */}
-                {y !== Number(mesActual.slice(0, 4)) && (
-                  <span className="ml-1 font-normal text-muted-foreground">{y}</span>
-                )}
-              </p>
-              {esActual ? (
-                <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-semibold text-primary">
-                  Este mes
-                </span>
-              ) : (
-                m.tareas.length > 0 && (
-                  <span className="text-[11px] text-muted-foreground">{m.tareas.length}</span>
-                )
-              )}
-            </div>
-            {m.tareas.length === 0 ? (
-              <p className="py-1 text-[12.5px] text-muted-foreground">Nada previsto</p>
-            ) : (
-              <ul className="flex flex-col gap-1.5">
-                {m.tareas.map((t) => (
-                  // La clave lleva la fecha: una tarea mensual sale una vez por
-                  // mes, y en el mes en curso puede salir además su atraso.
-                  <li key={`${t.uuid}-${t.fecha}`} className="flex items-baseline gap-2 text-[12.5px]">
-                    <span
-                      className={cn(
-                        'w-11 shrink-0 tabular-nums',
-                        t.atrasada ? 'font-semibold text-danger' : 'text-muted-foreground',
-                      )}
-                      title={t.atrasada ? `Vencía el ${fmt(t.fecha)}` : `Vence el ${fmt(t.fecha)}`}>
-                      {t.atrasada ? 'Vencida' : fmt(t.fecha).slice(0, 5)}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="font-semibold">{t.title}</span>
-                      {t.scopeName && (
-                        <span className="text-muted-foreground"> · {t.scopeName}</span>
-                      )}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
+/** Vistas de la pestaña: la lista y el calendario de días. */
+export type Vista = 'lista' | 'calendario'
 
 interface Borrador {
   title: string
   scopeUuid: string
   notes: string
+  /**
+   * ⚠ **`repite` va aparte de `intervalMonths` a propósito.** En la BD `null`
+   * significa "no se repite", pero en un campo de texto `null` es también
+   * "está vacío mientras escribo" — y con las dos cosas en la misma variable,
+   * seleccionar el contenido de «Cada (meses)» y borrarlo para escribir otro
+   * número hacía CUATRO cosas de golpe: el campo desaparecía bajo el cursor,
+   * «Repetición» saltaba a «Una vez», la etiqueta de la fecha cambiaba y el
+   * botón Crear seguía activo — se guardaba una puntual creyendo que era
+   * mensual. Aquí manda `repite`, y el número puede estar vacío sin significar
+   * nada; al guardar se compone el valor que espera la BD.
+   */
+  repite: boolean
   intervalMonths: number | null
   nextDue: string
 }
 
 const BORRADOR_VACIO: Borrador = {
-  title: '', scopeUuid: '', notes: '', intervalMonths: 1, nextDue: '',
+  title: '', scopeUuid: '', notes: '', repite: true, intervalMonths: 1, nextDue: '',
 }
+
+/** Los meses válidos son 1-120 (lo mismo que valida `periodicidadMeses`). */
+const MESES_MIN = 1
+const MESES_MAX = 120
+
+/** Si el borrador se puede guardar. Lo comparten el botón y el Enter, para que
+ *  no haya dos criterios — y para no mandar al servidor lo que ya sabemos mal. */
+const borradorValido = (b: Borrador) =>
+  Boolean(b.title.trim()) &&
+  Boolean(b.nextDue) &&
+  Boolean(b.scopeUuid) &&
+  (!b.repite || (b.intervalMonths !== null && b.intervalMonths >= MESES_MIN && b.intervalMonths <= MESES_MAX))
 
 
 export function MantenimientoTab({
-  rows, ambitos, hoy, smtpListo, vista,
+  rows, ambitos, hoy, smtpListo, vista, recurrentes = [], seguimientos = [],
 }: {
   rows: MaintenanceRow[]
   ambitos: AmbitoRow[]
   hoy: string // 'YYYY-MM-DD' en horario de Madrid (calculado en el servidor)
   smtpListo: boolean
   /** Vista activa, que vive en la URL (`?vista=`). */
-  vista: 'lista' | 'calendario'
+  vista: Vista
+  /** Las otras dos fuentes con fecha, solo para el calendario. */
+  recurrentes?: RecurrenteCal[]
+  seguimientos?: SeguimientoCal[]
 }) {
   const router = useRouter()
   const iniciar = useCarga()
@@ -309,10 +174,12 @@ export function MantenimientoTab({
   const [gestionAmbitos, setGestionAmbitos] = useState(false)
   // La vista NAVEGA (vive en la URL): el enlace al calendario es compartible y
   // el botón "atrás" devuelve a la lista.
-  const setVista = (v: 'lista' | 'calendario') => {
+  const setVista = (v: Vista) => {
     if (v === vista) return
     iniciar()
-    router.push(v === 'calendario' ? '/app/panel?tab=mantenimiento&vista=calendario' : '/app/panel?tab=mantenimiento')
+    router.push(
+      v === 'lista' ? '/app/panel?tab=mantenimiento' : `/app/panel?tab=mantenimiento&vista=${v}`,
+    )
   }
 
   const opcionesAmbito = ambitos.map((a) => ({ value: a.uuid, label: a.name }))
@@ -326,9 +193,10 @@ export function MantenimientoTab({
       setModal(null)
     })
 
-  const abrirNueva = () => {
+  const abrirNueva = (fecha = hoy) => {
     // El primer ámbito por defecto: hay que elegir uno y así no se olvida.
-    setBorrador({ ...BORRADOR_VACIO, scopeUuid: ambitos[0]?.uuid ?? '', nextDue: hoy })
+    // La fecha llega del calendario cuando se pulsa un día; si no, hoy.
+    setBorrador({ ...BORRADOR_VACIO, scopeUuid: ambitos[0]?.uuid ?? '', nextDue: fecha })
     setModal('nueva')
   }
 
@@ -337,7 +205,10 @@ export function MantenimientoTab({
       title: t.title,
       scopeUuid: t.scopeUuid ?? ambitos[0]?.uuid ?? '',
       notes: t.notes ?? '',
-      intervalMonths: t.intervalMonths,
+      repite: t.intervalMonths !== null,
+      // Si es puntual se guarda el mensual de reserva: al cambiar a «Se
+      // repite» el campo sale ya usable en vez de vacío.
+      intervalMonths: t.intervalMonths ?? 1,
       nextDue: t.nextDue,
     })
     setModal(t.uuid)
@@ -348,15 +219,43 @@ export function MantenimientoTab({
       title: borrador.title,
       scopeUuid: borrador.scopeUuid,
       notes: borrador.notes || null,
-      // null llega tal cual: es "no se repite", no un cero.
-      intervalMonths: borrador.intervalMonths,
+      // Aquí se compone lo que espera la BD: `null` es "no se repite", y solo
+      // sale de `repite`, nunca de que el campo esté vacío.
+      intervalMonths: borrador.repite ? borrador.intervalMonths : null,
       nextDue: borrador.nextDue,
     }
+    // ⚠ `pending` también: esto lo llama el Enter, y el botón está apagado
+    // mientras se guarda pero la tecla no — dos Enter seguidos crearían la
+    // tarea DOS veces.
+    if (pending || !borradorValido(borrador)) return
     if (modal === 'nueva') run(createMaintenance(datos), 'Tarea creada')
     else if (modal) run(updateMaintenance(modal, datos), 'Tarea actualizada')
   }
 
-  const visibles = filtro === 'todos' ? rows : rows.filter((t) => t.scopeUuid === filtro)
+  /**
+   * Las tareas que se pintan, filtradas por ámbito y **con las cumplidas al
+   * final**.
+   *
+   * ⚠ La consulta las trae por `nextDue` ascendente, y una puntual cumplida se
+   * queda con su fecha en el pasado a propósito — así que salía la PRIMERA de
+   * la lista, encima de lo urgente, con su chip apagado. Lo hecho se hunde.
+   */
+  const visibles = useMemo(() => {
+    const base = filtro === 'todos' ? rows : rows.filter((t) => t.scopeUuid === (filtro === 'sin' ? null : filtro))
+    return [...base].sort(
+      (a, b) => Number(cumplida(a)) - Number(cumplida(b)) || a.nextDue.localeCompare(b.nextDue),
+    )
+  }, [rows, filtro])
+
+  // Solo los ámbitos EN USO llevan chip: uno recién creado y todavía vacío
+  // daba un filtro que no encontraba nada. Y si alguna tarea se quedó sin
+  // ámbito (el FK es SetNull), su chip aparece para poder llegar a ella.
+  const enUso = new Set(rows.map((t) => t.scopeUuid))
+  const chipsAmbito = [
+    { uuid: 'todos', name: 'Todos' },
+    ...ambitos.filter((a) => enUso.has(a.uuid)),
+    ...(enUso.has(null) ? [{ uuid: 'sin', name: 'Sin ámbito' }] : []),
+  ]
 
   return (
     <div>
@@ -368,12 +267,12 @@ export function MantenimientoTab({
         )}
         {/* Filtro por ámbito: solo con más de uno en uso —con todo en el
             servidor no filtra nada y sería ruido. */}
-        {new Set(rows.map((t) => t.scopeUuid)).size > 1 && (
+        {enUso.size > 1 && (
           <div
             className="flex overflow-x-auto rounded-lg border border-border bg-card/50 p-0.5 max-sm:w-full"
             role="group"
             aria-label="Filtrar por ámbito">
-            {[{ uuid: 'todos', name: 'Todos' }, ...ambitos].map((a) => (
+            {chipsAmbito.map((a) => (
               <button
                 key={a.uuid}
                 type="button"
@@ -420,37 +319,87 @@ export function MantenimientoTab({
           onClick={() => setGestionAmbitos(true)}>
           <Tag className="size-4" /> Ámbitos
         </button>
-        <button type="button" className={cn(btnPrimary, 'w-full sm:w-auto')} onClick={abrirNueva}>
+        <button type="button" className={cn(btnPrimary, 'w-full sm:w-auto')} onClick={() => abrirNueva()}>
           <Plus className="size-4" /> Nueva tarea
         </button>
       </div>
 
-      {visibles.length === 0 ? (
+      {/* ⚠ El "no hay nada" es de la LISTA, no de la pestaña. Estuvo delante
+          del calendario y lo tapaba: sin tareas —o filtrando por un ámbito sin
+          ellas— desaparecía la rejilla entera, con sus cargos recurrentes y sus
+          seguimientos, que no tienen nada que ver con el filtro de ámbitos. Un
+          Panel recién estrenado no podía ni ver el calendario. */}
+      {vista === 'calendario' ? (
+        // El calendario de DÍAS con las tres fuentes. Solo las tareas se
+        // crean y editan aquí; un recurrente o un seguimiento llevan a su
+        // módulo, donde viven sus reglas (ver `panel/calendario.tsx`).
+        <Calendario
+          hoy={hoy}
+          tareas={visibles}
+          recurrentes={recurrentes}
+          seguimientos={seguimientos}
+          onNuevaTarea={abrirNueva}
+          onAbrirTarea={(uuid) => {
+            const t = rows.find((r) => r.uuid === uuid)
+            if (t) abrirEdicion(t)
+          }}
+          onAbrirEvento={(e) => {
+            iniciar()
+            router.push(
+              e.tipo === 'recurrente'
+                ? '/app/finance?s=ajustes'
+                : `/app/pipeline?abrir=${e.refUuid}`,
+            )
+          }}
+        />
+      ) : visibles.length === 0 ? (
         <div className="rounded-xl border border-border bg-card p-6 text-center text-sm text-muted-foreground">
           <CalendarClock className="mx-auto mb-2 size-6 text-muted-foreground" />
-          {rows.length === 0
-            ? 'Sin tareas todavía. Ejemplos útiles: revisar dependencias cada mes, comprobar backups cada mes, la ITV cada 12 meses o la revisión de la caldera cada año.'
-            : `Ninguna tarea de ${nombreAmbito(filtro).toLowerCase()}.`}
+          {rows.length === 0 ? (
+            'Sin tareas todavía. Ejemplos útiles: revisar dependencias cada mes, comprobar backups cada mes, la ITV cada 12 meses o la revisión de la caldera cada año.'
+          ) : (
+            <>
+              Ninguna tarea{' '}
+              {filtro === 'sin' ? 'sin ámbito' : `de ${nombreAmbito(filtro).toLowerCase()}`}.{' '}
+              {/* La salida a mano: si no, el único camino es acordarse de que
+                  hay un filtro puesto arriba. */}
+              <button
+                type="button"
+                className="font-semibold text-primary hover:underline"
+                onClick={() => setFiltro('todos')}>
+                Ver todas
+              </button>
+            </>
+          )}
         </div>
-      ) : vista === 'calendario' ? (
-        <Calendario meses={proximosMeses(visibles, hoy)} hoy={hoy} />
       ) : (
-        <div className="flex flex-col divide-y divide-border/60 rounded-xl border border-border bg-card">
+        // `ul`/`li` y no divs apilados: así un lector de pantalla anuncia
+        // cuántas tareas hay y se recorren como lista. Es una lista de tarjetas
+        // y no una tabla a propósito — la nota es texto de varias líneas.
+        <ul className="flex flex-col divide-y divide-border/60 rounded-xl border border-border bg-card">
           {visibles.map((t) => {
-            const estado = ESTADO_TAREA[estadoDe(t.nextDue, hoy)]
+            const cumpl = cumplida(t)
+            const estado = ESTADO_TAREA[chipDe(t, hoy)]
             // El chip dice CUÁNDO (y el color, la urgencia): más útil que
-            // repetir "Vencida" y dejar la fecha para calcular a mano.
+            // repetir "Vencida" y dejar la fecha para calcular a mano. La
+            // puntual cumplida es la excepción: ahí el "cuándo" del vencimiento
+            // ya no significa nada, lo que importa es que está hecha.
             const chip = (
-              <span
-                className={cn('shrink-0 rounded-md px-2 py-0.5 text-xs font-semibold', estado.className)}
-                title={`${estado.label} · vence el ${fmt(t.nextDue)}`}>
-                {cuando(t.nextDue, hoy)}
-              </span>
+              <Tooltip
+                texto={
+                  cumpl
+                    ? `Hecha el ${fmt(t.lastDone!)} · era para el ${fmt(t.nextDue)}`
+                    : `${estado.label} · vence el ${fmt(t.nextDue)}`
+                }>
+                <span className={cn('shrink-0 rounded-md px-2 py-0.5 text-xs font-semibold', estado.className)}>
+                  {cumpl ? 'Hecha' : cuando(t.nextDue, hoy)}
+                </span>
+              </Tooltip>
             )
             return (
               // Móvil: tarjeta en bloque (chip junto al título, acciones en su
               // propia fila con "Hecha" etiquetada). Desde sm, la fila de antes.
-              <div key={t.uuid} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-3">
+              <li key={t.uuid} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">
                     {/* min-w-0 en el título y shrink-0 en el chip: con títulos
@@ -458,9 +407,7 @@ export function MantenimientoTab({
                     <p className="min-w-0 text-sm font-semibold">{t.title}</p>
                     <span className="shrink-0 sm:hidden">{chip}</span>
                   </div>
-                  <p
-                    className="flex flex-wrap items-center gap-x-1.5 text-[12.5px] text-muted-foreground"
-                    title={`Vence el ${fmt(t.nextDue)}`}>
+                  <p className="flex flex-wrap items-center gap-x-1.5 text-[12.5px] text-muted-foreground">
                     {/* Ámbito: en la lista mezclada es lo que dice si esto es
                         del servidor, de casa o del coche. */}
                     <span className="font-semibold text-foreground/80">
@@ -485,18 +432,63 @@ export function MantenimientoTab({
                 </div>
                 <span className="hidden shrink-0 sm:block">{chip}</span>
                 <span className="flex items-center justify-end gap-0.5 border-t border-border/60 pt-2 sm:border-0 sm:pt-0">
-                  <button
-                    type="button"
-                    className={cn(
-                      btnIcon,
-                      'mr-auto flex items-center gap-1 text-success hover:bg-success-bg hover:text-success sm:mr-0',
-                    )}
-                    disabled={pending}
-                    title="Marcar como hecha (encadena el siguiente vencimiento)"
-                    onClick={() => run(completeMaintenance(t.uuid), 'Hecha: siguiente vencimiento programado')}>
-                    <Check className="size-4" />
-                    <span className="text-xs font-semibold sm:hidden">Hecha</span>
-                  </button>
+                  {/* Una puntual YA cumplida no se vuelve a marcar: en su sitio
+                      va "Reabrir", que es lo que hace falta si el clic fue un
+                      error. En las que se repiten, marcar otra vez siempre
+                      tiene sentido (encadena el siguiente vencimiento). */}
+                  {cumpl ? (
+                    <Tooltip
+                      texto={`Hecha el ${fmt(t.lastDone!)}. Reabrir la deja pendiente otra vez para el ${fmt(t.nextDue)}`}
+                      envuelto={pending}
+                      className="mr-auto sm:mr-0">
+                      <button
+                        type="button"
+                        // ⚠ `aria-label` y no solo el `<span>`: ese span es
+                        // `sm:hidden`, así que en ESCRITORIO el botón se
+                        // quedaba sin nombre accesible —el tooltip describe,
+                        // no nombra—. Era la acción principal de cada fila.
+                        aria-label={`Reabrir ${t.title}`}
+                        className={cn(btnIcon, 'mr-auto flex items-center gap-1 sm:mr-0')}
+                        disabled={pending}
+                        onClick={() => run(reopenMaintenance(t.uuid), 'Reabierta: vuelve a estar pendiente')}>
+                        <RotateCcw className="size-4" />
+                        <span className="text-xs font-semibold sm:hidden">Reabrir</span>
+                      </button>
+                    </Tooltip>
+                  ) : (
+                    <Tooltip
+                      texto={
+                        t.intervalMonths === null
+                          ? 'Marcar como hecha (es puntual: no vuelve)'
+                          : 'Marcar como hecha (encadena el siguiente vencimiento)'
+                      }
+                      envuelto={pending}
+                      className="mr-auto sm:mr-0">
+                      <button
+                        type="button"
+                        // Ver el `aria-label` de "Reabrir": sin él, en
+                        // escritorio este botón no tenía nombre ninguno.
+                        aria-label={`Marcar ${t.title} como hecha`}
+                        className={cn(
+                          btnIcon,
+                          'mr-auto flex items-center gap-1 text-success hover:bg-success-bg hover:text-success sm:mr-0',
+                        )}
+                        disabled={pending}
+                        onClick={() =>
+                          run(
+                            completeMaintenance(t.uuid),
+                            // ⚠ No prometer un vencimiento que no va a haber:
+                            // en una puntual no se programa nada.
+                            t.intervalMonths === null
+                              ? 'Hecha'
+                              : 'Hecha: siguiente vencimiento programado',
+                          )
+                        }>
+                        <Check className="size-4" />
+                        <span className="text-xs font-semibold sm:hidden">Hecha</span>
+                      </button>
+                    </Tooltip>
+                  )}
                   {/* "Hecha" se queda fuera: es LA acción de la tarjeta, y en
                       móvil lleva su etiqueta. Lo secundario (editar, borrar)
                       se recoge en el menú para que no compita con ella. */}
@@ -532,10 +524,10 @@ export function MantenimientoTab({
                     ]}
                   />
                 </span>
-              </div>
+              </li>
             )
           })}
-        </div>
+        </ul>
       )}
 
       {/* Alta / edición */}
@@ -551,12 +543,18 @@ export function MantenimientoTab({
               <button
                 type="button"
                 className={btnPrimary}
-                disabled={pending || !borrador.title.trim() || !borrador.nextDue || !borrador.scopeUuid}
+                disabled={pending || !borradorValido(borrador)}
                 onClick={guardar}>
                 {modal === 'nueva' ? 'Crear' : 'Guardar'}
               </button>
             </>
           }>
+            {/* Enter guarda, y solo desde los dos campos de UNA línea (título y
+                meses). No desde las Notas —ahí el Enter es un salto de línea— y
+                no desde los selects ni la fecha, donde la tecla abre o elige
+                dentro de su popover. `guardar` lleva su propia guarda
+                (`borradorValido`), así que un Enter con el formulario a medias
+                no manda nada. */}
             <div className="flex flex-col gap-3">
               <Field label="Tarea *">
                 <TextField
@@ -564,6 +562,7 @@ export function MantenimientoTab({
                   value={borrador.title}
                   autoFocus
                   onChange={(v) => setBorrador((b) => ({ ...b, title: v }))}
+                  onEnter={guardar}
                 />
               </Field>
               <Field label="Ámbito *">
@@ -584,13 +583,14 @@ export function MantenimientoTab({
                 <Field label="Repetición *">
                   <SelectField
                     ariaLabel="Repetición de la tarea"
-                    value={borrador.intervalMonths === null ? 'una' : 'repite'}
+                    value={borrador.repite ? 'repite' : 'una'}
                     onChange={(v) =>
                       setBorrador((b) => ({
                         ...b,
+                        repite: v === 'repite',
                         // Al volver a "Se repite" se ofrece el mensual, que es
                         // el caso más común y deja el campo ya usable.
-                        intervalMonths: v === 'una' ? null : (b.intervalMonths ?? 1),
+                        intervalMonths: v === 'repite' ? (b.intervalMonths ?? 1) : b.intervalMonths,
                       }))
                     }
                     options={[
@@ -599,7 +599,7 @@ export function MantenimientoTab({
                     ]}
                   />
                 </Field>
-                <Field label={borrador.intervalMonths === null ? 'Fecha *' : 'Próximo vencimiento *'}>
+                <Field label={borrador.repite ? 'Próximo vencimiento *' : 'Fecha *'}>
                   <DateField
                     ariaLabel="Fecha de vencimiento"
                     value={borrador.nextDue}
@@ -607,14 +607,28 @@ export function MantenimientoTab({
                   />
                 </Field>
               </div>
-              {borrador.intervalMonths !== null && (
+              {borrador.repite && (
+                // `w-28`: es una cifra de una a tres cifras, y a todo lo ancho
+                // del modal quedaba un campo enorme al lado del «Ámbito» de
+                // w-40. Los límites son los que valida el servidor (1-120), y
+                // el aviso sale AQUÍ en vez de esperar al error de guardado.
                 <Field label="Cada (meses) *">
                   <NumberField
+                    className="w-28"
                     ariaLabel="Periodicidad en meses"
                     value={borrador.intervalMonths}
                     step={1}
                     onChange={(v) => setBorrador((b) => ({ ...b, intervalMonths: v }))}
+                    onEnter={guardar}
                   />
+                  {/* `span` y no `p`: esto va DENTRO del `<label>` de `Field`,
+                      que solo admite contenido de frase. */}
+                  {borrador.intervalMonths !== null &&
+                    (borrador.intervalMonths < MESES_MIN || borrador.intervalMonths > MESES_MAX) && (
+                      <span className="block text-[12px] text-danger">
+                        Entre {MESES_MIN} y {MESES_MAX} meses.
+                      </span>
+                    )}
                 </Field>
               )}
               <Field label="Notas (salen en el correo)">
@@ -647,6 +661,7 @@ function AmbitosModal({ ambitos, onClose }: { ambitos: AmbitoRow[]; onClose: () 
   const [editando, setEditando] = useState<string | null>(null)
   const [nombre, setNombre] = useState('')
   const [nuevo, setNuevo] = useState('')
+  const confirmar = useConfirmar()
 
   const run = (promise: Promise<{ ok: boolean; message?: string }>, success: string, luego?: () => void) =>
     startTransition(async () => {
@@ -656,9 +671,18 @@ function AmbitosModal({ ambitos, onClose }: { ambitos: AmbitoRow[]; onClose: () 
       luego?.()
     })
 
+  // Las dos con la MISMA guarda que sus botones (`pending` incluido): las
+  // llama el Enter, que no se apaga mientras se guarda.
   const crear = () => {
-    if (!nuevo.trim()) return
+    if (pending || !nuevo.trim()) return
     run(createAmbito({ name: nuevo }), 'Ámbito creado', () => setNuevo(''))
+  }
+
+  /** Guardar el renombrado. El Enter se saltaba la guarda y mandaba un nombre
+   *  vacío a que lo rechazara el servidor. */
+  const renombrar = (uuid: string) => {
+    if (pending || !nombre.trim()) return
+    run(updateAmbito(uuid, { name: nombre }), 'Ámbito actualizado', () => setEditando(null))
   }
 
   return (
@@ -677,8 +701,11 @@ function AmbitosModal({ ambitos, onClose }: { ambitos: AmbitoRow[]; onClose: () 
         </p>
       )}
 
+      {/* `ul`/`li`, como la lista de tareas: así se anuncia cuántos ámbitos hay
+          en vez de leerse como un montón de texto suelto. */}
+      <ul>
       {ambitos.map((a) => (
-        <div key={a.uuid} className="border-b border-border/60 py-2">
+        <li key={a.uuid} className="border-b border-border/60 py-2">
           {editando === a.uuid ? (
             <div className="flex items-center gap-2">
               <TextField
@@ -687,11 +714,7 @@ function AmbitosModal({ ambitos, onClose }: { ambitos: AmbitoRow[]; onClose: () 
                 value={nombre}
                 autoFocus
                 onChange={setNombre}
-                onEnter={() =>
-                  run(updateAmbito(a.uuid, { name: nombre }), 'Ámbito actualizado', () =>
-                    setEditando(null),
-                  )
-                }
+                onEnter={() => renombrar(a.uuid)}
               />
               <span className="flex shrink-0 gap-0.5">
                 <button
@@ -699,11 +722,7 @@ function AmbitosModal({ ambitos, onClose }: { ambitos: AmbitoRow[]; onClose: () 
                   className={btnIcon}
                   aria-label="Guardar"
                   disabled={pending || !nombre.trim()}
-                  onClick={() =>
-                    run(updateAmbito(a.uuid, { name: nombre }), 'Ámbito actualizado', () =>
-                      setEditando(null),
-                    )
-                  }>
+                  onClick={() => renombrar(a.uuid)}>
                   <Check className="size-4 text-success" />
                 </button>
                 <button
@@ -734,37 +753,51 @@ function AmbitosModal({ ambitos, onClose }: { ambitos: AmbitoRow[]; onClose: () 
                 </button>
                 {/* Un ámbito en uso no se borra: sus tareas se quedarían sin
                     clasificar en silencio. Primero se cambian de ámbito. */}
-                <button
-                  type="button"
-                  className={cn(
-                    btnIcon,
-                    a.tareas > 0
-                      ? 'cursor-not-allowed opacity-40 hover:bg-transparent hover:text-muted-foreground'
-                      : 'hover:bg-danger-bg hover:text-danger',
-                  )}
-                  aria-label={`Eliminar ${a.name}`}
-                  aria-disabled={a.tareas > 0}
-                  title={
+                <Tooltip
+                  texto={
                     a.tareas > 0
                       ? `No se puede borrar: lo usa${a.tareas === 1 ? ' 1 tarea' : `n ${a.tareas} tareas`}. Cámbialas de ámbito primero.`
                       : 'Eliminar'
-                  }
-                  onClick={() => {
-                    if (a.tareas > 0) {
-                      toast.error(
-                        `«${a.name}» no se puede borrar: lo usa${a.tareas === 1 ? ' 1 tarea' : `n ${a.tareas} tareas`}. Cámbialas de ámbito primero.`,
-                      )
-                      return
-                    }
-                    run(deleteAmbito(a.uuid), `Ámbito ${a.name} eliminado`)
-                  }}>
-                  <Trash2 className="size-3.5" />
-                </button>
+                  }>
+                  <button
+                    type="button"
+                    className={cn(
+                      btnIcon,
+                      a.tareas > 0
+                        ? 'cursor-not-allowed opacity-40 hover:bg-transparent hover:text-muted-foreground'
+                        : 'hover:bg-danger-bg hover:text-danger',
+                    )}
+                    aria-label={`Eliminar ${a.name}`}
+                    aria-disabled={a.tareas > 0}
+                    onClick={async () => {
+                      if (a.tareas > 0) {
+                        toast.error(
+                          `«${a.name}» no se puede borrar: lo usa${a.tareas === 1 ? ' 1 tarea' : `n ${a.tareas} tareas`}. Cámbialas de ámbito primero.`,
+                        )
+                        return
+                      }
+                      // Con confirmación, como el grupo de categorías vacío:
+                      // aquí no se pierde ninguna tarea, pero sí un nombre que
+                      // hay que volver a escribir, y era un clic sin red.
+                      if (
+                        await confirmar({
+                          clave: 'borrar-ambito',
+                          titulo: 'Eliminar el ámbito',
+                          texto: `Se eliminará «${a.name}». No lo usa ninguna tarea.`,
+                        })
+                      ) {
+                        run(deleteAmbito(a.uuid), `Ámbito ${a.name} eliminado`)
+                      }
+                    }}>
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </Tooltip>
               </span>
             </div>
           )}
-        </div>
+        </li>
       ))}
+      </ul>
 
       <div className="mt-4 border-t border-border pt-3">
         <p className="mb-1.5 text-[13px] text-muted-foreground">Nuevo ámbito</p>

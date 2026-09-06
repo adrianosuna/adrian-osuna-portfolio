@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // y los siguientes fallarían por algo que no están probando.
 import { reiniciarLimites } from '@/lib/rate-limit'
 import { sumarMeses } from '@/lib/fechas'
+import { cumplida, pendientes } from '@/lib/tareas'
 
 // mantenimiento.ts arrastra Prisma y el correo; aquí solo se prueban las puras
 // (y las actions, con la BD simulada).
@@ -67,6 +68,30 @@ describe('estadoDe', () => {
   })
 })
 
+// ⚠ El caso que estaba roto en TODAS las superficies (lista, avisos del inicio,
+// calendario y correo del cron): una tarea PUNTUAL marcada como hecha no mueve
+// su `nextDue` a propósito, así que sin este predicado seguía "vencida" para
+// siempre y el cron reavisaba cada semana sin forma de callarlo.
+describe('cumplida: la puntual ya hecha no vuelve', () => {
+  it('solo está cumplida si es puntual Y tiene lastDone', () => {
+    expect(cumplida({ intervalMonths: null, lastDone: '2026-08-01' })).toBe(true)
+    // Sin hacer: sigue pendiente aunque su fecha haya pasado.
+    expect(cumplida({ intervalMonths: null, lastDone: null })).toBe(false)
+    // Recurrente hecha: su nextDue YA avanzó, y volver a vencer es su trabajo.
+    expect(cumplida({ intervalMonths: 12, lastDone: '2026-08-01' })).toBe(false)
+    expect(cumplida({ intervalMonths: 6, lastDone: null })).toBe(false)
+  })
+
+  it('pendientes deja fuera solo esas', () => {
+    const filas = [
+      { id: 'puntual-hecha', intervalMonths: null, lastDone: '2026-08-01' },
+      { id: 'puntual-pendiente', intervalMonths: null, lastDone: null },
+      { id: 'recurrente-hecha', intervalMonths: 12, lastDone: '2026-08-01' },
+    ]
+    expect(pendientes(filas).map((f) => f.id)).toEqual(['puntual-pendiente', 'recurrente-hecha'])
+  })
+})
+
 // ─────────── Textos de la lista (lenguaje natural, sin fechas que restar) ───
 
 const { periodicidad, cuando, antiguedad } = await import('@/components/dashboard/panel/mantenimiento')
@@ -82,6 +107,11 @@ describe('periodicidad', () => {
   it('los raros caen a "cada N meses" (o años si son exactos)', () => {
     expect(periodicidad(5)).toBe('Cada 5 meses')
     expect(periodicidad(36)).toBe('Cada 3 años')
+  })
+
+  it('sin periodicidad se dice «Una vez», no «Sin periodicidad»', () => {
+    // Lo que hay que leer es que NO se repite, no que le falte un campo.
+    expect(periodicidad(null)).toBe('Una vez')
   })
 })
 
@@ -190,6 +220,11 @@ describe('createMaintenance y updateMaintenance', () => {
     requireAdminMock.mockResolvedValue({ user: { uuid: 'admin-1', role: 'ADMIN' } })
     // Por defecto, el ámbito que se pasa existe.
     prismaMock.maintenanceScope.findUnique.mockResolvedValue({ uuid: 'a-vehiculo', name: 'Vehículo' })
+    // Y la tarea que se edita, también: `updateMaintenance` la lee para saber
+    // si es una puntual cumplida a la que se le está cambiando la fecha.
+    prismaMock.maintenanceTask.findUnique.mockResolvedValue({
+      uuid: 't1', intervalMonths: 12, lastDone: null, nextDue: new Date('2027-03-20T00:00:00Z'),
+    })
   })
 
   it('guarda la tarea con su ámbito', async () => {
@@ -232,5 +267,76 @@ describe('createMaintenance y updateMaintenance', () => {
     const data = prismaMock.maintenanceTask.update.mock.calls[0][0].data
     expect(data.scopeUuid).toBe('a-casa')
     expect(data.lastNotified).toBeNull()
+  })
+
+  // El caso natural: «renovar el dominio» hecho, y al año siguiente le pongo la
+  // fecha nueva en vez de crearlo otra vez. Sin esto se quedaba apagado como
+  // «Hecha» para siempre — fuera del calendario y sin avisar.
+  it('cambiarle la FECHA a una puntual cumplida la vuelve a poner pendiente', async () => {
+    prismaMock.maintenanceTask.findUnique.mockResolvedValue({
+      uuid: 't1', intervalMonths: null, lastDone: new Date('2026-03-02T00:00:00Z'),
+      nextDue: new Date('2026-03-01T00:00:00Z'),
+    })
+    const { updateMaintenance } = await import('@/app/app/panel/actions')
+    expect(await updateMaintenance('t1', { ...base, intervalMonths: null, nextDue: '2027-03-01' }))
+      .toEqual({ ok: true })
+    expect(prismaMock.maintenanceTask.update.mock.calls[0][0].data.lastDone).toBeNull()
+  })
+
+  it('pero corregirle el TÍTULO no la resucita', async () => {
+    prismaMock.maintenanceTask.findUnique.mockResolvedValue({
+      uuid: 't1', intervalMonths: null, lastDone: new Date('2026-03-02T00:00:00Z'),
+      nextDue: new Date('2026-03-01T00:00:00Z'),
+    })
+    const { updateMaintenance } = await import('@/app/app/panel/actions')
+    await updateMaintenance('t1', { ...base, title: 'Dominio (OVH)', intervalMonths: null, nextDue: '2026-03-01' })
+    expect(prismaMock.maintenanceTask.update.mock.calls[0][0].data.lastDone).toBeUndefined()
+  })
+
+  it('una tarea que SE REPITE no se toca: su lastDone es su historial', async () => {
+    prismaMock.maintenanceTask.findUnique.mockResolvedValue({
+      uuid: 't1', intervalMonths: 12, lastDone: new Date('2026-03-02T00:00:00Z'),
+      nextDue: new Date('2026-03-01T00:00:00Z'),
+    })
+    const { updateMaintenance } = await import('@/app/app/panel/actions')
+    await updateMaintenance('t1', { ...base, nextDue: '2028-01-01' })
+    expect(prismaMock.maintenanceTask.update.mock.calls[0][0].data.lastDone).toBeUndefined()
+  })
+})
+
+// «Hecha» es un clic sin confirmación, y en una PUNTUAL era una puerta de una
+// sola dirección: la tarea se apagaba en la lista, salía del calendario y del
+// correo, y la única salida era borrarla y volver a escribirla.
+describe('reopenMaintenance: deshacer el «hecha» de una puntual', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    requireAdminMock.mockResolvedValue({ user: { uuid: 'admin-1', role: 'ADMIN' } })
+  })
+
+  it('a una puntual le quita lastDone y su marca de avisada', async () => {
+    prismaMock.maintenanceTask.findUnique.mockResolvedValue({
+      uuid: 't1', intervalMonths: null, lastDone: new Date('2026-03-02T00:00:00Z'),
+    })
+    const { reopenMaintenance } = await import('@/app/app/panel/actions')
+    expect(await reopenMaintenance('t1')).toEqual({ ok: true })
+    const data = prismaMock.maintenanceTask.update.mock.calls[0][0].data
+    expect(data.lastDone).toBeNull()
+    // Sin esto, el correo se quedaría una semana sin volver a contarla.
+    expect(data.lastNotified).toBeNull()
+  })
+
+  it('en una que se REPITE no aplica: ahí lo que se cambia es el vencimiento', async () => {
+    prismaMock.maintenanceTask.findUnique.mockResolvedValue({ uuid: 't2', intervalMonths: 12, lastDone: null })
+    const { reopenMaintenance } = await import('@/app/app/panel/actions')
+    const res = await reopenMaintenance('t2')
+    expect(res.ok).toBe(false)
+    expect(res.message).toContain('puntual')
+    expect(prismaMock.maintenanceTask.update).not.toHaveBeenCalled()
+  })
+
+  it('una tarea que no existe se rechaza', async () => {
+    prismaMock.maintenanceTask.findUnique.mockResolvedValue(null)
+    const { reopenMaintenance } = await import('@/app/app/panel/actions')
+    expect(await reopenMaintenance('fantasma')).toEqual({ ok: false, message: 'Esa tarea no existe' })
   })
 })

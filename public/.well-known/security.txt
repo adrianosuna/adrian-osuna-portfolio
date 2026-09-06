@@ -1,0 +1,7 @@
+# Canal para reportar un problema de seguridad de adrianosuna.com (RFC 9116).
+# ⚠ `Expires` es obligatorio y no puede pasar de un año: caducado, el fichero
+# queda inválido. Su renovación está apuntada como tarea de Mantenimiento.
+Contact: mailto:adrianosunaalbala@gmail.com
+Expires: 2027-09-01T00:00:00.000Z
+Preferred-Languages: es, en
+Canonical: https://adrianosuna.com/.well-known/security.txt

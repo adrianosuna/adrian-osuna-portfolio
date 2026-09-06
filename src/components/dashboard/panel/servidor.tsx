@@ -8,7 +8,7 @@
 // lo que solo se entiende en serie (disco, tamaño de la BD, certificado).
 import { useEffect, useState } from 'react'
 import {
-  Box, Cpu, Database, DatabaseBackup, Globe, HardDrive, Layers, MemoryStick,
+  Activity, Box, Cpu, Database, DatabaseBackup, Globe, HardDrive, Layers, MemoryStick,
   Rocket, Server, ShieldCheck, Table2, TrendingUp,
 } from 'lucide-react'
 import type { InfraSnapshot, ServidorSnapshot } from '@/lib/infra'
@@ -246,7 +246,7 @@ function Historico({ muestras }: { muestras: MuestraInfra[] }) {
   const labels = muestras.map((m) => m.fecha.slice(8, 10) + '/' + m.fecha.slice(5, 7))
   const tDisco = tendencia(muestras, 'discoPct')
   const tDb = tendencia(muestras, 'dbBytes')
-  const tSsl = tendencia(muestras, 'sslDias')
+  const tDbMs = tendencia(muestras, 'dbLatenciaMs')
 
   return (
     <div className="grid gap-4 lg:grid-cols-3">
@@ -278,21 +278,27 @@ function Historico({ muestras }: { muestras: MuestraInfra[] }) {
         />
       </TarjetaSerie>
 
+      {/* Antes aquí iba el certificado SSL (días restantes). No tenía sentido
+          como serie: baja uno al día por definición, así que la gráfica era una
+          recta descendente, y el único dato útil —que se renueve a tiempo— ya
+          lo vigila la tarjeta de arriba con su umbral. Las latencias sí son
+          una serie de verdad: si la BD o el TTFB van a peor, solo se ve en el
+          tiempo. */}
       <TarjetaSerie
-        icon={<ShieldCheck className="size-4" />}
-        title="Certificado SSL"
-        // Aquí bajar es lo NORMAL (cada día queda un día menos); el salto hacia
-        // arriba es la renovación. Por eso no se colorea como bueno/malo.
-        pie={
-          tSsl &&
-          `${tSsl.hasta} días ahora · ${tSsl.desde} hace ${tSsl.dias} ${tSsl.dias === 1 ? 'día' : 'días'}`
-        }
-        valor={tSsl ? `${tSsl.hasta} días` : '—'}>
+        icon={<Activity className="size-4" />}
+        title="Latencias"
+        // Subir es malo: más milisegundos.
+        pie={tDbMs && frase(tDbMs.delta, tDbMs.dias, (v) => `${v} ms`, true)}
+        valor={tDbMs ? `${tDbMs.hasta} ms a la BD` : '—'}>
         <GraficaLinea
           labels={labels}
-          series={[{ label: 'Días restantes', data: serieDe(muestras, 'sslDias'), color: c.primary, _unidad: 'entero' }]}
+          series={[
+            { label: 'Base de datos', data: serieDe(muestras, 'dbLatenciaMs'), color: c.primary, _unidad: 'entero' },
+            { label: 'Web (TTFB)', data: serieDe(muestras, 'webTtfbMs'), color: c.viajes, _unidad: 'entero' },
+          ]}
           alto={160}
-          scales={{ y: { min: 0, ticks: { callback: (v) => `${v} d` } } }}
+          scales={{ y: { min: 0, ticks: { callback: (v) => `${v} ms` } } }}
+          formatoValor={(v) => `${v} ms`}
         />
       </TarjetaSerie>
     </div>

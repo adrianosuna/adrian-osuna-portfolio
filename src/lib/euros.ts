@@ -36,8 +36,29 @@ export const eur = (v: number | null | undefined): string => {
 }
 
 /**
- * Igual pero SIN el símbolo de moneda (para ejes de gráficas y celdas donde el
- * € se repite en la cabecera).
+ * Euros SIN decimales, redondeados: '1.374 €'. Para los KPI —la cifra grande
+ * de una tarjeta— y solo para ellos.
+ *
+ * Es la excepción a la regla de arriba, y deliberada: en una cifra a 24 px los
+ * céntimos no aportan lectura, la ensucian ("1.373,72 €" frente a "1.374 €"),
+ * y nadie decide nada por 72 céntimos en un total del mes. En las tablas y
+ * listas los decimales se QUEDAN, porque ahí sí descuadran las cuentas a ojo.
+ * null/undefined/NaN → '—'.
+ */
+export const eurEntero = (v: number | null | undefined): string => {
+  if (v === null || v === undefined || Number.isNaN(v)) return '—'
+  return Math.round(v).toLocaleString('es-ES', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+    useGrouping: 'always',
+  })
+}
+
+/**
+ * Igual que `eur` pero SIN el símbolo de moneda (para ejes de gráficas y
+ * celdas donde el € se repite en la cabecera).
  */
 export const num = (v: number | null | undefined): string => {
   if (v === null || v === undefined || Number.isNaN(v)) return '—'

@@ -149,3 +149,64 @@ describe('Modal', () => {
     expect(screen.getByRole('dialog').contains(lista)).toBe(false)
   })
 })
+
+// ⚠ Dos modales se APILAN de verdad: una confirmación se pinta sobre el modal
+// que la pidió (pasa al borrar un ámbito desde el modal de Ámbitos). El
+// listener de Escape es de `document`, así que sin una pila la tecla llegaba a
+// los dos: cancelabas la confirmación y se te iba la pantalla de detrás.
+describe('Modales apilados', () => {
+  const dos = () => {
+    const cerrarFondo = vi.fn()
+    const cerrarArriba = vi.fn()
+    render(
+      <>
+        <Modal title="El de abajo" onClose={cerrarFondo}>
+          <p>Fondo</p>
+        </Modal>
+        <Modal title="El de arriba" onClose={cerrarArriba}>
+          <button type="button">Aceptar</button>
+        </Modal>
+      </>,
+    )
+    return { cerrarFondo, cerrarArriba }
+  }
+
+  it('Escape cierra SOLO el de arriba', () => {
+    const { cerrarFondo, cerrarArriba } = dos()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(cerrarArriba).toHaveBeenCalledTimes(1)
+    expect(cerrarFondo).not.toHaveBeenCalled()
+  })
+
+  it('el Tab lo atrapa el de arriba, no los dos', () => {
+    dos()
+    const arriba = screen.getByRole('dialog', { name: /El de arriba/ })
+    const foco = arriba.querySelector('button')!
+    foco.focus()
+    // No revienta y el foco no se escapa al panel de debajo.
+    fireEvent.keyDown(document, { key: 'Tab' })
+    expect(arriba.contains(document.activeElement)).toBe(true)
+  })
+
+  it('cerrar el de arriba NO devuelve el scroll a la página', () => {
+    // Con dos apilados, el desmontaje del de arriba restauraba el overflow
+    // guardado ANTES de abrirse (que era el del de abajo, ya "hidden"...) o el
+    // original según el orden: la página de detrás volvía a hacer scroll con
+    // un modal todavía abierto.
+    const { unmount } = render(
+      <Modal title="Abajo" onClose={vi.fn()}>
+        <p>a</p>
+      </Modal>,
+    )
+    const arriba = render(
+      <Modal title="Arriba" onClose={vi.fn()}>
+        <p>b</p>
+      </Modal>,
+    )
+    expect(document.body.style.overflow).toBe('hidden')
+    arriba.unmount()
+    expect(document.body.style.overflow).toBe('hidden')
+    unmount()
+    expect(document.body.style.overflow).toBe('')
+  })
+})

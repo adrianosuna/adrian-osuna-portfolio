@@ -51,7 +51,10 @@ del ahorro, fechas de la experiencia, **aritmética de meses** (meses cortos,
 febrero bisiesto, cruce de año) con los **topes** y los **recurrentes** —cargos
 atrasados, ancla del día, apuntar a mano—, el **color automático** de las
 categorías, parsers de GA (API mockeada), umbrales
-del monitor de infraestructura (TLS/fs/reloj simulados), validaciones/guardas
+del monitor de infraestructura (TLS/fs/reloj simulados), la **presentación
+de las categorías con grupos** (`categorias.test.ts`: qué se ofrece al
+apuntar —sueltas y agrupadas sí, grupos nunca— y la etiqueta «Coche › Taller»),
+validaciones/guardas
 de todas las server actions, la lógica del pipeline (métricas del embudo y
 aviso de seguimientos), los callbacks de `auth.ts` (la config se exporta
 como `authConfig` precisamente para poder invocarlos con mocks), las
@@ -67,8 +70,14 @@ rechazos por cuenta deshabilitada/no admin, BD caída, coma decimal, tope del
 cuerpo y categoría por nombre), el **registro por niveles** (`lib/log.ts`: el
 suelo, el JSON de producción y la serialización de un `Error`), los **dos
 plazos de caducidad** de la sesión y una **auditoría axe** de las piezas
-compartidas (modal, campos, sub-pestañas). `server-only` se alias-ea a un stub
+compartidas (modal, campos, sub-pestañas y el **calendario**, que es la rejilla
+más densa: 35 botones con nombre propio). `server-only` se alias-ea a un stub
 y `next-auth` se procesa inline en `vitest.config.mts`.
+**`tests/setup.ts`** rellena lo que jsdom no implementa y el dashboard sí usa
+(`matchMedia` para `prefers-reduced-motion`, `scrollIntoView`); va con guarda
+de `window` porque corre también en las suites de entorno `node`. Se hace ahí y
+no con guardas en el componente: un `el.scrollIntoView?.()` no protege de nada
+real y esconde el fallo si algún día se llama sobre lo que no es un elemento.
 Antes de dar algo por terminado: `pnpm test`, `pnpm lint` y `pnpm build`.
 
 Los **e2e (Playwright, `e2e/`)** son otra cosa y no sustituyen a los
@@ -113,6 +122,14 @@ En **producción** la BD es propia y empieza vacía: contenedor MySQL del
   vía el servicio `migrate` del compose).
 - El schema refleja la BD exacta (via `prisma db pull` en su día): `TIMESTAMP(0)`,
   nombres de índice, `onUpdate: NoAction`. Mantener esa fidelidad al editarlo.
+
+⚠ **Tras una migración, REINICIAR el dev server.** El `pnpm dev` que estuviera
+levantado sigue con el cliente de Prisma anterior, y una columna nueva llega
+entonces como **`undefined` en vez de `null`** — no revienta nada, así que el
+síntoma es una comprobación que falla sin motivo aparente (`c.parentUuid ===
+null` descartando TODAS las filas) y se diagnostica como un bug del código
+recién escrito. Pasó el 04/09/2026 con las subcategorías: `prisma generate`
+regenera el cliente en disco, pero no el proceso que ya lo tenía cargado.
 
 ## Arquitectura
 
@@ -171,6 +188,17 @@ Proyecto Next.js App Router con `src/`. **Paleta única en todo el sitio**
   posición fija — nunca los recorta un contenedor con overflow. La etiqueta
   sobre cada campo es `Field` de `fields.tsx` (un `<label>` de verdad; antes
   había cuatro copias).
+  ⚠ **Los modales se APILAN** —una confirmación se pinta sobre el modal que la
+  pidió, como al borrar un ámbito— y por eso `modal.tsx` lleva una **pila de
+  módulo**. Dos cosas dependían de ella y estaban mal hasta el 05/09/2026:
+  **Escape** llegaba a los dos listeners de `document` y cerraba también el de
+  debajo (cancelas una confirmación y se te va la pantalla de detrás), y el
+  **`overflow: hidden`** del body lo restauraba cada modal desde su propia
+  copia — la del segundo ES "hidden", así que si se desmontaba después del
+  primero la página se quedaba **sin scroll para siempre**. Ahora solo el modal
+  de arriba atiende las teclas, y el overflow original lo guarda el primero de
+  la pila y lo devuelve el último al salir. Lo segundo lo encontró un test, no
+  el navegador: depende del orden de desmontaje.
 - **Tema único oscuro**: el selector claro/oscuro se retiró; los tokens de
   `:root` ya son los oscuros (sin clase `dark` ni `next-themes`).
 
@@ -216,6 +244,32 @@ sesiones del usuario, purga de caducadas al listar). Guardas: `requireSession()`
 la clase cuyos mensajes sí pueden mostrarse al cliente. Las páginas del
 dashboard deben protegerse a sí mismas con `auth()` + `redirect` (layout y
 página renderizan en paralelo: el redirect del layout no protege a la página).
+
+### Atajo de login en desarrollo (`src/lib/dev-login.ts`)
+
+Con **`DEV_LOGIN_EMAIL`** puesta, `/login` enseña un botón «Entrar como
+\<correo\>» que entra **sin Google**: un clic, sin teclear el correo ni abrir la
+cuenta. Pensado para las pruebas del día a día.
+
+Lo que NO se salta: el correo pasa por la **misma allowlist** y el mismo
+callback `signIn` que Google (INVITED → ACTIVE, DISABLED rechazado), registra
+su fila en `user_session` y en `login_event`, y caduca igual. Solo se ahorra el
+OAuth — así lo que se prueba con el atajo es lo mismo que verá el usuario real.
+
+⚠ **Dos candados para que no pueda existir en producción**, y hacen falta los
+dos:
+
+1. `NODE_ENV !== 'production'`. El build de producción lo fija, así que aunque
+   la variable se colara en el `.env` del VPS, `correoDevLogin()` devuelve null
+   y **el proveedor ni se registra** en la ruta de auth.
+2. La variable puesta. Opt-in explícito, no "si hay `ADMIN_EMAIL`": un atajo
+   que salta la autenticación se activa a sabiendas.
+
+Y una tercera comprobación en el callback: por el proveedor `dev` solo se
+admite **su** correo, aunque otro esté en la allowlist. Cubierto por
+`tests/dev-login.test.ts`, que reimporta `@/auth` con distintos entornos —los
+providers se construyen al importar el módulo— y comprueba que en producción
+la lista de proveedores es solo `['google']`.
 
 ### Mutaciones: server actions por módulo
 
@@ -270,10 +324,97 @@ medio al día, lista con alta rápida y los dos desgloses "en qué se va" / "de
 dónde viene") y **año** (`&vista=anio`: mes a mes con balance, barras y
 desgloses anuales). Las **categorías son libres y propias de cada tipo**
 (tabla `expense_category`, 19 sembradas en la migración) y se gestionan en la
-sección Ajustes; su nombre es único DENTRO del tipo y borrarlas
-NO borra sus movimientos (FK `SetNull`: quedan "sin categoría"). Los donuts
-reutilizan `GraficaDonut` con `centro`/`vacio`/`titulo`; la tarjeta "Gastos del mes"
-del inicio sale de `gastadoEnMesDe`.
+sección Ajustes; borrarlas NO borra sus movimientos (FK `SetNull`: quedan
+"sin categoría"). La tarjeta "Gastos del mes" del inicio sale de
+`gastadoEnMesDe`.
+
+#### Categorías en DOS niveles: grupos y categorías
+
+Un **grupo** ("Coche") con las categorías que se le asignan ("Taller",
+"Gasolina") y **categorías sueltas** que no están en ninguno. Las dos cosas
+viven en `expense_category` y las distingue **`is_group`**, con
+`parent_uuid` (FK a sí misma, `Restrict`) para la pertenencia. Migración
+`grupos_de_categorias` (04/09/2026; unificó las dos que hubo ese día antes de
+llegar a producción).
+
+**El grupo es un CONTENEDOR: se crea, no emerge.** Esto es lo que decide todo
+lo demás, y la primera versión del día lo tenía al revés (grupo = categoría
+con hijas). Dos cosas que aquello dejaba mal:
+
+- **Un grupo vacío no existía**, y el flujo natural es crear "Coche" primero y
+  asignarle categorías después. Sin la marca, un grupo recién creado es
+  indistinguible de una categoría suelta: se ofrecería al apuntar un
+  movimiento. Por eso `esGrupo` lee `is_group` y **nunca** "tiene hijas".
+- **Agrupar una categoría con historial era un trámite.** Había que
+  "convertirla en grupo" moviendo sus movimientos a una subcategoría nueva
+  (una acción `convertirEnGrupo` que se retiró). Con el grupo como contenedor,
+  asignar mueve la CATEGORÍA y sus movimientos se quedan donde estaban — así
+  que asignar no tiene reglas especiales, y eso es justo lo que se buscaba.
+
+De ahí, las reglas que quedan:
+
+- **Los movimientos cuelgan SIEMPRE de una categoría.** Un grupo no se ofrece
+  al apuntar (ni en el alta, ni en la edición, ni en un recurrente, ni en la
+  división, ni por la API). Así cada gasto cuenta una vez y ninguna suma tiene
+  que decidir si incluye "lo del padre" — que es por donde se descuadra un
+  desglose.
+- **Dos niveles**: una categoría solo entra en un grupo (no en otra
+  categoría), un grupo no entra en ningún sitio, y las dos tienen que ser del
+  mismo tipo.
+- **El nombre es único entre HERMANAS**, no en todo el tipo: "Varios" tiene
+  que caber en Coche y en Casa. Índice `uq_expense_category_name_type_parent`.
+  En el primer nivel compiten los grupos con las categorías sueltas, que es lo
+  que se quiere.
+  ⚠ MySQL trata los NULL como distintos, así que ese índice **no protege el
+  primer nivel**: dos "Coche" ahí pasarían por la BD y quien lo impide es la
+  aplicación (mismo criterio que la integridad de `user_session`).
+- **Un grupo VACÍO se borra; con categorías dentro, no** (lo rechaza la
+  action; el FK también, pero con un "Error inesperado" que no explica nada).
+  Y **no se fusiona** por ninguno de los dos lados: fusionar grupos es
+  fusionar las categorías que tienen dentro.
+- **Presentación compartida** en `src/lib/categorias.ts` — `esGrupo`,
+  `etiquetaCategoria` ("Coche › Taller") y `opcionesDeCategoria`—, **sin
+  `server-only`** a propósito (como `topes.ts` y `fechas.ts`): las mismas
+  reglas las usan los desplegables de tres pantallas, la lista de Ajustes y el
+  correo de los topes. **El desplegable de categoría es un ÁRBOL**
+  (`TreeSelectField` de `fields.tsx` + `arbolDeCategoria`): los grupos como
+  cabeceras no seleccionables y sus categorías sangradas debajo; las sueltas,
+  al primer nivel; un grupo vacío no sale. Su buscador filtra por la hoja Y
+  por el nombre del grupo —escribir "coche" saca Taller y Gasolina bajo su
+  cabecera—, que era la razón por la que antes la lista era plana ("Coche ›
+  Taller") y ahora se conserva. El disparador sí enseña la ruta completa, y
+  **con `Tooltip` cuando se recorta**: en el hueco de la rejilla del alta,
+  "aaaaa › Comer fuera / Cafés" no cabe (medido: 181 px de texto en 162), y es
+  justo ahí donde se pierde de qué grupo era. Solo si la elegida está en un
+  grupo: en una suelta, repetir su nombre no aporta.
+  `opcionesDeCategoria` (plana) queda para lo que necesita una lista lineal.
+- En las tablas se ve el nombre de la CATEGORÍA y el grupo va en el `title`:
+  "Coche › Taller" no cabe en la celda.
+- ⚠ **Grupo y categoría comparten formulario, modal y acciones**, así que los
+  TEXTOS tienen que ramificar: "Grupo creado" y no "Categoría creada",
+  "Eliminar el grupo" y no "la categoría". Se descubrió probándolo, y es lo
+  primero que se rompe al añadir algo ahí.
+
+**Los donuts enseñan grupos, con desglose al pulsar.** `desglose()` suma por
+la categoría del movimiento pero atribuye la porción a su grupo y guarda el
+detalle en `ParteCategoria.hijas`; el envoltorio `Desglose` de `gastos.tsx`
+baja a ese detalle y vuelve. La capacidad genérica es `onParte` +
+`ParteDonut.pulsable` en `GraficaDonut`, que no sabe qué es un grupo: solo
+avisa de que una porción se ha activado.
+⚠ El desglose se abre desde las **filas de la leyenda, que son botones de
+verdad**, y no solo desde el arco: el canvas DIBUJA su texto, así que un clic
+en el arco no existe para el teclado ni para un lector de pantalla (y apuntar
+a un arco de 20 px con el pulgar no es una interfaz). El clic en el arco se
+queda como extra para el ratón.
+
+⚠ **Y la columna de cifras tiene que quedar a plomo.** En un donut con
+desglose, TODAS las filas de la leyenda reservan la columna del chevron (hueco
+vacío las que no lo llevan) y TODAS llevan el mismo padding — nunca solo la
+pulsable. Los dos detalles vienen del mismo fallo, que Adrián vio al momento:
+el chevron dentro de la fila y un `-mx-1` sobre un `w-full` (que no crece con
+el margen negativo) dejaban el importe del grupo 30 px a la izquierda del
+resto. En una leyenda de cifras, una columna desalineada es lo primero que
+canta. Los donuts SIN desglose no reservan nada y quedan idénticos.
 
 La vista del mes lleva además dos tarjetas que miran hacia DELANTE (los donuts
 solo cuentan lo que ya pasó):
@@ -285,6 +426,15 @@ solo cuentan lo que ya pasó):
   nivel, recordado en `budget_notified` como `'YYYY-MM:nivel'` — un gasto ya
   hecho no se puede "marcar como hecho", así que insistir solo enseñaría a
   ignorarlo. Cambiar el tope limpia esa marca.
+  Con grupos, el tope se puede poner en los DOS niveles: el de un grupo se
+  compara con la **suma de sus categorías** ("el coche, 200 al mes") y cada
+  categoría puede tener el suyo. Por eso `topesDelMes` necesita **todas** las
+  categorías del tipo y no solo las que tienen tope — si no, el gasto de una
+  categoría sin tope no se podría sumar al de su grupo.
+  ⚠ Y `resumenTopes` **no suma dos veces un tope anidado**: si Coche tiene 200
+  y Gasolina 120, el techo del conjunto son 200, porque la gasolina ya va
+  dentro. Los CONTADORES sí cuentan todos (que la gasolina se haya pasado
+  importa aunque el coche vaya bien).
 - **Recurrentes** (`src/lib/recurrentes.ts` + tabla `recurring_expense`):
   alquiler, suscripciones, seguros, la nómina... El cron diario los apunta
   solos en `expense` y adelanta `next_date`; lo generado es un movimiento
@@ -339,6 +489,25 @@ movimientos. Lo que aporta la sección sobre los modales que sustituyó:
   día. Duplicar no escribe nada: abre el alta con los valores copiados.
 - **Sin atajos desde la vista de Gastos**: sus tarjetas de topes y recurrentes
   solo informan; para gestionar se va a Ajustes por la nav.
+- **Gasto e ingreso son dos PESTAÑAS** dentro de Categorías (píldora de
+  `sub-tabs.tsx` con estado local, con la cuenta de cada tipo), no dos bloques
+  de una lista: son dos listas independientes y enseñarlas juntas con cabeceras
+  no las separaba (se probó dos veces el 05/09/2026). La pestaña fija el tipo
+  al crear, y el filtro «Con tope» solo sale en Gasto.
+- **Grupos**: **dos altas separadas** («Nuevo grupo» y «Nueva»), porque crear
+  un grupo y crear una categoría son dos gestos distintos y el grupo es lo que
+  se crea PRIMERO cuando se va a ordenar la lista. La lista va en orden de
+  ÁRBOL (lo devuelve ya `listCategorias`), el grupo lleva icono de carpeta en
+  vez de punto de color y chip «Grupo · N» / «Grupo vacío», y sus categorías
+  van sangradas debajo. **Elegir y cambiar de grupo se hacen en el formulario
+  de la categoría** (campo «Grupo», el primero del modal: trae el grupo actual
+  y ofrece «Sin grupo» para sacarla), y **sacar del grupo es además una acción
+  de fila de un clic**: meter exige elegir cuál, sacar no tiene nada que
+  elegir.
+  ⚠ Ese campo se pinta SIEMPRE en una categoría, y **apagado con su aviso**
+  cuando aún no hay ningún grupo de su tipo. Escondiéndolo —que es como estaba
+  al principio— editar una categoría no enseñaba ninguna forma de agruparla y
+  la función no se descubría. De ahí también el `disabled` de `SelectField`.
 
 **Listas largas: dos técnicas distintas, y a propósito.** La **búsqueda de
 movimientos** pagina en el SERVIDOR (`POR_PAGINA = 50`, `skip`/`take`, `?p=`)
@@ -358,10 +527,51 @@ el cron diario avisa por correo de las vencidas (reaviso semanal vía
 `intervalMonths` es **nullable**, y `null` significa **"no se repite"**: es un
 recordatorio puntual («renovar el dominio el 12/03/2027»). Al marcarlo hecho
 se queda hecho —`lastDone` puesto y `nextDue` sin mover, no se borra para que
-quede el rastro— y en el calendario a 12 meses sale UNA vez (o en el mes en
-curso marcado como atrasado, si ya pasó). En el formulario es
+quede el rastro—. En el formulario es
 **Repetición: «Se repite» / «Una vez»**, y con "Una vez" el campo de los meses
 desaparece; en la lista se lee «Una vez».
+
+⚠ **En el BORRADOR del formulario, «se repite» es un booleano aparte
+(`repite`), no `intervalMonths === null`.** En la BD `null` significa "no se
+repite", pero en un campo de texto `null` es también "está vacío mientras
+escribo" — y con las dos cosas en la misma variable, seleccionar el contenido
+de «Cada (meses)» para escribir otro número hacía CUATRO cosas de golpe: el
+campo desaparecía bajo el cursor, «Repetición» saltaba sola a «Una vez», la
+etiqueta de la fecha cambiaba y el botón Crear seguía activo, así que se
+guardaba una puntual creyendo que era mensual. El valor de la BD se compone al
+guardar (`repite ? intervalMonths : null`), y `borradorValido` —compartida por
+el botón y por `guardar`— exige un número **entre 1 y 120** cuando se repite,
+con el aviso en el propio campo en vez de esperar al error del servidor.
+
+**Enter guarda**, y solo desde los dos campos de UNA línea (título y meses): en
+las Notas el Enter es un salto de línea, y en los selects y la fecha la tecla
+abre o elige dentro de su popover. ⚠ Las funciones que llama el Enter miran
+también **`pending`**, no solo la validez: el botón se apaga mientras se
+guarda, pero la tecla no, así que dos Enter seguidos crearían la tarea dos
+veces. Mismo criterio en `crear` y `renombrar` del modal de Ámbitos.
+
+⚠ Y **cambiarle la FECHA a una puntual ya cumplida la vuelve a poner
+pendiente** (`updateMaintenance` limpia `lastDone`). El caso natural es
+«renovar el dominio», hecho, y al año siguiente ponerle la fecha nueva en vez
+de crearlo otra vez: sin esto se quedaba apagado como «Hecha» para siempre,
+fuera del calendario y sin avisar. Solo con la fecha — corregir el título no
+resucita nada — y solo en las puntuales: en una que se repite, `lastDone` es su
+historial.
+
+⚠ **Y por eso existe `src/lib/tareas.ts`** (puro, sin `server-only`, como
+`topes.ts` y `fechas.ts`): `estadoDe` y **`cumplida`** — una puntual con
+`lastDone` está CUMPLIDA y no vuelve a salir en ningún sitio. Sin ese
+predicado, y así estuvo hasta el 05/09/2026, una puntual marcada como hecha no
+se callaba nunca: su `nextDue` se queda en el pasado a propósito, así que
+figuraba «Vencida» en la lista, contaba en los avisos del inicio, se arrastraba
+a hoy en el calendario **y el cron mandaba su correo cada semana sin forma de
+silenciarlo**. Las CUATRO superficies lo miran ahora desde el mismo sitio
+(`avisarVencidas` lo filtra en SQL con `OR: [{ intervalMonths: { not: null } },
+{ lastDone: null }]`); en la lista sale con chip «Hecha» y el tooltip dice
+cuándo. Una tarea que se REPITE es otra cosa: al marcarla hecha su `nextDue`
+avanza, y volver a vencer es su trabajo.
+`estadoDe` estaba además DUPLICADO entre el cron y la lista, con un comentario
+diciendo "mismo criterio que": esa es la copia que se desincroniza.
 
 Vive aquí y no en un módulo nuevo por el mismo motivo que la ITV y las
 dependencias comparten módulo: es el mismo problema —algo con fecha de lo que
@@ -377,9 +587,144 @@ migración `ambitos_editables`), no una lista fija: nacieron como enum de tres e
 28/08/2026 y pasaron a tabla el mismo día, porque la lista la decide quien usa
 la app. Se gestionan en el modal «Ámbitos» de la pestaña (crear, renombrar,
 borrar) — renombrar es seguro (las tareas apuntan por uuid) y **un ámbito en uso
-no se borra**, igual que las categorías de gastos. El filtro por ámbito **solo
-aparece cuando hay más de uno en uso**; el nombre de cada tarea sale del `include`
-de la relación, y el correo de vencidas abre cada tarjeta con él.
+no se borra**, igual que las categorías de gastos. El nombre de cada tarea sale
+del `include` de la relación, y el correo de vencidas abre cada tarjeta con él.
+
+Del modal, tres detalles:
+
+- El nombre es **único** en la BD (`uq_maintenance_scope_name`, y la colación
+  de MySQL es `_ci`: "casa" choca con "Casa"), pero las actions comprueban el
+  duplicado ANTES para poder decir «Ya existe un ámbito con ese nombre» — si lo
+  cazara el índice, al cliente llegaría un «Error inesperado» que no explica
+  nada. Mismo criterio que en el resto del proyecto.
+- **Borrar pide confirmación** (`clave: 'borrar-ambito'`), como el grupo de
+  categorías vacío. Aquí no se pierde ninguna tarea —solo se puede borrar el
+  vacío— pero sí un nombre que hay que volver a escribir, y era un clic sin
+  red. ⚠ Es lo que hace que se APILEN dos modales; ver la trampa de la pila en
+  `modal.tsx` (sección de Arquitectura).
+- Un ámbito con tareas **solo se vacía tarea por tarea**: no hay "fusionar
+  ámbitos" como en las categorías de gastos. Con cuatro o cinco ámbitos y pocas
+  tareas cada uno no ha hecho falta; si algún día molesta, el modelo a copiar es
+  `fusionarCategorias`.
+
+El filtro por ámbito **solo aparece cuando hay más de uno en uso**, y sus chips
+son **solo los ámbitos EN USO** — pintaba todos, así que uno recién creado y
+todavía vacío daba un filtro que no encontraba nada. Si alguna tarea se queda
+sin ámbito (el FK es `SetNull`, y la action lo impide, pero un borrado directo
+en la BD no), aparece un chip «Sin ámbito» para poder llegar a ella: si no,
+sería invisible salvo en «Todos».
+
+### La vista de LISTA: dos reglas que salieron de revisarla
+
+- **Lo CUMPLIDO se hunde.** La consulta trae las tareas por `nextDue`
+  ascendente y una puntual cumplida se queda con su fecha en el pasado a
+  propósito, así que salía la PRIMERA de la lista —encima de lo urgente y con
+  su chip apagado—. El orden se remata en el cliente: cumplidas al final.
+- ⚠ **El «no hay nada» es de la LISTA, no de la pestaña.** Estuvo delante del
+  calendario y lo tapaba: sin tareas —o filtrando por un ámbito sin ellas—
+  desaparecía la rejilla entera con sus cargos recurrentes y sus seguimientos,
+  que no son tareas ni les afecta ese filtro. Un Panel recién estrenado no
+  podía ni ver el calendario.
+- La acción principal de la fila **cambia con el estado**: en una puntual ya
+  cumplida no es «Hecha» otra vez (no haría nada que signifique algo) sino
+  **«Reabrir»** (`reopenMaintenance`), que le quita `lastDone` y la deja
+  pendiente. Existe porque «Hecha» es un clic sin confirmación y en una puntual
+  era una puerta de una sola dirección: la única salida era borrarla y volver a
+  escribirla. En una que se repite no se admite —habría que saber a qué fecha
+  volver, y eso es editar—. Y el toast no promete un vencimiento que no va a
+  haber: en una puntual dice «Hecha» y no «siguiente vencimiento programado».
+- ⚠ Ese botón **necesita `aria-label`**: su único texto es un `<span sm:hidden>`,
+  así que a partir de `sm` se quedaba **sin nombre accesible** —el tooltip
+  describe, no nombra— y era justo la acción principal de cada fila. Lo cazó un
+  test que lo buscaba por su nombre; ahora la lista está en la auditoría axe
+  (dentro de `mantenimiento-lista.dom.test.tsx`, porque montarla arrastra sus
+  server actions y hay que mockearlas; el ayudante `auditar` es compartido en
+  `tests/axe.ts`).
+- La lista va en **`ul`/`li`** y no divs apilados, para que se anuncie cuántas
+  tareas hay. Es una lista de TARJETAS y no una tabla a propósito: la nota es
+  texto de varias líneas.
+
+### Calendario (`lib/calendario.ts` + `panel/calendario.tsx`)
+
+La pestaña Mantenimiento tiene DOS vistas: **Lista** y **Calendario** (la
+rejilla de días de un mes). Hubo una tercera, **Año** —la rejilla de 12 meses
+que ya existía antes del calendario—, retirada el 05/09/2026 a petición de
+Adrián: "lo del año no me gusta nada, prefiero solo meses". No reabrirla; su
+`CalendarioAnual` y sus tests se borraron con ella.
+
+El calendario **reúne las TRES fuentes con fecha** de la aplicación, que hasta
+entonces solo se veían cada una en su módulo:
+
+| Fuente | Campo | Repite |
+|---|---|---|
+| Tareas de mantenimiento | `next_due` | cada N meses, o nunca (puntual) |
+| Cargos recurrentes | `next_date` + `day_anchor` | cada N meses |
+| Seguimientos del pipeline | `next_action_date` | no |
+
+⚠ **Qué se puede hacer aquí y qué no.** Solo las TAREAS se crean y editan
+desde el calendario (pulsar un día vacío da de alta con esa fecha; pulsar una
+tarea la abre). Un recurrente o un seguimiento enlazan a su módulo: sus
+formularios tienen reglas propias —periodicidad e importe, oportunidad y
+estado— y una segunda copia aquí es exactamente como se desincronizan. Es el
+mismo criterio que el resto del proyecto.
+
+⚠ **El atraso NO se trata igual en las tres**, y es deliberado:
+
+- Una **tarea** vencida antes del mes se arrastra al día de HOY: es lo que hay
+  que hacer ya, y dejarla caer fuera del calendario sería lo contrario de lo
+  que se busca. Si venció DENTRO del mes que se está viendo no se arrastra
+  —su día está a la vista— pero **sí se marca** (`atrasado: f < hoy`): estuvo
+  puesto a `false` a secas, así que una tarea que venció el día 3 estando hoy a
+  5 se pintaba como una cualquiera, que es perder de vista justo lo urgente.
+  Solo se proyectan fechas desde `nextDue`, que es la próxima pendiente, así
+  que una ocurrencia anterior a hoy está vencida por definición.
+- Un **cargo** atrasado NO se arrastra ni se marca: lo apunta el cron en cuanto
+  corra, así que no es algo que nadie tenga que hacer.
+- Un **seguimiento** dentro del mes se queda en su día, marcado como vencido.
+
+`lib/calendario.ts` es PURO y sin `server-only` (lo usan el cliente y sus
+tests): la aritmética de meses cortos, el ancla del día y el cruce de año son
+donde esto se rompe, y ahí hay 17 tests. Ojo con cuatro cosas ya pagadas:
+
+- El importe de un recurrente va por **`eurEntero`** y no por un
+  `toLocaleString('es-ES')` a mano: es-ES no agrupa los miles de cuatro cifras
+  y una nómina de 1850 salía "1850 €" al lado de un "12.750 €".
+- **En móvil las celdas solo llevan PUNTOS de color, sin títulos.** A 375 px una
+  columna mide 47 px y los títulos quedaban en "Por…", "Tie…": texto recortado
+  hasta ser inútil. El día se toca y se lee entero en el panel de detalle.
+- ⚠ **La celda es `flex flex-col`, y eso no es decorativo**: un `<button>`
+  centra su contenido en VERTICAL, así que el número del día bailaba entre los
+  6 px de una celda cargada y los 41 px de una vacía — cada fila de la rejilla
+  a una altura distinta. `text-left` solo arreglaba el eje horizontal y
+  `align-top` no pinta nada aquí (alinea el botón en SU línea, no lo de
+  dentro). Medido: con flex, las 35 celdas dan el número en (6, 6).
+- La cabecera lleva el **nombre completo** del día («Lunes», «Martes») y en
+  móvil `diaCorto` de `fechas.ts` («Lun», «Mié»: 27 px en una columna de 48).
+  La **inicial suelta no vale para los días**, que es como estaba: Martes y
+  Miércoles rotulaban dos columnas con la misma M. Por eso hay `diaCorto` y no
+  un `diaInicial` gemelo de `mesInicial`.
+  ⚠ El nombre largo va en el **DOM con `sr-only`** en móvil, NO en un
+  `aria-label` del div: ahí estaba, y en un div sin rol ese atributo no existe
+  —la trampa que ya documenta este mismo fichero—, así que la cabecera parecía
+  accesible y en móvil solo se anunciaba "MIÉ".
+- **Teclado: UNA parada de tabulador y flechas.** Las 35 celdas son botones, así
+  que cruzar el calendario con el tabulador eran 35 paradas. Con tabindex
+  rotatorio solo entra en el orden el día de hoy (o el 1 si se ve otro mes) y
+  desde ahí las flechas mueven día a día, Inicio/Fin a los extremos de la
+  semana y RePág/AvPág al mes de al lado; al salirse del mes se cambia de mes y
+  el foco viaja (un `useEffect` sobre `mes`, porque el botón de destino no
+  existe todavía cuando se pulsa la tecla). **Sin `role="grid"` a propósito**:
+  las celdas son botones de verdad y `gridcell` les quitaría eso.
+- **Un día VECINO lleva a su mes**, no da de alta ahí. `eventosDelMes` acota al
+  mes, así que la celda del 31 de agosto sale SIEMPRE vacía aunque ese día
+  tenga algo: no puede decir la verdad sobre ese día, pero sí llevar a donde se
+  ve. Y `aria-pressed` solo va en las celdas que de verdad abren y cierran el
+  detalle — en una vacía o vecina el clic hace otra cosa.
+- **El detalle se trae a la vista al abrirlo** (`scrollIntoView` con
+  `block: 'nearest'`, respetando `prefers-reduced-motion`). En móvil la rejilla
+  ocupa más que la pantalla y el panel nacía fuera —medido: y = 935 con una
+  ventana de 812—, así que tocar un día parecía no hacer nada. Y es justo donde
+  el panel es la ÚNICA forma de leer el día: las celdas solo llevan puntos.
 
 ### Notas (`src/lib/notas.ts` + `/app/panel?tab=notas`)
 
@@ -636,6 +981,37 @@ haya datos, y la tabla del año de Gastos **perdió su padding apretado de
 móvil** a cambio de verse como las demás — en pantalla estrecha ahora
 desplaza, que es lo que ya hacía la del Ahorro.
 
+### Tooltips (`src/components/ui/tooltip.tsx`)
+
+**Ningún `title` nativo en el dashboard**: todos los tooltips van por
+`Tooltip`, que envuelve UN elemento y le engancha los eventos con
+`cloneElement` (el DOM no cambia: nada de spans que rompan un `truncate` o una
+fila flex). Se abre con retardo al pasar el ratón y al instante con el foco,
+se cierra al salir y con Escape, y mientras está visible el hijo lo referencia
+con `aria-describedby`. El **nombre accesible sigue siendo el `aria-label`
+del hijo**: el tooltip describe, no nombra. Mismo aspecto que el tooltip de
+las gráficas (`ui/charts/tooltip.ts`), que es otra pieza a propósito (aquel
+inyecta HTML con filas y colores; este es React puro).
+
+⚠ **Un botón `disabled` no recibe el ratón** (Chrome se lo traga, y el padre
+tampoco lo ve), y justo ahí es donde el tooltip más importa: dice POR QUÉ una
+acción está apagada. Para esos, `envuelto`: un `span` alrededor que sí recibe
+los eventos, con el hijo en `pointer-events-none`. Es lo que usa
+`MenuAcciones` con el `motivo` de cada acción.
+
+⚠ **Solo UN globo visible a la vez** (registro de módulo) y **se cierra al
+pulsar**. Los dos salieron revisándolo en el navegador, y ninguno se ve
+leyendo el código: el ratón sobre un icono y Tab al siguiente dejaba DOS
+globos (el primero nunca recibe `mouseleave` porque el ratón no se ha movido),
+y tras hacer clic el botón se queda con el foco, así que el globo permanecía
+colgado aunque el cursor ya estuviera lejos.
+Excepción: con `envuelto` el clic NO lo cierra — ahí el hijo está apagado, el
+clic no hace nada y el tooltip es justo la explicación de por qué.
+
+⚠ Los `title=` que quedan en el código son PROPS de componentes (`Modal`,
+`CheckCard`, `TarjetaSerie`), no atributos HTML. Al añadir un atributo `title`
+a un elemento, usar `Tooltip`.
+
 ### Acciones de fila (`src/components/dashboard/menu-acciones.tsx`)
 
 Las acciones de una fila se **declaran** (`AccionFila[]`: id, nombre, icono,
@@ -689,6 +1065,47 @@ Añadir ahí las splash de iOS (`icons.other`) borró el favicon de la pestaña 
 ningún aviso. Los tres van explícitos —`icon`, `apple`, `other`— y quien toque
 ese bloque tiene que dejarlos.
 
+### Mapa de las visitas (`panel/mapa-visitas.tsx`)
+
+La tarjeta de Geografía tiene un botón «Ver en el mapa» que abre el informe
+sobre un mundo en SVG: **países en burbuja** sobre su centroide (área
+proporcional a las visitas, no radio: si no, el doble parece cuatro veces) y
+**ciudades con pin** encima.
+
+⚠ **Sin dependencia de mapas y sin red**, y es lo que decide el diseño. GA4
+devuelve solo NOMBRES (`country`, `city`), no coordenadas, así que un mapa de
+teselas habría exigido abrir `img-src` y `connect-src` en la CSP —lo que se
+acababa de cerrar en la auditoría del 03/09— y geocodificar contra un tercero,
+mandándole de dónde son las visitas del sitio. En su lugar:
+
+- La silueta es una ruta incrustada en `panel/mundo-path.ts`, generada a mano
+  desde Natural Earth 110m (dominio público) en la misma proyección
+  equirectangular que `lib/geo-visitas.ts`. Los polígonos que cruzan el
+  antimeridiano vienen ya CORTADOS: sin eso salen rayas de lado a lado.
+- Las coordenadas salen de una tabla local (`lib/geo-visitas.ts`): países,
+  capitales de provincia españolas y los municipios grandes. Creció al ver
+  datos reales — las visitas venían de Algeciras y Castelldefels, que no son
+  capitales.
+- Lo que no está en la tabla **no se pierde**: no sale con pin, pero el mapa lo
+  dice al pie con su nombre y su cifra, y sigue en el ranking de la tarjeta.
+
+⚠ **Dos trampas del encuadre**, las dos ya pagadas:
+
+- El `viewBox` se **ajusta a las marcas** (con proporción 2:1 y un ancho
+  mínimo). Con el tráfico de este sitio —España y poco más— el mundo completo
+  es 95 % de océano con las burbujas amontonadas en una esquina. Un botón
+  devuelve el planeta cuando hace falta la referencia.
+- Al hacer zoom con el `viewBox` **escala TODO**, radios y grosores incluidos,
+  así que se compensan por el factor `k`: un pin mide lo mismo en pantalla
+  encuadrado en España que en el planeta.
+
+Y la leyenda va en HTML al lado, por lo mismo que la de los donuts: las marcas
+de un SVG no son texto que se pueda leer, ordenar ni anunciar.
+
+⚠ El nombre accesible del `role="img"` **concuerda singular y plural** ("1
+país", no "1 países"): se lee en voz alta, y ahí un plural mal puesto canta
+más que en ningún otro sitio. Con test propio.
+
 ### Analítica (`src/components/landing/analytics.tsx`)
 
 Google Analytics 4 con consentimiento previo RGPD: sin `NEXT_PUBLIC_GA_ID` no
@@ -720,6 +1137,15 @@ distintos antes de unificarlas (27/08/2026). En ese mismo fichero vive
 un recibo del 31 no se quede clavado en el 28): la comparten el vencimiento de
 las tareas de mantenimiento y la fecha de los cargos recurrentes, que tuvieron
 una copia cada uno hasta el 28/08/2026.
+**Importes: decimales solo si los hay, y en los KPI nunca.** `eur()` de
+`lib/euros.ts` pinta "12,50 €" y "60 €" (la regla general: en tablas y listas
+los céntimos descuadran las cuentas a ojo si faltan). La cifra grande de una
+tarjeta KPI va con **`eurEntero()`** —"1.374 €", nunca "1.373,72 €"—: a 24 px
+los céntimos no aportan lectura, la ensucian (petición de Adrián, 05/09/2026).
+Y vale para la tarjeta ENTERA, pie incluido ("−27 % frente a 1.887 €"): la
+primera versión dejó la comparativa con céntimos y Adrián la señaló al momento.
+Las filas `Dato` del bloque de Ahorro del Panel se quedan con `eur()`: no son
+una tarjeta KPI.
 **Porcentajes con espacio, como prescribe la RAE** ("67 %", no "67%") y con
 espacio **irrompible** (` ` / `&nbsp;`), para que la cifra y el símbolo no
 se separen en un salto de línea. En finanzas lo pone `pct()` de `savings/comun`

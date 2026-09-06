@@ -30,9 +30,16 @@ services:
     logging:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }
-    # Límite de memoria: descoméntalo ajustándolo a la RAM del VPS. Sin cifra a
-    # ciegas — un límite demasiado bajo provoca el OOM que se quiere evitar.
-    # mem_limit: 768m
+    # Techo de memoria, medido en el VPS el 02/09/2026 con `docker stats`:
+    # este contenedor se asienta en ~132 MiB. 768m son casi 6× eso, así que en
+    # operación normal no se toca nunca; está para que una consulta desbocada o
+    # una fuga no se lleven la máquina entera.
+    #
+    # ⚠ El tope NO se pone al consumo actual: InnoDB crece con los datos y con
+    # las conexiones, y un límite ajustado provoca justo el OOM que se quiere
+    # evitar — cuando se toca, el kernel mata el contenedor y
+    # `restart: unless-stopped` lo levanta en bucle.
+    mem_limit: 768m
 
   web:
     build:
@@ -76,7 +83,16 @@ services:
     logging:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }
-    # mem_limit: 512m   # ver la nota del servicio db
+    # ~141 MiB medidos en el VPS; 512m dan 3,6× de margen, que cubre los picos
+    # de `sharp` (optimización de imágenes) y de `exceljs` (exportar un año).
+    # Ver la nota del servicio db.
+    #
+    # ⚠ Esto NO limita el `docker compose build`: el `next build` corre en el
+    # contenedor de BuildKit, y es ÉL el pico de memoria de esta máquina (más
+    # de 1 GB — el 02/09 mandó 1,2 GB a swap). Si algún día el build muere por
+    # OOM, la salida es construir la imagen fuera (CI) y desplegar la imagen,
+    # no tocar este número.
+    mem_limit: 512m
     depends_on:
       db:
         condition: service_healthy

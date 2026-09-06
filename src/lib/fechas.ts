@@ -26,6 +26,13 @@ export const mesCorto = (i: number) => MESES[i]?.slice(0, 3) ?? ''
 /** Inicial del mes por índice 0-11 ('A'), para cuando no caben ni tres letras. */
 export const mesInicial = (i: number) => MESES[i]?.[0] ?? ''
 
+/**
+ * Abreviatura de tres letras del día por índice 0-6 ('Lun'), para la cabecera
+ * del calendario en móvil. La INICIAL no sirve aquí: Martes y Miércoles
+ * comparten la M, y dos columnas rotuladas igual son dos columnas sin rótulo.
+ */
+export const diaCorto = (i: number) => DIAS[i]?.slice(0, 3) ?? ''
+
 // ─────────── aritmética de meses ───────────
 
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -45,6 +52,13 @@ const ultimoDia = (year: number, mes: number) => new Date(Date.UTC(year, mes, 0)
  * mantenimiento y la fecha de los cargos recurrentes— y tener dos copias es
  * justo cómo se separan.
  */
+/** Suma (o resta) DÍAS a una fecha ISO. Sobre UTC para que no la mueva el
+ *  horario de verano: aquí la fecha es un día del calendario, no un instante. */
+export function sumarDias(fechaIso: string, dias: number): string {
+  const [y, m, d] = fechaIso.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d + dias)).toISOString().slice(0, 10)
+}
+
 export function sumarMeses(fechaIso: string, meses: number, ancla?: number): string {
   const [y, m, d] = fechaIso.split('-').map(Number)
   const total = m - 1 + meses

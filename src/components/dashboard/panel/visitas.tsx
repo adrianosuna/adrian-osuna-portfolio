@@ -10,13 +10,16 @@ import { filaTooltip, marcoTooltip, mostrarTooltip, ocultarTooltip } from '@/com
 import { serieDiaria } from '@/lib/serie-diaria'
 import Link from 'next/link'
 import {
-  BarChart3, ExternalLink, Eye, MousePointerClick, Radio, Target, TrendingDown,
+  BarChart3, ExternalLink, Eye, Map, MousePointerClick, Radio, Target, TrendingDown,
   TrendingUp, TriangleAlert, UserPlus, Users, Zap,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Tooltip } from '@/components/ui/tooltip'
 import type { Fila, FilaComparada, Metrica, RangoDias, VisitasSnapshot } from '@/lib/ga'
 import { leerUsuariosAhora } from '@/app/app/panel/actions'
 import { Refrescar } from './ui'
+import { Modal } from '@/components/ui/modal'
+import { MapaVisitas } from './mapa-visitas'
 
 const RANGOS: RangoDias[] = [7, 30, 90]
 
@@ -86,10 +89,18 @@ function Kpi({
   )
 }
 
-function Tarjeta({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+function Tarjeta({ titulo, children, accion }: {
+  titulo: string
+  children: React.ReactNode
+  /** Control a la derecha del título (el "Ver en el mapa" de Geografía). */
+  accion?: React.ReactNode
+}) {
   return (
     <div className="rounded-xl border border-border bg-card px-5 py-4">
-      <h2 className="mb-3 text-[15px] font-semibold">{titulo}</h2>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="min-w-0 text-[15px] font-semibold">{titulo}</h2>
+        {accion}
+      </div>
       {children}
     </div>
   )
@@ -202,12 +213,12 @@ function Variacion({ actual, previo }: { actual: number; previo: number }) {
   if (pct === 0) return <span className="text-[11px] text-muted-foreground">=</span>
   const sube = pct > 0
   return (
-    <span
-      className={cn('inline-flex items-center text-[11px] font-semibold', sube ? 'text-success' : 'text-danger')}
-      title={`${nf(previo)} en el periodo anterior`}>
-      {sube ? <TrendingUp className="mr-0.5 size-3" /> : <TrendingDown className="mr-0.5 size-3" />}
-      {sube ? '+' : ''}{pct}&nbsp;%
-    </span>
+    <Tooltip texto={`${nf(previo)} en el periodo anterior`}>
+      <span className={cn('inline-flex items-center text-[11px] font-semibold', sube ? 'text-success' : 'text-danger')}>
+        {sube ? <TrendingUp className="mr-0.5 size-3" /> : <TrendingDown className="mr-0.5 size-3" />}
+        {sube ? '+' : ''}{pct}&nbsp;%
+      </span>
+    </Tooltip>
   )
 }
 
@@ -349,6 +360,7 @@ export function VisitasTab({ snapshot }: { snapshot: VisitasSnapshot }) {
 
   // "Ahora mismo" vivo: se refresca solo cada 45 s (solo el dato de tiempo
   // real, sin re-ejecutar el resto de informes) y se pausa en pestañas ocultas.
+  const [mapa, setMapa] = useState(false)
   const [ahora, setAhora] = useState(snapshot.ahora)
   // Resincroniza con cada instantánea nueva (patrón valor-previo en render).
   const [prevGen, setPrevGen] = useState(snapshot.generadoEn)
@@ -510,7 +522,22 @@ export function VisitasTab({ snapshot }: { snapshot: VisitasSnapshot }) {
         <Tarjeta titulo="Canales de adquisición">
           <Ranking filas={snapshot.canales} />
         </Tarjeta>
-        <Tarjeta titulo="Geografía">
+        <Tarjeta
+          titulo="Geografía"
+          accion={
+            // Botón y no la tarjeta entera pulsable: aquí dentro hay barras y
+            // texto, y una tarjeta-botón se come clics que iban a otra cosa
+            // (lo que ya pasó con las tarjetas de notas).
+            (snapshot.paises.length > 0 || snapshot.ciudades.length > 0) && (
+              <button
+                type="button"
+                className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[12.5px] font-semibold text-primary transition-colors hover:bg-primary/10"
+                onClick={() => setMapa(true)}>
+                <Map className="size-3.5" />
+                Ver en el mapa
+              </button>
+            )
+          }>
           <Subtitulo primero>Países</Subtitulo>
           <Ranking filas={snapshot.paises} />
           <Subtitulo>Ciudades</Subtitulo>
@@ -528,6 +555,16 @@ export function VisitasTab({ snapshot }: { snapshot: VisitasSnapshot }) {
         <h2 className="mb-3 text-[15px] font-semibold">Cuándo te visitan (día × hora)</h2>
         <MapaHorario horario={snapshot.horario} />
       </div>
+
+      {mapa && (
+        <Modal
+          title={`De dónde te visitan · últimos ${snapshot.dias} días`}
+          description="El tamaño de cada burbuja es proporcional a las visitas. Los países en verde; las ciudades, con pin."
+          ancho="lg"
+          onClose={() => setMapa(false)}>
+          <MapaVisitas paises={snapshot.paises} ciudades={snapshot.ciudades} />
+        </Modal>
+      )}
     </div>
   )
 }

@@ -308,7 +308,8 @@ section[id] {
 /* Checklists de las notas: `<ul class="tareas">` con `<li data-check="0|1">`.
    La casilla se DIBUJA con ::before (no es un <input>): así el HTML guardado
    sigue siendo solo texto con formato —nada de controles de formulario en la
-   allowlist del saneador— y el marcado lo hace una acción del servidor. */
+   allowlist del saneador—. En la tarjeta se ve, pero no se pulsa: se marca
+   dentro del editor. */
 .contenido-nota :where(ul.tareas) {
   list-style: none;
   margin-left: 0;
@@ -350,8 +351,9 @@ section[id] {
   text-decoration: line-through;
   text-decoration-color: color-mix(in oklab, var(--muted-foreground) 60%, transparent);
 }
-/* En el editor y en la tarjeta la casilla se puede pulsar (el resto de la nota
-   no: en la tarjeta el clic abre el editor, y eso no debe cambiar). */
+/* Solo en el EDITOR se pulsa la casilla. La tarjeta no la lleva: allí todo el
+   contenido va con pointer-events-none para que el clic abra la nota y nunca
+   tache un ítem sin querer. */
 .contenido-nota.tareas-pulsables :where(ul.tareas > li) {
   cursor: pointer;
   pointer-events: auto;

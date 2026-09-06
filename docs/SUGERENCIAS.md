@@ -45,7 +45,10 @@ Marcas: ⭐ = alto valor recomendado · 🟢 = ya en `TAREAS.md` o parcialmente 
 - [ ] **Canal de origen** (referido / LinkedIn / web) con métricas por canal.
 - [ ] **Forecast ponderado** por probabilidad según el estado.
 - [ ] **Motivos de descarte** con analítica (precio / no responde / timing).
-- [ ] **Vista calendario** de próximas acciones.
+- [x] **Vista calendario** de próximas acciones. → los seguimientos salen en el
+      calendario del Panel (05/09), junto a las tareas y los cargos
+      recurrentes; desde ahí enlazan a su oportunidad. No hay un calendario
+      propio del pipeline a propósito: era el mismo problema.
 - [ ] **Snooze del seguimiento** (posponer una semana en un clic).
 - [ ] 🟢 **Convertir a presupuesto/factura al cerrar** (enlaza con Facturación,
       ya apuntada en `TAREAS.md`).
@@ -58,7 +61,10 @@ Marcas: ⭐ = alto valor recomendado · 🟢 = ya en `TAREAS.md` o parcialmente 
 - [x] **Notas: checklist interactivo** (marcar ítems dentro de la nota).
 - [ ] **Mantenimiento: adjuntar documento** (póliza, factura de la ITV).
 - [ ] **Mantenimiento: coste por tarea** y total anual.
-- [x] **Mantenimiento: vista calendario / próximos 12 meses.**
+- [x] **Mantenimiento: vista calendario** (05/09). La rejilla de días, con las
+      tres fuentes con fecha de la app. ⚠ La parte de «próximos 12 meses» se
+      probó y **se retiró el mismo día** a petición de Adrián: "lo del año no
+      me gusta nada, prefiero solo meses". No reabrirla.
 - [x] **Monitor de infraestructura con histórico** (no solo el estado actual).
 - [x] **Registro de accesos más rico** (dispositivos, últimos logins).
 - [x] **Visitas: páginas más vistas y comparativa de periodos** (si GA lo da).

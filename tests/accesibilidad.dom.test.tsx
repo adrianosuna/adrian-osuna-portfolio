@@ -19,11 +19,12 @@
 // Lo que sí comprueba axe aquí es lo estructural: roles, nombres accesibles,
 // etiquetas de los campos, orden de encabezados y atributos ARIA válidos.
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render } from '@testing-library/react'
-import axe from 'axe-core'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { auditar } from './axe'
 import { Modal } from '@/components/ui/modal'
 import { DateField, Field, NumberField, SelectField, TextField } from '@/components/ui/fields'
 import { SubTabs } from '@/components/dashboard/sub-tabs'
+import { Calendario } from '@/components/dashboard/panel/calendario'
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
@@ -35,27 +36,6 @@ vi.mock('@/components/dashboard/barra-carga', () => ({ useCarga: () => vi.fn() }
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
 
 afterEach(cleanup)
-
-/** Pasa axe por el contenedor y devuelve las violaciones legibles. */
-async function auditar(nodo: Element) {
-  const res = await axe.run(nodo, {
-    rules: {
-      // Ver la cabecera: sin layout, esta regla no es evaluable en jsdom.
-      'color-contrast': { enabled: false },
-      // Regla de PÁGINA ("todo el contenido dentro de un landmark"): aquí se
-      // audita un fragmento suelto, que por definición no tiene main ni nav.
-      // Los landmarks del dashboard los pone el layout, no estos componentes.
-      region: { enabled: false },
-    },
-  })
-  return res.violations.map((v) => ({
-    regla: v.id,
-    impacto: v.impact,
-    // El selector del primer nodo afectado: es lo que hace falta para arreglarlo.
-    donde: v.nodes[0]?.target?.join(' '),
-    ayuda: v.help,
-  }))
-}
 
 describe('axe: modal común', () => {
   it('el modal con cabecera, cuerpo y pie no tiene violaciones', async () => {
@@ -132,3 +112,44 @@ describe('axe: campos sueltos', () => {
     expect(await auditar(baseElement)).toEqual([])
   })
 })
+
+// El calendario es la rejilla más densa del dashboard: 35 botones con nombre
+// accesible propio, una cabecera de siete días y un panel de detalle. Un axe
+// aquí es lo que habría cazado antes el `aria-label` en un `div` sin rol —que
+// no existe para un lector— y el h3 saltándose el h2.
+describe('axe: calendario', () => {
+  const props = {
+    hoy: '2026-09-05',
+    tareas: [
+      { uuid: 't1', title: 'ITV', scopeName: 'Vehículo', intervalMonths: 12, nextDue: '2026-09-20', lastDone: null },
+    ],
+    recurrentes: [
+      {
+        uuid: 'r1', concept: 'Alquiler', type: 'GASTO' as const, amount: 720,
+        intervalMonths: 1, nextDate: '2026-09-03', dayAnchor: 3, active: true,
+      },
+    ],
+    seguimientos: [
+      {
+        uuid: 's1', title: 'Portal', company: 'ACME',
+        nextAction: 'Llamar', nextActionDate: '2026-09-20', archived: false,
+      },
+    ],
+    onNuevaTarea: vi.fn(),
+    onAbrirTarea: vi.fn(),
+    onAbrirEvento: vi.fn(),
+  }
+
+  it('la rejilla del mes no tiene violaciones', async () => {
+    const { baseElement } = render(<Calendario {...props} />)
+    expect(await auditar(baseElement)).toEqual([])
+  })
+
+  it('el detalle de un día abierto tampoco', async () => {
+    const { baseElement } = render(<Calendario {...props} />)
+    fireEvent.click(screen.getByRole('button', { name: /, 20 de septiembre de 2026/ }))
+    expect(screen.getByText('Domingo, 20 de septiembre de 2026')).toBeTruthy()
+    expect(await auditar(baseElement)).toEqual([])
+  })
+})
+

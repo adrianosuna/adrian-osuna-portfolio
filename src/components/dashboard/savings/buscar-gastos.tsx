@@ -11,9 +11,11 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, ChevronLeft, ChevronRight, Search, TrendingDown, TrendingUp } from 'lucide-react'
 import { useCarga } from '@/components/dashboard/barra-carga'
 import { cn } from '@/lib/utils'
+import { Tooltip } from '@/components/ui/tooltip'
 import { DateField, Field, NumberField, SelectField, TextField } from '@/components/ui/fields'
 import type { CategoriaRow, FiltrosBusqueda, ResultadoBusqueda } from '@/lib/gastos'
-import { btnOutline, btnPrimary, cardClass, eur, SIN_CATEGORIA } from './comun'
+import { etiquetaCategoria } from '@/lib/categorias'
+import { btnOutline, btnPrimary, cardClass, eur, eurEntero, SIN_CATEGORIA } from './comun'
 
 /** 'YYYY-MM-DD' → 'DD/MM/YYYY' (la búsqueda cruza años: el año siempre importa). */
 const fmtFecha = (iso: string) => iso.split('-').reverse().join('/')
@@ -164,9 +166,9 @@ export function BuscarGastos({
           {/* Sumas del conjunto de coincidencias */}
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Resumen label="Coincidencias" valor={String(resultado.total)} />
-            <Resumen label="Ingresos" valor={eur(resultado.ingresos)} tono="success" icon={<TrendingUp className="size-4" />} />
-            <Resumen label="Gastos" valor={eur(resultado.gastos)} tono="danger" icon={<TrendingDown className="size-4" />} />
-            <Resumen label="Balance" valor={eur(balance)} tono={balance >= 0 ? 'primary' : 'danger'} />
+            <Resumen label="Ingresos" valor={eurEntero(resultado.ingresos)} tono="success" icon={<TrendingUp className="size-4" />} />
+            <Resumen label="Gastos" valor={eurEntero(resultado.gastos)} tono="danger" icon={<TrendingDown className="size-4" />} />
+            <Resumen label="Balance" valor={eurEntero(balance)} tono={balance >= 0 ? 'primary' : 'danger'} />
           </div>
 
           <div className={cn(cardClass, 'mt-4')}>
@@ -193,15 +195,15 @@ export function BuscarGastos({
                       {fmtFecha(m.expenseDate)}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-[13.5px]">{m.concept}</span>
-                    <span
-                      className="flex shrink-0 items-center gap-1.5 text-[12px] text-muted-foreground sm:w-40"
-                      title={`${esGasto ? 'Gasto' : 'Ingreso'} · ${cat?.name ?? 'Sin categoría'}`}>
-                      <span
-                        className="inline-block size-2 shrink-0 rounded-xs"
-                        style={{ background: cat?.color ?? SIN_CATEGORIA }}
-                      />
-                      <span className="hidden min-w-0 truncate sm:block">{cat?.name ?? 'Sin categoría'}</span>
-                    </span>
+                    <Tooltip texto={`${esGasto ? 'Gasto' : 'Ingreso'} · ${cat ? etiquetaCategoria(cat) : 'Sin categoría'}`}>
+                      <span className="flex shrink-0 items-center gap-1.5 text-[12px] text-muted-foreground sm:w-40">
+                        <span
+                          className="inline-block size-2 shrink-0 rounded-xs"
+                          style={{ background: cat?.color ?? SIN_CATEGORIA }}
+                        />
+                        <span className="hidden min-w-0 truncate sm:block">{cat?.name ?? 'Sin categoría'}</span>
+                      </span>
+                    </Tooltip>
                     <span
                       className={cn(
                         'shrink-0 text-[13.5px] font-semibold tabular-nums sm:w-24 sm:text-right',

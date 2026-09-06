@@ -232,4 +232,62 @@ describe('GraficaDonut', () => {
     expect(cfg.data.datasets[0].data).toHaveLength(3)
     expect(screen.getByText('Vacía')).toBeTruthy()
   })
+
+  // El desglose de un grupo se abre desde la LEYENDA y no solo desde el arco:
+  // el canvas dibuja su texto, así que un clic en el arco no existe para el
+  // teclado ni para un lector de pantalla (y en el móvil apuntar a un arco de
+  // 20 px con el pulgar no es una interfaz).
+  describe('porciones pulsables (desglose de un grupo)', () => {
+    const conGrupo = [
+      { id: 'coche', label: 'Coche', valor: 200, color: '#ef4444', pulsable: true },
+      { id: 'casa', label: 'Casa', valor: 60, color: '#8b5cf6' },
+    ]
+
+    it('sin onParte ninguna fila es un botón, aunque la parte diga pulsable', () => {
+      render(<GraficaDonut partes={conGrupo} />)
+      expect(screen.queryAllByRole('button')).toHaveLength(0)
+    })
+
+    it('solo la fila pulsable es un botón, y avisa con su identificador', () => {
+      const onParte = vi.fn()
+      render(<GraficaDonut partes={conGrupo} onParte={onParte} />)
+      const botones = screen.getAllByRole('button')
+      expect(botones).toHaveLength(1)
+      expect(botones[0].getAttribute('aria-label')).toBe('Coche: ver el desglose')
+      botones[0].click()
+      expect(onParte).toHaveBeenCalledWith(expect.objectContaining({ id: 'coche' }))
+    })
+
+    // La columna de cifras tiene que quedar a plomo: si el chevron solo
+    // ocupara sitio en la fila del grupo, su importe se iría a la izquierda.
+    it('reserva la columna del chevron en TODAS las filas, para que las cifras cuadren', () => {
+      const { container } = render(<GraficaDonut partes={conGrupo} onParte={vi.fn()} />)
+      const cifras = [...container.querySelectorAll('.tabular-nums')]
+      expect(cifras).toHaveLength(2)
+      // Mismo número de hermanos después de las cifras en las dos filas: el
+      // chevron en la pulsable, un hueco vacío en la otra.
+      const traseros = cifras.map((c) => {
+        let n = 0
+        for (let e = c.nextElementSibling; e; e = e.nextElementSibling) n++
+        return n
+      })
+      expect(traseros).toEqual([1, 1])
+    })
+
+    it('sin ninguna porción pulsable no reserva nada (los demás donuts no cambian)', () => {
+      const { container } = render(<GraficaDonut partes={partes} />)
+      const cifra = container.querySelector('.tabular-nums')!
+      expect(cifra.nextElementSibling).toBeNull()
+    })
+
+    it('el clic en el arco solo dispara sobre una porción pulsable', () => {
+      const onParte = vi.fn()
+      render(<GraficaDonut partes={conGrupo} onParte={onParte} />)
+      const { onClick } = configs[0].options
+      onClick?.({}, [{ index: 1, datasetIndex: 0 }], null) // "Casa", no pulsable
+      expect(onParte).not.toHaveBeenCalled()
+      onClick?.({}, [{ index: 0, datasetIndex: 0 }], null) // "Coche"
+      expect(onParte).toHaveBeenCalledTimes(1)
+    })
+  })
 })

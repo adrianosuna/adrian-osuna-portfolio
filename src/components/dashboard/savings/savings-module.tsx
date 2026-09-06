@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { Tooltip } from '@/components/ui/tooltip'
 import { NumberField, TextField } from '@/components/ui/fields'
 import { useConfirmar } from '@/components/dashboard/confirmar'
 import type { ConceptRow, MonthRow, YearDetail } from '@/lib/finance'
@@ -22,7 +23,7 @@ import {
 import { AhorroPorMes } from '@/components/dashboard/savings/charts'
 import { MESES } from '@/lib/fechas'
 import { GraficaDonut } from '@/components/ui/charts/donut'
-import { btnIcon, btnPrimary, cardClass, esperadoHoy, eur, pct, proyeccionDe } from './comun'
+import { btnIcon, btnPrimary, cardClass, esperadoHoy, eur, eurEntero, pct, proyeccionDe } from './comun'
 import { tdClass, thClass } from '@/components/ui/tabla'
 
 
@@ -316,7 +317,7 @@ export function SavingsModule({
                 <p className="mb-1 flex items-center gap-1.5 text-[13.5px] text-muted-foreground">
                   <s.Icon className={cn('size-4', s.color ?? 'text-primary')} /> {s.title}
                 </p>
-                <p className={cn('text-2xl font-semibold', s.bold && 'text-primary')}>{eur(s.value)}</p>
+                <p className={cn('text-2xl font-semibold', s.bold && 'text-primary')}>{eurEntero(s.value)}</p>
               </div>
             ))}
           </div>
@@ -334,14 +335,15 @@ export function SavingsModule({
                 )}
                 {/* Desvío frente al objetivo prorrateado a día de hoy */}
                 {esCorriente && desvio !== null && (
-                  <span
-                    className={cn(
-                      'rounded-md px-2 py-0.5 text-xs font-semibold',
-                      desvio >= 0 ? 'bg-success-bg text-success' : 'bg-danger-bg text-danger',
-                    )}
-                    title={`A estas alturas del año "tocaría" llevar ${eur(esperado)}`}>
-                    {desvio >= 0 ? '▲' : '▼'} {eur(Math.abs(desvio))} {desvio >= 0 ? 'por delante' : 'por detrás'}
-                  </span>
+                  <Tooltip texto={`A estas alturas del año "tocaría" llevar ${eur(esperado)}`}>
+                    <span
+                      className={cn(
+                        'rounded-md px-2 py-0.5 text-xs font-semibold',
+                        desvio >= 0 ? 'bg-success-bg text-success' : 'bg-danger-bg text-danger',
+                      )}>
+                      {desvio >= 0 ? '▲' : '▼'} {eur(Math.abs(desvio))} {desvio >= 0 ? 'por delante' : 'por detrás'}
+                    </span>
+                  </Tooltip>
                 )}
               </span>
             </div>
@@ -354,11 +356,12 @@ export function SavingsModule({
                     style={{ width: `${Math.min(100, goalPct)}%` }}
                   />
                   {esCorriente && esperado !== null && (
-                    <div
-                      className="absolute -inset-y-1 w-0.5 rounded-full bg-foreground/60"
-                      style={{ left: `${Math.min(100, (esperado / goal) * 100)}%` }}
-                      title={`Esperado a día de hoy: ${eur(esperado)}`}
-                    />
+                    <Tooltip texto={`Esperado a día de hoy: ${eur(esperado)}`}>
+                      <div
+                        className="absolute -inset-y-1 w-0.5 rounded-full bg-foreground/60"
+                        style={{ left: `${Math.min(100, (esperado / goal) * 100)}%` }}
+                      />
+                    </Tooltip>
                   )}
                 </div>
                 <div className="mt-1.5 flex justify-between text-[12.5px] text-muted-foreground">
@@ -462,10 +465,9 @@ export function SavingsModule({
                               )}>
                               {MESES[m.month - 1]}
                               {sinRellenar && (
-                                <span
-                                  className="ml-1.5 inline-block size-1.5 rounded-full bg-warning align-middle"
-                                  title="Mes sin rellenar"
-                                />
+                                <Tooltip texto="Mes sin rellenar">
+                                  <span className="ml-1.5 inline-block size-1.5 rounded-full bg-warning align-middle" />
+                                </Tooltip>
                               )}
                             </td>
                             <td className={tdClass}>
@@ -514,10 +516,9 @@ export function SavingsModule({
                           <span className={cn('text-sm font-semibold', esMesActual && 'text-primary')}>
                             {MESES[m.month - 1]}
                             {sinRellenar && (
-                              <span
-                                className="ml-1.5 inline-block size-1.5 rounded-full bg-warning align-middle"
-                                title="Mes sin rellenar"
-                              />
+                              <Tooltip texto="Mes sin rellenar">
+                                <span className="ml-1.5 inline-block size-1.5 rounded-full bg-warning align-middle" />
+                              </Tooltip>
                             )}
                           </span>
                           <span className="text-[12.5px] text-muted-foreground">

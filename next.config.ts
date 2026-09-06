@@ -89,6 +89,10 @@ const nextConfig: NextConfig = {
     // Avatares de la cuenta de Google (foto de perfil en el dashboard).
     remotePatterns: [{ protocol: "https", hostname: "lh3.googleusercontent.com" }],
   },
+  // Fuera el `X-Powered-By: Next.js` que Next manda por defecto: revela el
+  // framework sin dar nada a cambio. Se apaga en el origen y no en Caddy
+  // porque aquí es una línea y allí sería una capa más que mantener.
+  poweredByHeader: false,
   async headers() {
     return [
       {

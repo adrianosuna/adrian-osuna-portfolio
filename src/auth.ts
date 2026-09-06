@@ -8,26 +8,63 @@
 // y cerrarlas remotamente (borrar la fila mata esa sesión al instante).
 import NextAuth, { type NextAuthConfig } from 'next-auth'
 import Google from 'next-auth/providers/google'
+import Credentials from 'next-auth/providers/credentials'
 import { headers } from 'next/headers'
 import { AppError } from '@/lib/errors'
 import { prisma } from '@/lib/prisma'
 import { log } from '@/lib/log'
 import { inactivaDemasiado, SEGUNDOS_SESION } from '@/lib/sesion-caducidad'
+import { correoDevLogin } from '@/lib/dev-login'
+
+/**
+ * Proveedor del atajo de DESARROLLO (ver `lib/dev-login.ts`): entra como el
+ * correo de `DEV_LOGIN_EMAIL` sin Google. Solo se registra si el atajo está
+ * activo — en producción `correoDevLogin()` es null y este array queda vacío,
+ * así que el proveedor ni existe en la ruta de auth.
+ *
+ * Sin formulario (`credentials: {}`): no hay nada que teclear, el correo es
+ * el de la variable. `authorize` vuelve a comprobar la allowlist igual que
+ * hará después el callback `signIn`: dos comprobaciones por si algún día una
+ * de las dos cambia.
+ */
+const proveedorDev = () => {
+  const email = correoDevLogin()
+  if (!email) return []
+  return [
+    Credentials({
+      id: 'dev',
+      name: 'Desarrollo',
+      credentials: {},
+      async authorize() {
+        // Se relee por si la variable cambió desde el arranque; y NUNCA en
+        // producción, aunque el proveedor se hubiera registrado por error.
+        const correo = correoDevLogin()
+        if (!correo) return null
+        const u = await prisma.user.findUnique({ where: { email: correo } })
+        if (!u || u.status === 'DISABLED') return null
+        return { id: u.uuid, email: u.email, name: u.name, image: u.picture }
+      },
+    }),
+  ]
+}
 
 // Config exportada aparte de NextAuth(): los tests unitarios invocan los
 // callbacks (signIn/jwt/session) y eventos directamente con mocks de Prisma.
 export const authConfig = {
-  providers: [Google],
+  providers: [Google, ...proveedorDev()],
   session: { strategy: 'jwt', maxAge: SEGUNDOS_SESION },
   pages: { signIn: '/login' },
   callbacks: {
-    async signIn({ user, profile }) {
+    async signIn({ user, profile, account }) {
       if (!user.email) return false
       // Google puede emitir tokens de cuentas con correo externo sin verificar:
       // la allowlist solo cuenta si el correo está verificado de verdad.
       if (profile && profile.email_verified !== true) return false
       // Normalizado a minúsculas, como hace inviteUser al dar de alta.
       const email = user.email.toLowerCase()
+      // El atajo de desarrollo solo puede entrar como SU correo, y solo si
+      // sigue activo: con la variable quitada (o en producción) no pasa.
+      if (account?.provider === 'dev' && email !== correoDevLogin()) return false
       const registro = await prisma.user.findUnique({ where: { email } })
       if (!registro || registro.status === 'DISABLED') return false
       await prisma.user.update({

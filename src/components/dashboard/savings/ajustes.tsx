@@ -11,20 +11,23 @@
 // campos que en una fila no se leen.
 import { useState, useTransition } from 'react'
 import {
-  CalendarRange, Check, ChevronDown, Copy, FileDown, Merge, Pause, Pencil, PlayCircle, Plus,
-  Repeat, Tag, Trash2,
+  CalendarRange, Check, ChevronDown, Copy, FileDown, FolderMinus, FolderTree, Merge, Pause, Pencil,
+  PlayCircle, Plus, Repeat, Tag, Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn, sinAcentos } from '@/lib/utils'
 import { Modal } from '@/components/ui/modal'
 import { useConfirmar } from '@/components/dashboard/confirmar'
-import { DateField, Field, NumberField, SelectField, TextField } from '@/components/ui/fields'
+import { DateField, Field, NumberField, SelectField, TextField, TreeSelectField } from '@/components/ui/fields'
+import { Tooltip } from '@/components/ui/tooltip'
 import type { CategoriaRow, TipoMovimiento } from '@/lib/gastos'
+import { arbolDeCategoria, esGrupo, etiquetaCategoria } from '@/lib/categorias'
 import type { YearSummary } from '@/lib/finance'
 import { createYear, deleteYear, updateYear } from '@/app/app/finance/actions'
 import {
-  apuntarRecurrenteAhora, createCategoria, createRecurrente, deleteCategoria, deleteRecurrente,
-  fusionarCategorias, leerMovimientosDeRecurrente, updateCategoria, updateRecurrente,
+  apuntarRecurrenteAhora, createCategoria, createRecurrente, deleteCategoria,
+  deleteRecurrente, fusionarCategorias, leerMovimientosDeRecurrente, updateCategoria,
+  updateRecurrente,
 } from '@/app/app/finance/gastos-actions'
 import type { MovimientoRow } from '@/lib/gastos'
 import {
@@ -34,6 +37,7 @@ import {
   btnIcon, btnOutline, btnPrimary, cardClass, chipFiltro, eur, fmtDiaAnio, SIN_CATEGORIA, TIPOS,
 } from './comun'
 import { MenuAcciones } from '@/components/dashboard/menu-acciones'
+import { barraTabs, claseTab } from '@/components/dashboard/sub-tabs'
 
 type Accion = Promise<{ ok: boolean; message?: string }>
 
@@ -126,27 +130,42 @@ function Filtros<T extends string>({ valor, onCambio, opciones, etiqueta }: {
 
 // ─────────── categorías ───────────
 
-type FiltroCat = 'todas' | 'GASTO' | 'INGRESO' | 'tope'
+// Gasto e ingreso son DOS listas independientes (un movimiento es de un tipo o
+// del otro, nunca de los dos), así que se enseñan como dos pestañas y no como
+// una lista con cabeceras de bloque: hubo dos versiones de esas cabeceras el
+// 05/09/2026 y ninguna separaba de verdad. La pestaña, además, es funcional:
+// fija el tipo al crear y decide qué filtros tienen sentido.
+const TABS_CAT: Array<{ id: TipoMovimiento; label: string }> = [
+  { id: 'GASTO', label: 'Gasto' },
+  { id: 'INGRESO', label: 'Ingreso' },
+]
 
-const FILTROS_CAT: Array<{ value: FiltroCat; label: string }> = [
+/** Filtro de la pestaña de gasto: el tope solo existe ahí. */
+type FiltroTope = 'todas' | 'tope'
+const FILTROS_TOPE: Array<{ value: FiltroTope; label: string }> = [
   { value: 'todas', label: 'Todas' },
-  { value: 'GASTO', label: 'Gasto' },
-  { value: 'INGRESO', label: 'Ingreso' },
-  { value: 'tope', label: 'Tope' },
+  { value: 'tope', label: 'Con tope' },
 ]
 
 interface BorradorCat {
   name: string
   type: TipoMovimiento
+  /** Un GRUPO en vez de una categoría (se decide al crear, no se cambia). */
+  isGroup: boolean
+  /** Grupo al que se asigna ('' = suelta). */
+  parentUuid: string
   budget: number | null
 }
 
-const CAT_VACIA: BorradorCat = { name: '', type: 'GASTO', budget: null }
+const CAT_VACIA: BorradorCat = {
+  name: '', type: 'GASTO', isGroup: false, parentUuid: '', budget: null,
+}
 
 function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
   const [pending, startTransition] = useTransition()
   const [busqueda, setBusqueda] = useState('')
-  const [filtro, setFiltro] = useState<FiltroCat>('todas')
+  const [tipoActivo, setTipoActivo] = useState<TipoMovimiento>('GASTO')
+  const [filtro, setFiltro] = useState<FiltroTope>('todas')
   const [fusionando, setFusionando] = useState<string | null>(null)
   const [destino, setDestino] = useState('')
   const confirmar = useConfirmar()
@@ -155,6 +174,14 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
   const [abierto, setAbierto] = useState(false)
   const [editando, setEditando] = useState<CategoriaRow | null>(null)
   const [borrador, setBorrador] = useState<BorradorCat>(CAT_VACIA)
+  /**
+   * Grupos a los que se puede asignar lo que se está editando: los de su
+   * mismo tipo, y nada más. Sin filtros por uso, porque asignar una categoría
+   * con historial a un grupo no tiene ningún problema — se mueve la
+   * categoría, sus movimientos siguen colgando de ella.
+   */
+  const gruposPosibles = (b: BorradorCat) =>
+    categorias.filter((c) => c.type === b.type && esGrupo(c))
 
   const run = (promise: Accion, success: string, luego?: () => void) =>
     startTransition(async () => {
@@ -165,34 +192,48 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
     })
 
   const conTope = categorias.filter((c) => c.budget !== null).length
+  const grupos = categorias.filter(esGrupo)
   const q = clave(busqueda.trim())
   const visibles = categorias.filter((c) => {
     if (q && !clave(c.name).includes(q)) return false
-    if (filtro === 'tope') return c.budget !== null
-    if (filtro === 'GASTO' || filtro === 'INGRESO') return c.type === filtro
+    // El filtro de tope solo actúa en la pestaña de gasto.
+    if (tipoActivo === 'GASTO' && filtro === 'tope') return c.budget !== null
     return true
   })
 
   const porTipo = (tipo: TipoMovimiento) => visibles.filter((c) => c.type === tipo)
+  /** Cuenta por pestaña: categorías del tipo (los grupos no cuentan). */
+  const cuentaDe = (tipo: TipoMovimiento) =>
+    categorias.filter((c) => c.type === tipo && !esGrupo(c)).length
 
   const listar = (tipo: TipoMovimiento) => {
     const grupo = porTipo(tipo)
     return (
       <div key={tipo}>
-        <p className="mb-1 mt-4 text-[13px] font-semibold text-muted-foreground first:mt-0">
-          {tipo === 'GASTO' ? 'Categorías de gasto' : 'Categorías de ingreso'}
-        </p>
         {grupo.length === 0 && (
-          <p className="pb-1 text-[13px] text-muted-foreground">
-            {busqueda.trim() || filtro === 'tope' ? 'Ninguna con ese criterio.' : 'Ninguna todavía.'}
+          <p className="py-2 text-[13px] text-muted-foreground">
+            {busqueda.trim() || (tipo === 'GASTO' && filtro === 'tope')
+              ? 'Ninguna con ese criterio.'
+              : tipo === 'GASTO'
+                ? 'Ninguna categoría de gasto todavía. Con «Nueva» das de alta la primera.'
+                : 'Ninguna categoría de ingreso todavía. Con «Nueva» das de alta la primera.'}
           </p>
         )}
         {grupo.map((c) => (
-          <div key={c.uuid} className="border-b border-border/60 py-2">
+          // Las categorías de un grupo van sangradas: la lista llega ya en
+          // orden de árbol (cada grupo seguido de las suyas, ver
+          // `listCategorias`).
+          <div
+            key={c.uuid}
+            className={cn('border-b border-border/60 py-2', c.parentUuid && 'pl-4 sm:pl-6')}>
             {fusionando === c.uuid ? (
               <FusionarFila
                 origen={c}
-                candidatas={categorias.filter((o) => o.type === c.type && o.uuid !== c.uuid)}
+                // Sin grupos: no se les pueden colgar movimientos, así que
+                // fusionar en uno dejaría el dato que la interfaz no crea.
+                candidatas={categorias.filter(
+                  (o) => o.type === c.type && o.uuid !== c.uuid && !esGrupo(o),
+                )}
                 destino={destino}
                 onDestino={setDestino}
                 pending={pending}
@@ -211,8 +252,26 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
               // escritorio y todo vuelve a una sola fila.
               <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
                 <div className="flex min-w-0 items-center gap-2 sm:contents">
-                  <span className="inline-block size-3 shrink-0 rounded" style={{ background: c.color }} />
-                  <span className="min-w-0 flex-1 truncate text-sm font-semibold">{c.name}</span>
+                  {/* Un grupo lleva icono de carpeta en vez del punto de
+                      color: es un contenedor, no algo que se apunte. */}
+                  {esGrupo(c) ? (
+                    <FolderTree className="size-3.5 shrink-0" style={{ color: c.color }} />
+                  ) : (
+                    <span className="inline-block size-3 shrink-0 rounded" style={{ background: c.color }} />
+                  )}
+                  {/* Con el buscador puesto puede salir una categoría sin su
+                      grupo al lado, así que la ruta completa va en el tooltip
+                      (solo si tiene grupo: repetir el nombre no aporta). */}
+                  <Tooltip texto={c.parentName ? etiquetaCategoria(c) : undefined}>
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold">{c.name}</span>
+                  </Tooltip>
+                  {esGrupo(c) && (
+                    <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.3px] text-muted-foreground">
+                      {c.hijas === 0
+                        ? 'Grupo vacío'
+                        : `Grupo · ${c.hijas}`}
+                    </span>
+                  )}
                   {c.budget !== null && (
                     <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[12px] font-semibold tabular-nums text-foreground">
                       {eur(c.budget)}/mes
@@ -221,7 +280,9 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
                 </div>
                 <div className="flex items-center gap-2 max-sm:ml-5 sm:contents">
                   <span className="min-w-0 flex-1 text-[12px] text-muted-foreground sm:flex-none sm:shrink-0">
-                    {usosTexto(c)}
+                    {/* Un grupo no tiene movimientos propios: contar "sin uso"
+                        ahí sería decir algo que no significa nada. */}
+                    {esGrupo(c) ? '' : usosTexto(c)}
                   </span>
                   <MenuAcciones
                     className="shrink-0"
@@ -231,6 +292,10 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
                         id: 'fusionar',
                         label: 'Fusionar con otra categoría',
                         icon: <Merge className="size-3.5" />,
+                        // Un grupo no tiene movimientos propios que llevarse:
+                        // lo que se fusiona son sus subcategorías.
+                        disabled: esGrupo(c),
+                        motivo: 'Es un grupo: fusiona las categorías que tiene dentro.',
                         onClick: () => {
                           setEditando(null)
                           setDestino('')
@@ -238,12 +303,30 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
                         },
                       },
                       {
+                        // Sacar de un grupo en un clic. Meter en uno se hace
+                        // desde el formulario, donde hay que ELEGIR cuál; esto
+                        // no tiene nada que elegir, así que no merece un modal.
+                        id: 'desagrupar',
+                        label: 'Sacar del grupo',
+                        icon: <FolderMinus className="size-3.5" />,
+                        disabled: c.parentUuid === null,
+                        motivo: esGrupo(c) ? 'Es un grupo.' : 'No está en ningún grupo.',
+                        onClick: () =>
+                          run(updateCategoria(c.uuid, { parentUuid: '' }), `${c.name} fuera del grupo`),
+                      },
+                      {
                         id: 'editar',
                         label: 'Editar',
                         icon: <Pencil className="size-3.5" />,
                         onClick: () => {
                           setFusionando(null)
-                          setBorrador({ name: c.name, type: c.type, budget: c.budget })
+                          setBorrador({
+                            name: c.name,
+                            type: c.type,
+                            isGroup: c.isGroup,
+                            parentUuid: c.parentUuid ?? '',
+                            budget: c.budget,
+                          })
                           setEditando(c)
                           setAbierto(true)
                         },
@@ -256,18 +339,27 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
                         label: 'Eliminar',
                         icon: <Trash2 className="size-3.5" />,
                         destructiva: true,
-                        disabled: enUso(c),
-                        motivo: `La usan ${usosTexto(c, ' y ')}. Fusiónala en otra.`,
+                        // Un grupo VACÍO sí se borra: no arrastra nada.
+                        disabled: enUso(c) || c.hijas > 0,
+                        motivo: c.hijas > 0
+                          ? `Tiene ${c.hijas} ${c.hijas === 1 ? 'categoría' : 'categorías'} dentro. Sácalas del grupo o bórralas primero.`
+                          : `La usan ${usosTexto(c, ' y ')}. Fusiónala en otra.`,
                         onClick: async () => {
-                          // Solo llega aquí una categoría sin uso: no arrastra nada.
+                          // Solo llega aquí lo que no arrastra nada: una
+                          // categoría sin uso, o un grupo vacío.
                           if (
                             await confirmar({
                               clave: 'borrar-categoria',
-                              titulo: 'Eliminar la categoría',
-                              texto: `Se eliminará «${c.name}». No la usa ningún movimiento ni recurrente.`,
+                              titulo: esGrupo(c) ? 'Eliminar el grupo' : 'Eliminar la categoría',
+                              texto: esGrupo(c)
+                                ? `Se eliminará el grupo «${c.name}». No tiene ninguna categoría dentro.`
+                                : `Se eliminará «${c.name}». No la usa ningún movimiento ni recurrente.`,
                             })
                           ) {
-                            run(deleteCategoria(c.uuid), `Categoría ${c.name} eliminada`)
+                            run(
+                              deleteCategoria(c.uuid),
+                              esGrupo(c) ? `Grupo ${c.name} eliminado` : `Categoría ${c.name} eliminada`,
+                            )
                           }
                         },
                       },
@@ -283,8 +375,11 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
     )
   }
 
-  const abrirAlta = () => {
-    setBorrador(CAT_VACIA)
+  /** Alta de una categoría, o de un GRUPO si se pide (`isGroup`). Nace del
+   *  tipo de la pestaña activa: si estás en Ingreso, lo que creas es de
+   *  ingreso (el campo sigue ahí para cambiarlo). */
+  const abrirAlta = (isGroup = false) => {
+    setBorrador({ ...CAT_VACIA, type: tipoActivo, isGroup })
     setEditando(null)
     setAbierto(true)
   }
@@ -296,15 +391,24 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
 
   const guardar = () => {
     if (!borrador.name.trim()) return
+    // Grupo y categoría comparten formulario, así que también los avisos:
+    // decir "categoría creada" al crear un grupo es contarle otra cosa.
+    const grupo = editando ? esGrupo(editando) : borrador.isGroup
     if (editando) {
       run(
-        updateCategoria(editando.uuid, { name: borrador.name, budget: borrador.budget }),
-        'Categoría actualizada',
+        updateCategoria(editando.uuid, {
+          name: borrador.name,
+          // Un grupo no puede meterse dentro de otro, así que ni se manda: el
+          // formulario tampoco ofrece el campo.
+          ...(esGrupo(editando) ? {} : { parentUuid: borrador.parentUuid }),
+          budget: borrador.budget,
+        }),
+        grupo ? 'Grupo actualizado' : 'Categoría actualizada',
         cerrar,
       )
       return
     }
-    run(createCategoria(borrador), 'Categoría creada', cerrar)
+    run(createCategoria(borrador), grupo ? 'Grupo creado' : 'Categoría creada', cerrar)
   }
 
   return (
@@ -312,38 +416,81 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
       <Cabecera
         icono={<Tag className="size-4 text-primary" />}
         titulo="Categorías"
-        resumen={`${categorias.length} en total · ${conTope} con tope`}
+        resumen={[
+          `${categorias.length - grupos.length} en total`,
+          grupos.length > 0 ? `${grupos.length} ${grupos.length === 1 ? 'grupo' : 'grupos'}` : '',
+          `${conTope} con tope`,
+        ]
+          .filter(Boolean)
+          .join(' · ')}
         busqueda={busqueda}
         onBuscar={setBusqueda}>
-        <Filtros valor={filtro} onCambio={setFiltro} opciones={FILTROS_CAT} etiqueta="Filtrar categorías" />
+        {/* El tope solo existe en las de gasto: en Ingreso el filtro no se
+            pinta, en vez de pintarse sin efecto. */}
+        {tipoActivo === 'GASTO' && (
+          <Filtros valor={filtro} onCambio={setFiltro} opciones={FILTROS_TOPE} etiqueta="Filtrar categorías de gasto" />
+        )}
+        {/* Dos altas y no un desplegable con el tipo dentro: crear un grupo y
+            crear una categoría son dos gestos distintos, y el grupo es lo que
+            se crea PRIMERO cuando se va a ordenar la lista. */}
+        <button
+          type="button"
+          className={cn(btnOutline, 'px-2.5 py-1 text-[12.5px] max-sm:py-2')}
+          onClick={() => abrirAlta(true)}>
+          <FolderTree className="size-3.5" /> Nuevo grupo
+        </button>
         <button
           type="button"
           className={cn(btnPrimary, 'px-2.5 py-1 text-[12.5px] max-sm:py-2')}
-          onClick={abrirAlta}>
+          onClick={() => abrirAlta()}>
           <Plus className="size-3.5" /> Nueva
         </button>
       </Cabecera>
 
-      <div className="px-5 py-3">
-        {/* Con el filtro de tope solo se pinta el grupo de gasto: una categoría
-            de ingreso no puede tener tope, y salía un "ninguna" de relleno. */}
-        {(filtro === 'INGRESO'
-          ? (['INGRESO'] as const)
-          : filtro === 'GASTO' || filtro === 'tope'
-            ? (['GASTO'] as const)
-            : (['GASTO', 'INGRESO'] as const)
-        ).map(listar)}
+      <div className="px-5 pb-3 pt-4">
+        {/* Misma píldora que las secciones de Finanzas y el Panel de control
+            (clases de `sub-tabs`), pero con estado local: aquí no hay ruta que
+            navegar. Los grupos no cuentan en la cifra: son contenedores. */}
+        <div className={cn(barraTabs, 'mb-3')} role="tablist" aria-label="Tipo de categoría">
+          {TABS_CAT.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={tipoActivo === t.id}
+              className={cn(claseTab(tipoActivo === t.id), 'flex-1 sm:flex-none')}
+              onClick={() => setTipoActivo(t.id)}>
+              {t.label}
+              <span
+                className={cn(
+                  'ml-1.5 rounded-full px-1.5 py-0.5 text-[11px] tabular-nums',
+                  tipoActivo === t.id ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
+                )}>
+                {cuentaDe(t.id)}
+              </span>
+            </button>
+          ))}
+        </div>
+        {listar(tipoActivo)}
       </div>
 
       {/* Alta y edición, en el mismo modal: los campos son los mismos y el
           tipo, que no se puede cambiar después, solo se ofrece al crear. */}
       {abierto && (
         <Modal
-          title={editando ? `Editar «${editando.name}»` : 'Nueva categoría'}
+          title={
+            editando
+              ? `Editar «${editando.name}»`
+              : borrador.isGroup
+                ? 'Nuevo grupo'
+                : 'Nueva categoría'
+          }
           description={
             editando
               ? 'El tipo no se cambia: una categoría de gasto y una de ingreso son listas distintas.'
-              : 'El color lo elige la aplicación, siempre distinto de los que ya hay.'
+              : borrador.isGroup
+                ? 'Un grupo agrupa categorías y no se apunta nunca: se crea vacío y luego le asignas las que quieras.'
+                : 'El color lo elige la aplicación, siempre distinto de los que ya hay.'
           }
           onClose={cerrar}
           footer={
@@ -367,15 +514,47 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
                   className="w-32"
                   ariaLabel="Tipo de la categoría"
                   value={borrador.type}
-                  onChange={(v) => setBorrador((b) => ({ ...b, type: v as TipoMovimiento }))}
+                  onChange={(v) =>
+                    // Al cambiar de tipo, el grupo elegido ya no vale: los dos
+                    // niveles tienen que ser del mismo tipo.
+                    setBorrador((b) => ({ ...b, type: v as TipoMovimiento, parentUuid: '' }))
+                  }
                   options={TIPOS}
                 />
               </Field>
             )}
+            {/* Toda categoría ofrece su grupo: es donde se elige y donde se
+                cambia. El campo NO se esconde cuando aún no hay ningún grupo
+                —sale apagado con su aviso—, porque escondiéndolo la opción no
+                se descubre: al editar parecía que agrupar no era posible.
+                Solo desaparece si lo que se edita ES un grupo, que no puede
+                entrar en otro. */}
+            {!borrador.isGroup && !(editando && esGrupo(editando)) && (
+              <div className="flex flex-col gap-1">
+                <Field label="Grupo">
+                  <SelectField
+                    ariaLabel="Grupo de la categoría"
+                    disabled={gruposPosibles(borrador).length === 0}
+                    value={borrador.parentUuid}
+                    onChange={(v) => setBorrador((b) => ({ ...b, parentUuid: v }))}
+                    options={[
+                      { value: '', label: 'Sin grupo' },
+                      ...gruposPosibles(borrador).map((c) => ({ value: c.uuid, label: c.name })),
+                    ]}
+                  />
+                </Field>
+                {gruposPosibles(borrador).length === 0 && (
+                  <p className="text-[12.5px] text-muted-foreground">
+                    Todavía no hay ningún grupo de {borrador.type === 'GASTO' ? 'gasto' : 'ingreso'}:
+                    créalo con «Nuevo grupo» y vuelve aquí para asignarla.
+                  </p>
+                )}
+              </div>
+            )}
             <Field label="Nombre">
               <TextField
                 autoFocus
-                ariaLabel="Nombre de la categoría"
+                ariaLabel={borrador.isGroup ? 'Nombre del grupo' : 'Nombre de la categoría'}
                 placeholder="Nombre"
                 value={borrador.name}
                 onChange={(v) => setBorrador((b) => ({ ...b, name: v }))}
@@ -383,16 +562,26 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
               />
             </Field>
             {borrador.type === 'GASTO' && (
-              <Field label="Tope al mes">
-                <NumberField
-                  className="w-32"
-                  step={10}
-                  placeholder="Sin tope"
-                  ariaLabel="Tope mensual de la categoría"
-                  value={borrador.budget}
-                  onChange={(v) => setBorrador((b) => ({ ...b, budget: v }))}
-                />
-              </Field>
+              <div className="flex flex-col gap-1">
+                <Field label="Tope al mes">
+                  <NumberField
+                    className="w-32"
+                    step={10}
+                    placeholder="Sin tope"
+                    ariaLabel="Tope mensual"
+                    value={borrador.budget}
+                    onChange={(v) => setBorrador((b) => ({ ...b, budget: v }))}
+                  />
+                </Field>
+                {/* El tope de un grupo cuenta la suma de sus categorías, y eso
+                    hay que decirlo donde se pone. Fuera del <label> del campo
+                    para no alargar su nombre accesible. */}
+                {(borrador.isGroup || (editando && esGrupo(editando))) && (
+                  <p className="text-[12.5px] text-muted-foreground">
+                    Cuenta la suma de las categorías del grupo.
+                  </p>
+                )}
+              </div>
             )}
           </div>
         </Modal>
@@ -503,12 +692,9 @@ function FormRecurrente({ valor, onChange, categorias, onGuardar }: {
   /** Se dispara con Enter en el concepto. */
   onGuardar: () => void
 }) {
-  const opcionesCat = [
-    { value: '', label: 'Sin categoría' },
-    ...categorias
-      .filter((c) => c.type === valor.type)
-      .map((c) => ({ value: c.uuid, label: c.name })),
-  ]
+  // Sin los grupos y con la etiqueta completa (ver `lib/categorias.ts`): un
+  // recurrente apunta un movimiento, así que necesita una hoja.
+  const opcionesCat = arbolDeCategoria(categorias, valor.type)
 
   // Periodicidad: si el intervalo es una de las comunes, el select la muestra;
   // si no, se editan número + unidad. Que el panel esté abierto es estado
@@ -606,11 +792,11 @@ function FormRecurrente({ valor, onChange, categorias, onGuardar }: {
         </div>
       )}
       <Field label="Categoría">
-        <SelectField
+        <TreeSelectField
           ariaLabel="Categoría del recurrente"
           value={valor.cat}
           onChange={(v) => onChange({ ...valor, cat: v })}
-          options={opcionesCat}
+          opciones={opcionesCat}
         />
       </Field>
     </div>
@@ -758,11 +944,12 @@ function PanelRecurrentes({ filas, categorias, hoy }: {
                   !r.active && 'opacity-55',
                 )}>
                 <div className="flex min-w-0 items-center gap-2 sm:contents">
-                  <span
-                    className="inline-block size-3 shrink-0 rounded"
-                    style={{ background: cat?.color ?? SIN_CATEGORIA }}
-                    title={cat?.name ?? 'Sin categoría'}
-                  />
+                  <Tooltip texto={cat ? etiquetaCategoria(cat) : 'Sin categoría'}>
+                    <span
+                      className="inline-block size-3 shrink-0 rounded"
+                      style={{ background: cat?.color ?? SIN_CATEGORIA }}
+                    />
+                  </Tooltip>
                   <span className="min-w-0 flex-1 truncate text-sm font-semibold">{r.concept}</span>
                   <span
                     className={cn(
@@ -782,17 +969,18 @@ function PanelRecurrentes({ filas, categorias, hoy }: {
                   <span className="flex shrink-0 items-center gap-0.5 sm:order-3">
                     {/* Lo de menos uso (apuntar ya, duplicar, ver lo apuntado)
                         se despliega en línea: en la fila serían seis iconos. */}
+                    <Tooltip texto="Apuntar ahora, duplicar y ver lo apuntado">
                     <button
                       type="button"
                       className={btnIcon}
                       aria-label={`Más de ${r.concept}`}
-                      title="Apuntar ahora, duplicar y ver lo apuntado"
                       aria-expanded={detalle === r.uuid}
                       onClick={() => abrirDetalle(r)}>
                       <ChevronDown
                         className={cn('size-3.5 transition-transform', detalle === r.uuid && 'rotate-180')}
                       />
                     </button>
+                    </Tooltip>
                     {/* El chevron se queda FUERA del menú: no es una acción,
                         es un despliegue — y meter un "ver más" dentro de otro
                         "ver más" son dos toques para lo mismo. */}
@@ -854,25 +1042,27 @@ function PanelRecurrentes({ filas, categorias, hoy }: {
                   {/* En móvil, un botón por fila: "Apuntar el cargo del 03/09"
                       no cabe en media fila y se partía en dos líneas. */}
                   <div className="flex flex-wrap items-center gap-2 max-sm:flex-col max-sm:items-stretch">
+                    <Tooltip texto="Hace lo mismo que hará el cron, pero ya" envuelto={pending}>
                     <button
                       type="button"
                       className={cn(btnOutline, 'px-2.5 py-1 text-[12.5px] max-sm:py-2')}
                       disabled={pending}
-                      title="Hace lo mismo que hará el cron, pero ya"
                       onClick={() =>
                         run(apuntarRecurrenteAhora(r.uuid), 'Cargo apuntado', () => setDetalle(null))
                       }>
                       <PlayCircle className="size-3.5" />
                       Apuntar el cargo del {fmtDiaAnio(r.nextDate, hoy)}
                     </button>
-                    <button
-                      type="button"
-                      className={cn(btnOutline, 'px-2.5 py-1 text-[12.5px] max-sm:py-2')}
-                      title="Dar de alta otro igual, cambiando lo que haga falta"
-                      onClick={() => duplicar(r)}>
-                      <Copy className="size-3.5" />
-                      Duplicar
-                    </button>
+                    </Tooltip>
+                    <Tooltip texto="Dar de alta otro igual, cambiando lo que haga falta">
+                      <button
+                        type="button"
+                        className={cn(btnOutline, 'px-2.5 py-1 text-[12.5px] max-sm:py-2')}
+                        onClick={() => duplicar(r)}>
+                        <Copy className="size-3.5" />
+                        Duplicar
+                      </button>
+                    </Tooltip>
                   </div>
 
                   {/* Lo que ha apuntado: la lista se pide al abrir el detalle. */}
@@ -1066,14 +1256,15 @@ function PanelAnios({ years }: { years: YearSummary[] }) {
                   {/* Descarga del Excel del año (route handler con guarda propia).
                       `download`: es una descarga, no una navegación — así la barra
                       de carga global no se dispara con este enlace. */}
-                  <a
-                    className={btnIcon}
-                    href={`/app/finance/exportar?year=${y.year}`}
-                    download
-                    title="Descargar Excel"
-                    aria-label={`Descargar Excel de ${y.year}`}>
-                    <FileDown className="size-3.5" />
-                  </a>
+                  <Tooltip texto="Descargar Excel">
+                    <a
+                      className={btnIcon}
+                      href={`/app/finance/exportar?year=${y.year}`}
+                      download
+                      aria-label={`Descargar Excel de ${y.year}`}>
+                      <FileDown className="size-3.5" />
+                    </a>
+                  </Tooltip>
                   <button
                     type="button"
                     className={btnIcon}

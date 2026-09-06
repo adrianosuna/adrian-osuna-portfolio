@@ -253,6 +253,67 @@ describe('resolverCategoria (por nombre, para los Atajos)', () => {
     const res = await resolverCategoria('Nómina', 'GASTO')
     expect('error' in res && res.error).toContain('Nómina')
   })
+
+  // Con grupos, el nombre ya NO es único dentro del tipo: "Varios" puede
+  // colgar de Coche y de Casa. Lo que el Atajo dicta tiene que poder
+  // desambiguarse, y un grupo nunca puede recibir el movimiento.
+  describe('con grupos', () => {
+    const ARBOL = [
+      { uuid: 'coche', name: 'Coche', isGroup: true, parentUuid: null },
+      { uuid: 'coche-varios', name: 'Varios', isGroup: false, parentUuid: 'coche' },
+      { uuid: 'coche-gasolina', name: 'Gasolina', isGroup: false, parentUuid: 'coche' },
+      { uuid: 'casa', name: 'Casa', isGroup: true, parentUuid: null },
+      { uuid: 'casa-varios', name: 'Varios', isGroup: false, parentUuid: 'casa' },
+    ]
+
+    it('acepta la ruta "Coche > Varios" y sus variantes de separador', async () => {
+      const { resolverCategoria } = await import('@/app/api/v1/categorias/resolver')
+      prismaMock.expenseCategory.findMany.mockResolvedValue(ARBOL)
+      for (const dictado of ['Coche > Varios', 'coche>varios', 'Coche / Varios', 'coche › varios']) {
+        expect(await resolverCategoria(dictado, 'GASTO')).toEqual({
+          uuid: 'coche-varios', nombre: 'Varios',
+        })
+      }
+    })
+
+    it('un nombre repetido en dos grupos avisa y dice las rutas', async () => {
+      const { resolverCategoria } = await import('@/app/api/v1/categorias/resolver')
+      prismaMock.expenseCategory.findMany.mockResolvedValue(ARBOL)
+      const res = await resolverCategoria('Varios', 'GASTO')
+      expect('error' in res && res.error).toContain('Coche > Varios')
+      expect('error' in res && res.error).toContain('Casa > Varios')
+    })
+
+    it('un nombre único aunque esté en un grupo se resuelve solo', async () => {
+      const { resolverCategoria } = await import('@/app/api/v1/categorias/resolver')
+      prismaMock.expenseCategory.findMany.mockResolvedValue(ARBOL)
+      expect(await resolverCategoria('gasolina', 'GASTO')).toEqual({
+        uuid: 'coche-gasolina', nombre: 'Gasolina',
+      })
+    })
+
+    it('un GRUPO no se acepta, ni por nombre ni por uuid', async () => {
+      const { resolverCategoria } = await import('@/app/api/v1/categorias/resolver')
+      prismaMock.expenseCategory.findMany.mockResolvedValue(ARBOL)
+      const porNombre = await resolverCategoria('Coche', 'GASTO')
+      expect('error' in porNombre && porNombre.error).toContain('No hay ninguna categoría')
+      // Por uuid el mensaje es más útil: la categoría existe, el problema es
+      // que es un grupo.
+      const porUuid = await resolverCategoria('coche', 'GASTO')
+      expect('error' in porUuid && porUuid.error).toContain('es un grupo')
+    })
+
+    it('un grupo VACÍO tampoco: la marca no depende de tener categorías dentro', async () => {
+      // Con la definición vieja ("es grupo el que tiene hijas") este grupo
+      // habría pasado por categoría y la API habría dejado apuntarle gastos.
+      const { resolverCategoria } = await import('@/app/api/v1/categorias/resolver')
+      prismaMock.expenseCategory.findMany.mockResolvedValue([
+        { uuid: 'vacio', name: 'Sin nada', isGroup: true, parentUuid: null },
+      ])
+      const res = await resolverCategoria('Sin nada', 'GASTO')
+      expect('error' in res && res.error).toContain('No hay ninguna categoría')
+    })
+  })
 })
 
 describe('altaNota (texto plano de un Atajo)', () => {

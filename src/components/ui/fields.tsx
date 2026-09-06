@@ -6,9 +6,12 @@
 // cualquier módulo; estilados con los tokens del tema activo.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Calendar, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Search, X } from 'lucide-react'
+import {
+  Calendar, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, FolderTree, Search, X,
+} from 'lucide-react'
 import { cn, sinAcentos } from '@/lib/utils'
 import { MESES } from '@/lib/fechas'
+import { Tooltip } from '@/components/ui/tooltip'
 
 // Estilo base compartido (text-base en móvil: <16px provoca zoom en iOS Safari).
 const fieldClass =
@@ -128,9 +131,14 @@ export function PopoverPanel({
  *
  * Espera UN control dentro: un `<label>` con dos se asocia solo al primero.
  */
-export function Field({ label, children }: { label: string; children: React.ReactNode }) {
+export function Field({ label, children, className }: {
+  label: string
+  children: React.ReactNode
+  /** Para colocarlo en una rejilla (col-span, orden); el interior no cambia. */
+  className?: string
+}) {
   return (
-    <label className="flex flex-col gap-1">
+    <label className={cn('flex flex-col gap-1', className)}>
       <span className="text-[13px] text-muted-foreground">{label}</span>
       {children}
     </label>
@@ -297,7 +305,7 @@ export interface SelectOption {
 const UMBRAL_BUSCADOR = 8
 
 export function SelectField({
-  value, onChange, options, placeholder = '—', className, ariaLabel,
+  value, onChange, options, placeholder = '—', className, ariaLabel, disabled,
 }: {
   value: string
   onChange: (v: string) => void
@@ -305,6 +313,9 @@ export function SelectField({
   placeholder?: string
   className?: string
   ariaLabel?: string
+  /** Apagado pero VISIBLE: para cuando todavía no hay nada que elegir y
+   *  esconder el campo dejaría la opción sin descubrir. */
+  disabled?: boolean
 }) {
   const { open, setOpen, ref, popRef } = usePopover()
   const [busqueda, setBusqueda] = useState('')
@@ -332,10 +343,15 @@ export function SelectField({
     <div className={cn('relative', className)} ref={ref}>
       <button
         type="button"
-        className={cn(fieldClass, 'flex items-center justify-between gap-2 text-left')}
+        className={cn(
+          fieldClass,
+          'flex items-center justify-between gap-2 text-left',
+          disabled && 'cursor-not-allowed opacity-60',
+        )}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={ariaLabel}
+        disabled={disabled}
         onClick={() => setOpen((o) => !o)}>
         <span className={cn('truncate', !actual && 'text-muted-foreground')}>
           {actual?.label ?? placeholder}
@@ -364,7 +380,7 @@ export function SelectField({
               />
             </div>
           )}
-          <div className="overflow-y-auto p-1">
+          <div className="overflow-y-auto overflow-x-hidden p-1">
             {visibles.length === 0 ? (
               <p className="px-2.5 py-2 text-sm text-muted-foreground">Sin resultados</p>
             ) : (
@@ -386,6 +402,180 @@ export function SelectField({
                   {o.value === value && <Check className="size-3.5 shrink-0" />}
                 </button>
               ))
+            )}
+          </div>
+        </PopoverPanel>
+      )}
+    </div>
+  )
+}
+
+// ─────────── TreeSelectField: desplegable en ÁRBOL (grupos con hijas) ───────────
+//
+// El select de categoría: los grupos como cabeceras NO seleccionables y sus
+// categorías sangradas debajo; las sueltas, al primer nivel. Comparte con
+// `SelectField` el disparador, el popover y el buscador — es el mismo control
+// con otra forma de lista, no otro control.
+//
+// ⚠ El buscador filtra por la etiqueta de la hoja Y por el nombre de su
+// grupo: escribir "coche" saca Taller y Gasolina bajo su cabecera. Era la
+// razón por la que la lista era plana ("Coche › Taller"); con esto el árbol la
+// conserva y además se lee como lo que es.
+
+export interface TreeOption {
+  value: string
+  label: string
+  /** Con hijas es un GRUPO: cabecera, no se elige. */
+  hijos?: TreeOption[]
+}
+
+/** Aplana las hojas con la etiqueta completa ("Coche › Taller") para el
+ *  disparador y para saber qué hay seleccionado. */
+const hojasDe = (opciones: TreeOption[]): Array<{ value: string; label: string; grupo?: string }> =>
+  opciones.flatMap((o) =>
+    o.hijos
+      ? o.hijos.map((h) => ({ value: h.value, label: h.label, grupo: o.label }))
+      : [{ value: o.value, label: o.label }],
+  )
+
+export function TreeSelectField({
+  value, onChange, opciones, placeholder = '—', className, ariaLabel, disabled,
+}: {
+  value: string
+  onChange: (v: string) => void
+  opciones: TreeOption[]
+  placeholder?: string
+  className?: string
+  ariaLabel?: string
+  disabled?: boolean
+}) {
+  const { open, setOpen, ref, popRef } = usePopover()
+  const [busqueda, setBusqueda] = useState('')
+  const buscadorRef = useRef<HTMLInputElement>(null)
+  const hojas = hojasDe(opciones)
+  const actual = hojas.find((h) => h.value === value)
+
+  const conBuscador = hojas.length > UMBRAL_BUSCADOR
+  const q = sinAcentos(busqueda.trim())
+  // Un grupo entero pasa si su nombre coincide; si no, solo las hijas que
+  // coincidan (y el grupo se queda como cabecera de las que quedan).
+  const visibles: TreeOption[] = !q
+    ? opciones
+    : opciones.flatMap((o) => {
+        if (!o.hijos) return sinAcentos(o.label).includes(q) ? [o] : []
+        if (sinAcentos(o.label).includes(q)) return [o]
+        const hijas = o.hijos.filter((h) => sinAcentos(h.label).includes(q))
+        return hijas.length ? [{ ...o, hijos: hijas }] : []
+      })
+
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (prevOpen !== open) {
+    setPrevOpen(open)
+    setBusqueda('')
+  }
+  useEffect(() => {
+    if (open && conBuscador) requestAnimationFrame(() => buscadorRef.current?.focus())
+  }, [open, conBuscador])
+
+  const elegir = (v: string) => {
+    onChange(v)
+    setOpen(false)
+  }
+
+  // ⚠ La hoja NO lleva la sangría: es `w-full`, y un margen encima del ancho
+  // completo la sacaba del panel y le ponía scroll horizontal. La sangría (y
+  // la guía) va en el contenedor de las hijas de cada grupo.
+  const hoja = (o: TreeOption) => (
+    <button
+      key={o.value}
+      type="button"
+      role="option"
+      aria-selected={o.value === value}
+      className={cn(
+        'flex w-full items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-muted',
+        o.value === value ? 'font-semibold text-primary' : 'text-foreground',
+      )}
+      onClick={() => elegir(o.value)}>
+      <span className="truncate">{o.label}</span>
+      {o.value === value && <Check className="size-3.5 shrink-0" />}
+    </button>
+  )
+
+  // La ruta completa en un tooltip SOLO cuando la elegida está en un grupo:
+  // en el hueco de la rejilla, "Coche › Comer fuera" se recorta y ahí es donde
+  // se pierde de qué grupo era. Sin grupo no hay nada que añadir.
+  const rutaCompleta = actual?.grupo ? `${actual.grupo} › ${actual.label}` : undefined
+
+  return (
+    <div className={cn('relative', className)} ref={ref}>
+      <Tooltip texto={rutaCompleta}>
+        <button
+          type="button"
+          className={cn(
+            fieldClass,
+            'flex items-center justify-between gap-2 text-left',
+            disabled && 'cursor-not-allowed opacity-60',
+          )}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-label={ariaLabel}
+          disabled={disabled}
+          onClick={() => setOpen((o) => !o)}>
+          {/* En el disparador, el grupo delante y apagado: "Coche › Taller" se
+              lee de un vistazo y la hoja sigue siendo lo que destaca. */}
+          <span className={cn('truncate', !actual && 'text-muted-foreground')}>
+            {actual?.grupo && <span className="text-muted-foreground">{actual.grupo} › </span>}
+            {actual?.label ?? placeholder}
+          </span>
+          <ChevronDown className={cn('size-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} />
+        </button>
+      </Tooltip>
+
+      {open && (
+        <PopoverPanel
+          anclaRef={ref}
+          popRef={popRef}
+          mismaAnchura
+          rol="listbox"
+          className="flex max-h-72 flex-col overflow-hidden rounded-md border border-border bg-popover shadow-lg">
+          {conBuscador && (
+            <div className="flex items-center gap-2 border-b border-border px-2.5 py-1.5">
+              <Search className="size-4 shrink-0 text-muted-foreground" />
+              <input
+                ref={buscadorRef}
+                type="text"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar…"
+                aria-label="Buscar en la lista"
+                className="w-full min-w-0 bg-transparent text-base outline-none placeholder:text-muted-foreground sm:text-sm"
+              />
+            </div>
+          )}
+          <div className="overflow-y-auto overflow-x-hidden p-1">
+            {visibles.length === 0 ? (
+              <p className="px-2.5 py-2 text-sm text-muted-foreground">Sin resultados</p>
+            ) : (
+              visibles.map((o) =>
+                o.hijos ? (
+                  // Cabecera de grupo: NO es opción (los grupos no se apuntan).
+                  // `role="group"` con su etiqueta, que es lo que un listbox
+                  // admite para agrupar opciones.
+                  <div key={o.value} role="group" aria-label={o.label} className="mt-1 first:mt-0">
+                    <div className="flex items-center gap-1.5 px-2.5 pb-0.5 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      <FolderTree className="size-3" aria-hidden />
+                      {o.label}
+                    </div>
+                    {/* Sangría con guía: se ve de qué grupo cuelgan sin
+                        repetir su nombre. Aquí y no en cada hoja (ver arriba). */}
+                    <div className="ml-3 border-l border-border pl-1.5">
+                      {o.hijos.map((h) => hoja(h))}
+                    </div>
+                  </div>
+                ) : (
+                  hoja(o)
+                ),
+              )
             )}
           </div>
         </PopoverPanel>

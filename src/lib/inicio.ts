@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { mesesSinRellenar } from '@/lib/finance'
 import { gastadoEnMesDe } from '@/lib/gastos'
 import { estadoDe, hoyMadrid } from '@/lib/mantenimiento'
+import { pendientes } from '@/lib/tareas'
 import { metricasPipeline } from '@/lib/pipeline'
 
 const num = (v: unknown) => (v === null || v === undefined ? 0 : Number(v))
@@ -66,7 +67,7 @@ export async function resumenInicio(hoyIso = hoyMadrid()): Promise<ResumenInicio
       where: { archived: false },
       select: { uuid: true, title: true, status: true, amount: true, createTs: true, closedAt: true, nextAction: true, nextActionDate: true },
     }),
-    prisma.maintenanceTask.findMany({ select: { title: true, nextDue: true } }),
+    prisma.maintenanceTask.findMany({ select: { title: true, nextDue: true, intervalMonths: true, lastDone: true } }),
     prisma.opportunityEvent.findMany({
       take: 5,
       orderBy: [{ createTs: 'desc' }, { id: 'desc' }],
@@ -129,7 +130,8 @@ interface DatosAvisos {
     nextAction: string | null
     nextActionDate: Date | null
   }>
-  tareas: Array<{ title: string; nextDue: Date }>
+  // `intervalMonths` y `lastDone` para poder descartar las puntuales cumplidas.
+  tareas: Array<{ title: string; nextDue: Date; intervalMonths: number | null; lastDone: Date | null }>
   /** Meses del año en curso (null si ese año no existe). */
   meses: Array<{
     month: number; income: unknown; savingGeneral: unknown; savingTravel: unknown
@@ -166,8 +168,13 @@ function construirAvisos({
     })
   }
 
-  const vencidas = tareas.filter((t) => estadoDe(t.nextDue.toISOString().slice(0, 10), hoyIso) === 'vencida')
-  const proximas = tareas.filter((t) => estadoDe(t.nextDue.toISOString().slice(0, 10), hoyIso) === 'proxima')
+  // `pendientes` descarta las puntuales ya hechas: su fecha se queda en el
+  // pasado a propósito y sin este filtro contaban como vencidas para siempre.
+  const abiertas = pendientes(
+    tareas.map((t) => ({ ...t, lastDone: t.lastDone?.toISOString().slice(0, 10) ?? null })),
+  )
+  const vencidas = abiertas.filter((t) => estadoDe(t.nextDue.toISOString().slice(0, 10), hoyIso) === 'vencida')
+  const proximas = abiertas.filter((t) => estadoDe(t.nextDue.toISOString().slice(0, 10), hoyIso) === 'proxima')
   if (vencidas.length) {
     avisos.push({
       clave: 'mantenimiento-vencido',
@@ -222,7 +229,7 @@ export async function avisosPendientes(hoyIso = hoyMadrid()): Promise<Aviso[]> {
       where: { archived: false },
       select: { title: true, status: true, nextAction: true, nextActionDate: true },
     }),
-    prisma.maintenanceTask.findMany({ select: { title: true, nextDue: true } }),
+    prisma.maintenanceTask.findMany({ select: { title: true, nextDue: true, intervalMonths: true, lastDone: true } }),
     prisma.savingYear.findUnique({
       where: { year },
       select: {

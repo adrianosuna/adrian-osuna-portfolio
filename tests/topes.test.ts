@@ -4,9 +4,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { nivelTope, resumenTopes, topesDelMes, UMBRAL_LIMITE } from '@/lib/topes'
 
-const cat = (uuid: string, budget: number | null, type: 'GASTO' | 'INGRESO' = 'GASTO') => ({
+const cat = (
+  uuid: string,
+  budget: number | null,
+  type: 'GASTO' | 'INGRESO' = 'GASTO',
+  parentUuid: string | null = null,
+) => ({
   uuid,
   name: uuid,
+  parentUuid,
   color: '#10b981',
   type,
   budget,
@@ -60,7 +66,10 @@ describe('topesDelMes', () => {
   it('saca los topes sin gasto a cero (saber que no lo has tocado también vale)', () => {
     const topes = topesDelMes([cat('c1', 300)], [])
     expect(topes).toEqual([
-      { uuid: 'c1', name: 'c1', color: '#10b981', budget: 300, gastado: 0, pct: 0 },
+      {
+        uuid: 'c1', name: 'c1', parentUuid: null, parentName: null,
+        color: '#10b981', budget: 300, gastado: 0, pct: 0,
+      },
     ])
   })
 
@@ -70,6 +79,41 @@ describe('topesDelMes', () => {
       [gasto(null, 500), { type: 'INGRESO', amount: 900, categoryUuid: 'c1' }],
     )
     expect(topes[0]).toMatchObject({ gastado: 0, pct: 0 })
+  })
+})
+
+// El tope de un grupo ("el coche, 200 al mes") tiene que contar lo de sus
+// subcategorías: si solo mirara su propia columna saldría siempre a cero,
+// porque los movimientos cuelgan de las hojas y nunca del grupo.
+describe('topesDelMes con grupos', () => {
+  it('suma el gasto de las subcategorías al tope del grupo', () => {
+    const topes = topesDelMes(
+      [cat('coche', 200), cat('taller', null, 'GASTO', 'coche'), cat('gasolina', null, 'GASTO', 'coche')],
+      [gasto('taller', 60), gasto('gasolina', 100)],
+    )
+    expect(topes).toHaveLength(1)
+    expect(topes[0]).toMatchObject({ uuid: 'coche', gastado: 160, pct: 80 })
+  })
+
+  it('el grupo y su hija pueden tener tope cada uno, y se calculan aparte', () => {
+    const topes = topesDelMes(
+      [cat('coche', 200), cat('gasolina', 120, 'GASTO', 'coche'), cat('taller', null, 'GASTO', 'coche')],
+      [gasto('gasolina', 150), gasto('taller', 20)],
+    )
+    const porUuid = Object.fromEntries(topes.map((t) => [t.uuid, t]))
+    // El grupo cuenta las dos hijas; la hija, solo lo suyo.
+    expect(porUuid.coche).toMatchObject({ gastado: 170, pct: 85 })
+    expect(porUuid.gasolina).toMatchObject({ gastado: 150, pct: 125, parentUuid: 'coche', parentName: 'coche' })
+  })
+
+  it('una categoría suelta no arrastra nada de otras', () => {
+    const topes = topesDelMes(
+      [cat('coche', 200), cat('casa', 400), cat('gasolina', null, 'GASTO', 'coche')],
+      [gasto('gasolina', 90), gasto('casa', 300)],
+    )
+    const porUuid = Object.fromEntries(topes.map((t) => [t.uuid, t]))
+    expect(porUuid.coche.gastado).toBe(90)
+    expect(porUuid.casa.gastado).toBe(300)
   })
 })
 
@@ -97,6 +141,33 @@ describe('resumenTopes', () => {
     expect(resumenTopes([])).toEqual({
       total: 0, gastado: 0, restante: 0, pasados: 0, alLimite: 0,
     })
+  })
+
+  // Lo que no puede pasar: que el tope del grupo y el de su hija se sumen como
+  // si fueran presupuestos independientes. El de la hija ya va DENTRO del
+  // grupo, así que el techo del conjunto son los 200 del coche, no 320.
+  it('no suma dos veces un tope anidado dentro del de su grupo', () => {
+    const topes = topesDelMes(
+      [cat('coche', 200), cat('gasolina', 120, 'GASTO', 'coche')],
+      [gasto('gasolina', 150)],
+    )
+    expect(resumenTopes(topes)).toEqual({
+      total: 200,
+      gastado: 150,
+      restante: 50,
+      // La gasolina está pasada (150 de 120) aunque el coche aún no: los
+      // contadores cuentan TODOS los topes, no solo los de cabecera.
+      pasados: 1,
+      alLimite: 0,
+    })
+  })
+
+  it('una hija con tope cuyo grupo NO lo tiene sí cuenta en el total', () => {
+    const topes = topesDelMes(
+      [cat('coche', null), cat('gasolina', 120, 'GASTO', 'coche')],
+      [gasto('gasolina', 60)],
+    )
+    expect(resumenTopes(topes)).toMatchObject({ total: 120, gastado: 60, restante: 60 })
   })
 })
 

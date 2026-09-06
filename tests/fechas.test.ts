@@ -2,7 +2,7 @@
 // nombres distintos y dos capitalizaciones). Las abreviaturas se DERIVAN de la
 // lista larga, así que no pueden desincronizarse.
 import { describe, expect, it } from 'vitest'
-import { DIAS, MESES, mesCorto, mesInicial, nombreMes } from '@/lib/fechas'
+import { DIAS, MESES, diaCorto, mesCorto, mesInicial, nombreMes } from '@/lib/fechas'
 
 describe('MESES y DIAS', () => {
   it('doce meses sin abreviar y con inicial mayúscula', () => {
@@ -41,10 +41,20 @@ describe('derivados', () => {
     expect(MESES.map((_, i) => mesInicial(i)).join('')).toBe('EFMAMJJASOND')
   })
 
+  it('diaCorto da tres letras, y son las que distinguen Martes de Miércoles', () => {
+    const cortos = DIAS.map((_, i) => diaCorto(i))
+    expect(cortos).toEqual(['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'])
+    // Con la INICIAL, Martes y Miércoles rotulaban igual dos columnas del
+    // calendario: por eso los días no tienen `diaInicial`.
+    expect(new Set(cortos).size).toBe(7)
+    expect(new Set(DIAS.map((d) => d[0])).size).toBeLessThan(7)
+  })
+
   it('fuera de rango no revienta: cadena vacía', () => {
     expect(nombreMes(0)).toBe('')
     expect(nombreMes(13)).toBe('')
     expect(mesCorto(12)).toBe('')
     expect(mesInicial(-1)).toBe('')
+    expect(diaCorto(7)).toBe('')
   })
 })

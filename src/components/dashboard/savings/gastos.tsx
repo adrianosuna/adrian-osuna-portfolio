@@ -17,10 +17,11 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { MenuAcciones } from '@/components/dashboard/menu-acciones'
 import { Modal } from '@/components/ui/modal'
-import { DateField, Field, NumberField, SelectField, TextField } from '@/components/ui/fields'
+import { DateField, Field, NumberField, SelectField, TextField, TreeSelectField } from '@/components/ui/fields'
 import type {
   AnioMovimientos, CategoriaRow, MesMovimientos, MovimientoRow, ParteCategoria, TipoMovimiento,
 } from '@/lib/gastos'
+import { arbolDeCategoria, etiquetaCategoria, type NodoCategoria } from '@/lib/categorias'
 import {
   createGasto, deleteGasto, dividirGasto, restaurarGasto, updateGasto,
 } from '@/app/app/finance/gastos-actions'
@@ -28,12 +29,13 @@ import { borrarConDeshacer } from '@/components/dashboard/deshacer'
 import { GraficaBarras } from '@/components/ui/charts/barras'
 import { coloresTema } from '@/components/ui/charts/comun'
 import { GraficaDonut } from '@/components/ui/charts/donut'
+import { Tooltip } from '@/components/ui/tooltip'
 import { MESES, mesCorto } from '@/lib/fechas'
 import { nivelTope, resumenTopes, type TopeRow } from '@/lib/topes'
 import { etiquetaPeriodo, resumenRecurrentes, type RecurrenteRow } from '@/lib/recurrentes'
 import { ejeEuros, ejeMeses } from './charts'
 import {
-  btnIcon, btnOutline, btnPrimary, cardClass, chipFiltro, eur, fmtDia, fmtDiaAnio, SIN_CATEGORIA, TIPOS,
+  btnIcon, btnOutline, btnPrimary, cardClass, chipFiltro, eur, eurEntero, fmtDia, fmtDiaAnio, SIN_CATEGORIA, TIPOS,
 } from './comun'
 import {
   CabeceraMovil,
@@ -128,7 +130,7 @@ function Comparativa({ actual, previo, gastoEsMalo }: {
     <span className={cn('inline-flex items-center gap-1', malo ? 'text-danger' : 'text-success')}>
       {sube ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
       {sube ? '+' : ''}
-      {delta}&nbsp;% frente a {eur(previo)}
+      {delta}&nbsp;% frente a {eurEntero(previo)}
     </span>
   )
 }
@@ -183,7 +185,9 @@ function Topes({ topes, mes }: { topes: TopeRow[]; mes: string }) {
           {topes.map((t) => (
             <BarraTope
               key={t.uuid}
-              nombre={t.name}
+              // Con el grupo delante: una barra "Gasolina" suelta al lado de
+              // otra "Coche" no dice que la primera va DENTRO de la segunda.
+              nombre={etiquetaCategoria({ name: t.name, parentName: t.parentName })}
               color={t.color}
               gastado={t.gastado}
               budget={t.budget}
@@ -294,11 +298,12 @@ function Recurrentes({ filas, mes, hoy, categorias }: {
             const pendiente = !cargado && r.nextDate <= hoy
             return (
               <div key={r.uuid} className="flex items-center gap-2 px-5 py-2.5 text-[13px] max-sm:flex-wrap">
-                <span
-                  className="inline-block size-2.5 shrink-0 rounded-xs"
-                  style={{ background: cat?.color ?? SIN_CATEGORIA }}
-                  title={cat?.name ?? 'Sin categoría'}
-                />
+                <Tooltip texto={cat ? etiquetaCategoria(cat) : 'Sin categoría'}>
+                  <span
+                    className="inline-block size-2.5 shrink-0 rounded-xs"
+                    style={{ background: cat?.color ?? SIN_CATEGORIA }}
+                  />
+                </Tooltip>
                 <span className="min-w-0 flex-1 truncate font-semibold max-sm:basis-[calc(100%-1.75rem)]">
                   {r.concept}
                 </span>
@@ -333,25 +338,66 @@ function Recurrentes({ filas, mes, hoy, categorias }: {
   )
 }
 
-/** Desglose por categoría: donut + leyenda (el "en qué se va" del Excel). */
+/**
+ * Desglose por categoría: donut + leyenda (el "en qué se va" del Excel).
+ *
+ * Las porciones son GRUPOS (ver `desglose` en `lib/gastos.ts`), y pulsar una
+ * baja a sus subcategorías con vuelta atrás. Se hace aquí y no en
+ * `GraficaDonut` porque el componente genérico no sabe qué es un grupo: solo
+ * avisa de que una porción se ha activado.
+ */
 function Desglose({ titulo, partes, centro, vacio }: {
   titulo: string
   partes: ParteCategoria[]
   centro: string
   vacio: string
 }) {
+  const [abierto, setAbierto] = useState<string | null>(null)
+  // El grupo abierto se busca en cada render: si cambia el mes y ese grupo ya
+  // no tiene gasto, la vista vuelve sola al nivel de arriba.
+  const grupo = abierto === null ? undefined : partes.find((p) => p.uuid === abierto && p.hijas?.length)
+  const visibles = grupo?.hijas ?? partes
+
   return (
     // La rejilla estira las dos tarjetas a la misma altura: la del desglose
     // corto centra su donut en vez de dejarlo pegado arriba.
     <div className={cn(cardClass, 'flex flex-col')}>
-      <h3 className="border-b border-border px-5 py-3 font-semibold">{titulo}</h3>
+      <div className="flex items-center gap-2 border-b border-border px-5 py-3">
+        {grupo ? (
+          <>
+            <button
+              type="button"
+              className={cn(btnIcon, 'shrink-0')}
+              aria-label="Volver al desglose por grupos"
+              onClick={() => setAbierto(null)}>
+              <ChevronLeft className="size-4" />
+            </button>
+            {/* El h3 sigue siendo el título de la tarjeta (el orden de
+                encabezados no cambia al bajar de nivel): el grupo va dentro. */}
+            <h3 className="min-w-0 truncate font-semibold">
+              {titulo}
+              <span className="text-muted-foreground"> · {grupo.name}</span>
+            </h3>
+          </>
+        ) : (
+          <h3 className="font-semibold">{titulo}</h3>
+        )}
+      </div>
       <div className="flex flex-1 items-center px-5 py-4">
         <div className="w-full min-w-0">
           <GraficaDonut
-            titulo={titulo}
-            centro={centro}
+            titulo={grupo ? `${titulo}: ${grupo.name}` : titulo}
+            centro={grupo ? grupo.name.toLowerCase() : centro}
             vacio={vacio}
-            partes={partes.map((p) => ({ label: p.name, valor: p.total, color: p.color }))}
+            partes={visibles.map((p) => ({
+              id: p.uuid,
+              label: p.name,
+              valor: p.total,
+              color: p.color,
+              // Dentro de un grupo ya no hay más niveles que abrir.
+              pulsable: Boolean(p.hijas?.length),
+            }))}
+            onParte={grupo ? undefined : (parte) => setAbierto(parte.id ?? null)}
           />
         </div>
       </div>
@@ -380,7 +426,8 @@ export function GastosTab({
   const fechaPorDefecto = hoy.startsWith(datos.mes) ? hoy : `${datos.mes}-01`
   const [nuevo, setNuevo] = useState<{
     type: TipoMovimiento; concept: string; amount: number | null; date: string; cat: string
-  }>({ type: 'GASTO', concept: '', amount: null, date: fechaPorDefecto, cat: '' })
+    note: string
+  }>({ type: 'GASTO', concept: '', amount: null, date: fechaPorDefecto, cat: '', note: '' })
   // Edición inline
   const [editando, setEditando] = useState<string | null>(null)
   const [fila, setFila] = useState<{
@@ -413,9 +460,10 @@ export function GastosTab({
         amount: nuevo.amount,
         expenseDate: nuevo.date,
         categoryUuid: nuevo.cat || null,
+        note: nuevo.note,
       }),
       nuevo.type === 'GASTO' ? 'Gasto añadido' : 'Ingreso añadido',
-      () => setNuevo((n) => ({ ...n, concept: '', amount: null })),
+      () => setNuevo((n) => ({ ...n, concept: '', amount: null, note: '' })),
     )
   }
 
@@ -481,12 +529,12 @@ export function GastosTab({
         onChange={(v) => setFila((f) => ({ ...f, concept: v }))}
         onEnter={() => guardarFila(m)}
       />
-      <SelectField
-        className="w-32 shrink-0 max-sm:w-full max-sm:basis-full"
+      <TreeSelectField
+        className="w-40 shrink-0 max-sm:w-full max-sm:basis-full"
         ariaLabel="Categoría"
         value={fila.cat}
         onChange={(v) => setFila((f) => ({ ...f, cat: v }))}
-        options={opcionesCat(fila.type)}
+        opciones={opcionesCat(fila.type)}
       />
       <DateField
         className="w-32 shrink-0 max-sm:w-auto max-sm:basis-[calc(50%-0.25rem)]"
@@ -577,11 +625,11 @@ export function GastosTab({
   }
 
   // Las categorías se ofrecen SEGÚN el tipo elegido (como el Excel, que tiene
-  // dos listas): a un ingreso no se le ofrece "Supermercado".
-  const opcionesCat = (tipo: TipoMovimiento) => [
-    { value: '', label: 'Sin categoría' },
-    ...categorias.filter((c) => c.type === tipo).map((c) => ({ value: c.uuid, label: c.name })),
-  ]
+  // dos listas): a un ingreso no se le ofrece "Supermercado". Los grupos no
+  // entran y las subcategorías salen como "Coche › Taller" (ver
+  // `lib/categorias.ts`, que es de donde sale la misma lista en las tres
+  // pantallas que la ofrecen).
+  const opcionesCat = (tipo: TipoMovimiento) => arbolDeCategoria(categorias, tipo)
   const catDe = (uuid: string | null) => categorias.find((c) => c.uuid === uuid)
 
   const año = Number(datos.mes.slice(0, 4))
@@ -649,25 +697,25 @@ export function GastosTab({
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Kpi
               label="Ingresos del mes"
-              valor={eur(datos.ingresos)}
+              valor={eurEntero(datos.ingresos)}
               tono="success"
               pie={<Comparativa actual={datos.ingresos} previo={datos.ingresosPrevios} gastoEsMalo={false} />}
             />
             <Kpi
               label="Gastos del mes"
-              valor={eur(datos.gastos)}
+              valor={eurEntero(datos.gastos)}
               tono="danger"
               pie={<Comparativa actual={datos.gastos} previo={datos.gastosPrevios} gastoEsMalo />}
             />
             <Kpi
               label="Balance del mes"
-              valor={eur(datos.balance)}
+              valor={eurEntero(datos.balance)}
               tono={datos.balance >= 0 ? 'primary' : 'danger'}
               pie={datos.balance >= 0 ? 'te queda a favor' : 'has gastado más de lo que entró'}
             />
             <Kpi
               label="Gasto medio al día"
-              valor={eur(datos.gastoMedioDia)}
+              valor={eurEntero(datos.gastoMedioDia)}
               pie={`${datos.movimientos.length} ${datos.movimientos.length === 1 ? 'movimiento' : 'movimientos'} este mes`}
             />
           </div>
@@ -682,13 +730,22 @@ export function GastosTab({
             <div className="pt-3">
               {/* ALTA, arriba y pensada para el pulgar: en el móvil se apunta
                   sobre la marcha, y bajar hasta el final de la lista para
-                  encontrar el formulario no vale. En móvil va apilada (tipo
-                  segmentado, importe y fecha en una fila, botón a lo ancho);
-                  desde sm, una sola fila compacta. */}
-              <div className="mb-1 flex flex-wrap gap-2 border-b border-border px-4 pb-3">
+                  encontrar el formulario no vale.
+
+                  Es una REJILLA con etiquetas, no una fila de campos sueltos.
+                  La versión anterior (flex-wrap sin etiquetas, anchos a ojo)
+                  recortaba la fecha ("05/09/20…") y la categoría ("Sin
+                  categor…"), apretaba el importe y dejaba la nota sola en una
+                  línea entera junto a un "+" sin nombre. Con la rejilla cada
+                  columna tiene el ancho de su contenido más largo (una fecha
+                  completa, "Sin categoría"), la nota ocupa las cuatro primeras
+                  columnas y el botón, con su texto, cierra la segunda línea
+                  alineado con la categoría. En móvil, dos columnas: importe y
+                  fecha comparten fila y el resto va a lo ancho. */}
+              <div className="mb-1 grid grid-cols-2 gap-x-2 gap-y-2.5 border-b border-border px-4 pb-3 sm:grid-cols-[7rem_1fr_8rem_10rem_13rem]">
                 {/* Tipo: en móvil dos botones grandes (es binario, un select
-                    sobra); en escritorio, el select de la fila. */}
-                <div className="flex w-full gap-1 rounded-lg border border-border bg-card/50 p-0.5 sm:hidden">
+                    sobra); en escritorio, el select con su etiqueta. */}
+                <div className="col-span-2 flex gap-1 rounded-lg border border-border bg-card/50 p-0.5 sm:hidden">
                   {TIPOS.map((t) => (
                     <button
                       key={t.value}
@@ -706,55 +763,69 @@ export function GastosTab({
                     </button>
                   ))}
                 </div>
-                <SelectField
-                  className="hidden w-24 shrink-0 sm:block"
-                  ariaLabel="Tipo del movimiento"
-                  value={nuevo.type}
-                  onChange={(v) => setNuevo((n) => ({ ...n, type: v as TipoMovimiento, cat: '' }))}
-                  options={TIPOS}
-                />
-                <TextField
-                  className="w-full min-w-0 sm:w-auto sm:min-w-35 sm:flex-1"
-                  placeholder="Concepto"
-                  value={nuevo.concept}
-                  onChange={(v) => setNuevo((n) => ({ ...n, concept: v }))}
-                  onEnter={crear}
-                />
-                {/* Importe y fecha comparten fila en móvil */}
-                <div className="min-w-0 flex-1 sm:w-24 sm:flex-none">
+                <Field label="Tipo" className="hidden sm:flex">
+                  <SelectField
+                    ariaLabel="Tipo del movimiento"
+                    value={nuevo.type}
+                    onChange={(v) => setNuevo((n) => ({ ...n, type: v as TipoMovimiento, cat: '' }))}
+                    options={TIPOS}
+                  />
+                </Field>
+                <Field label="Concepto" className="col-span-2 min-w-0 sm:col-span-1">
+                  <TextField
+                    ariaLabel="Concepto"
+                    value={nuevo.concept}
+                    onChange={(v) => setNuevo((n) => ({ ...n, concept: v }))}
+                    onEnter={crear}
+                  />
+                </Field>
+                {/* Importe y fecha comparten fila en móvil (una columna cada uno) */}
+                <Field label="Importe" className="min-w-0">
                   <NumberField
                     step={5}
                     ariaLabel="Importe"
-                    placeholder="Importe"
                     value={nuevo.amount}
                     onChange={(v) => setNuevo((n) => ({ ...n, amount: v }))}
                     onEnter={crear}
                   />
-                </div>
-                <DateField
-                  className="min-w-0 flex-1 sm:w-32 sm:flex-none"
-                  ariaLabel="Fecha del movimiento"
-                  value={nuevo.date}
-                  onChange={(v) => setNuevo((n) => ({ ...n, date: v }))}
-                />
-                <SelectField
-                  className="w-full min-w-0 sm:w-32 sm:flex-none"
-                  ariaLabel="Categoría del movimiento"
-                  value={nuevo.cat}
-                  onChange={(v) => setNuevo((n) => ({ ...n, cat: v }))}
-                  options={opcionesCat(nuevo.type)}
-                />
+                </Field>
+                <Field label="Fecha" className="min-w-0">
+                  <DateField
+                    ariaLabel="Fecha del movimiento"
+                    value={nuevo.date}
+                    onChange={(v) => setNuevo((n) => ({ ...n, date: v }))}
+                  />
+                </Field>
+                <Field label="Categoría" className="col-span-2 min-w-0 sm:col-span-1">
+                  <TreeSelectField
+                    ariaLabel="Categoría del movimiento"
+                    value={nuevo.cat}
+                    onChange={(v) => setNuevo((n) => ({ ...n, cat: v }))}
+                    opciones={opcionesCat(nuevo.type)}
+                  />
+                </Field>
+                {/* Segunda línea: la nota ocupa las cuatro primeras columnas
+                    (se escribe en prosa, mismo criterio que la edición) y el
+                    botón la quinta, alineado abajo con el campo y CON su texto
+                    también en escritorio: un "+" suelto no dice qué añade. En
+                    móvil, cada uno a lo ancho. */}
+                <Field label="Nota" className="col-span-2 min-w-0 sm:col-span-4">
+                  <TextField
+                    ariaLabel="Nota del movimiento"
+                    value={nuevo.note}
+                    onChange={(v) => setNuevo((n) => ({ ...n, note: v }))}
+                    onEnter={crear}
+                  />
+                </Field>
                 <button
                   type="button"
-                  // py-2.5 en móvil: ~44px de alto, target táctil cómodo
-                  className={cn(btnPrimary, 'w-full py-2.5 sm:w-auto sm:px-2.5 sm:py-1.5')}
-                  aria-label="Añadir movimiento"
+                  // py-2.5 en móvil: ~44px de alto, target táctil cómodo. En
+                  // escritorio, la altura del campo de al lado (py-1.5).
+                  className={cn(btnPrimary, 'col-span-2 w-full justify-center py-2.5 sm:col-span-1 sm:self-end sm:py-1.5')}
                   disabled={pending || !nuevo.concept.trim() || nuevo.amount === null}
                   onClick={crear}>
                   <Plus className="size-4" />
-                  <span className="sm:hidden">
-                    Añadir {nuevo.type === 'GASTO' ? 'gasto' : 'ingreso'}
-                  </span>
+                  Añadir {nuevo.type === 'GASTO' ? 'gasto' : 'ingreso'}
                 </button>
               </div>
 
@@ -798,12 +869,13 @@ export function GastosTab({
                             <span className="flex min-w-0 items-baseline gap-1.5">
                               <span className="truncate">{m.concept}</span>
                               {m.note && (
-                                <span
-                                  className="shrink-0 text-muted-foreground"
-                                  title={m.note}
-                                  aria-label={`Nota: ${m.note}`}>
-                                  <StickyNote className="size-3" />
-                                </span>
+                                <Tooltip texto={m.note}>
+                                  <span
+                                    className="shrink-0 text-muted-foreground"
+                                    aria-label={`Nota: ${m.note}`}>
+                                    <StickyNote className="size-3" />
+                                  </span>
+                                </Tooltip>
                               )}
                             </span>
                           </Celda>
@@ -813,7 +885,12 @@ export function GastosTab({
                                 className="inline-block size-2 shrink-0 rounded-xs"
                                 style={{ background: cat?.color ?? SIN_CATEGORIA }}
                               />
-                              <span className="truncate">{cat?.name ?? 'Sin categoría'}</span>
+                              {/* Visible, el nombre de la hoja: "Coche ›
+                                  Taller" no cabe en la celda. El grupo va en
+                                  el tooltip. */}
+                              <Tooltip texto={cat?.parentName ? etiquetaCategoria(cat) : undefined}>
+                                <span className="truncate">{cat?.name ?? 'Sin categoría'}</span>
+                              </Tooltip>
                             </span>
                           </Celda>
                           <Celda
@@ -867,21 +944,23 @@ export function GastosTab({
                           concepto en nada, y el color ya la identifica (el
                           nombre, en el tooltip). */}
                       <span className="flex min-w-0 items-center gap-1.5">
-                        <span
-                          className="inline-block size-2 shrink-0 rounded-xs"
-                          title={`${esGasto ? 'Gasto' : 'Ingreso'} · ${cat?.name ?? 'Sin categoría'}`}
-                          style={{ background: cat?.color ?? SIN_CATEGORIA }}
-                        />
-                        <span className="truncate text-[13.5px]" title={m.concept}>
-                          {m.concept}
-                        </span>
-                        {m.note && (
+                        <Tooltip texto={`${esGasto ? 'Gasto' : 'Ingreso'} · ${cat ? etiquetaCategoria(cat) : 'Sin categoría'}`}>
                           <span
-                            className="shrink-0 text-muted-foreground"
-                            title={m.note}
-                            aria-label={`Nota: ${m.note}`}>
-                            <StickyNote className="size-3" />
-                          </span>
+                            className="inline-block size-2 shrink-0 rounded-xs"
+                            style={{ background: cat?.color ?? SIN_CATEGORIA }}
+                          />
+                        </Tooltip>
+                        <Tooltip texto={m.concept}>
+                          <span className="truncate text-[13.5px]">{m.concept}</span>
+                        </Tooltip>
+                        {m.note && (
+                          <Tooltip texto={m.note}>
+                            <span
+                              className="shrink-0 text-muted-foreground"
+                              aria-label={`Nota: ${m.note}`}>
+                              <StickyNote className="size-3" />
+                            </span>
+                          </Tooltip>
                         )}
                       </span>
                       <span
@@ -962,7 +1041,7 @@ function DividirModal({
   movimiento, opciones, pending, onCerrar, onDividir,
 }: {
   movimiento: MovimientoRow
-  opciones: Array<{ value: string; label: string }>
+  opciones: NodoCategoria[]
   pending: boolean
   onCerrar: () => void
   onDividir: (partes: Array<{ concept: string; amount: number; categoryUuid: string | null }>) => void
@@ -1063,10 +1142,10 @@ function DividirModal({
                   />
                 </Field>
                 <Field label="Categoría">
-                  <SelectField
+                  <TreeSelectField
                     value={p.cat}
                     onChange={(v) => cambiar(i, { cat: v })}
-                    options={opciones}
+                    opciones={opciones}
                     ariaLabel={`Categoría de la parte ${i + 1}`}
                   />
                 </Field>
@@ -1107,17 +1186,17 @@ function VistaAnio({ anio, onMes }: { anio: AnioMovimientos; onMes: (mes: number
   return (
     <div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi label={`Ingresos de ${anio.year}`} valor={eur(anio.ingresos)} tono="success" />
-        <Kpi label={`Gastos de ${anio.year}`} valor={eur(anio.gastos)} tono="danger" />
+        <Kpi label={`Ingresos de ${anio.year}`} valor={eurEntero(anio.ingresos)} tono="success" />
+        <Kpi label={`Gastos de ${anio.year}`} valor={eurEntero(anio.gastos)} tono="danger" />
         <Kpi
           label="Balance del año"
-          valor={eur(anio.balance)}
+          valor={eurEntero(anio.balance)}
           tono={anio.balance >= 0 ? 'primary' : 'danger'}
           pie={anio.balance >= 0 ? 'te queda a favor' : 'has gastado más de lo que entró'}
         />
         <Kpi
           label="Gasto medio al mes"
-          valor={eur(anio.gastoMedioMes)}
+          valor={eurEntero(anio.gastoMedioMes)}
           pie="solo cuenta los meses con algo apuntado"
         />
       </div>

@@ -69,6 +69,14 @@ Solo **`concepto`** e **`importe`** son obligatorios:
   encuentra `Café`) o el uuid. Si no cuadra con ninguna categoría **de ese
   tipo**, se devuelve un `400` en vez de guardarlo sin categoría en silencio.
   Omitirla es legítimo: queda «sin categoría».
+- Con **grupos**, el nombre solo es único dentro de su grupo, así que
+  `categoria` acepta también la **ruta**: `Coche > Gasolina` (y sirven `>`,
+  `/` o `›` como separador). Si el nombre a secas está repetido en dos grupos,
+  la respuesta es un `400` que **dice las rutas** para poder corregirlo de una:
+  `Hay varias categorías llamadas "Varios": "Coche > Varios", "Casa > Varios"`.
+- Un **grupo** no se acepta: agrupa, no se apunta. Por nombre da el `400` de
+  "no hay ninguna categoría"; por uuid, uno que lo explica («es un grupo:
+  elige una de sus categorías»).
 - `nota` es texto plano (hasta 1000 caracteres).
 
 Respuesta `201`:
@@ -125,8 +133,13 @@ La lista completa, para que un Atajo pueda ofrecer un menú en vez de pedir que
 se teclee el nombre.
 
 ```json
-{ "ok": true, "categorias": [{ "uuid": "…", "nombre": "Supermercado", "tipo": "gasto", "tope": 300 }] }
+{ "ok": true, "categorias": [{ "uuid": "…", "nombre": "Supermercado", "tipo": "gasto", "grupo": null, "tope": 300 }] }
 ```
+
+Solo salen las categorías **apuntables**: los grupos no, porque el alta los
+rechazaría. Una categoría que está en un grupo trae su `grupo` aparte y el
+`nombre` ya con la ruta (`Coche > Gasolina`), que es tal cual lo que
+`categoria` acepta de vuelta.
 
 ---
 

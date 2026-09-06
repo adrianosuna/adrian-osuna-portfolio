@@ -7,16 +7,13 @@ import { prisma } from '@/lib/prisma'
 import { botonHtml, correoConfigurado, enviarCorreo, tarjetaHtml } from '@/lib/correo'
 import { SITE_URL } from '@/lib/site'
 
+// El estado y el "cumplida" viven en `tareas.ts`, sin `server-only`: los
+// necesitan también la lista y el calendario, que son cliente.
+export { estadoDe } from '@/lib/tareas'
+
 /** Hoy en horario de Madrid, como 'YYYY-MM-DD'. */
 export const hoyMadrid = () =>
   new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Madrid' })
-
-/** Estado de una tarea según su vencimiento: vencida, próxima (≤7 días) o al día. */
-export function estadoDe(nextDueIso: string, hoyIso: string): 'vencida' | 'proxima' | 'aldia' {
-  if (nextDueIso <= hoyIso) return 'vencida'
-  const dias = (new Date(`${nextDueIso}T00:00:00Z`).getTime() - new Date(`${hoyIso}T00:00:00Z`).getTime()) / 86_400_000
-  return dias <= 7 ? 'proxima' : 'aldia'
-}
 
 const fmt = (iso: string) => iso.split('-').reverse().join('/')
 
@@ -31,7 +28,12 @@ export async function avisarVencidas(): Promise<number> {
   const vencidas = await prisma.maintenanceTask.findMany({
     where: {
       nextDue: { lte: new Date(`${hoy}T00:00:00Z`) },
-      OR: [{ lastNotified: null }, { lastNotified: { lte: hace7dias } }],
+      AND: [
+        { OR: [{ lastNotified: null }, { lastNotified: { lte: hace7dias } }] },
+        // ⚠ Fuera las PUNTUALES ya hechas: su `nextDue` no se mueve al
+        // marcarlas, así que sin esto el reaviso semanal no se acababa nunca.
+        { OR: [{ intervalMonths: { not: null } }, { lastDone: null }] },
+      ],
     },
     orderBy: { nextDue: 'asc' },
     include: { scope: true },

@@ -16,6 +16,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['tests/**/*.test.{ts,tsx}'],
+    // Rellena lo que jsdom no implementa (matchMedia, scrollIntoView).
+    setupFiles: ['tests/setup.ts'],
     server: {
       deps: {
         // next-auth importa 'next/server' sin extensión: el ESM nativo de Node

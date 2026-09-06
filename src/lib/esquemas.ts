@@ -56,6 +56,20 @@ export const Uuid = z
   .min(1, { error: 'Falta el identificador' })
   .max(36, { error: 'Identificador no válido' })
 
+/**
+ * Identificador que llega de un desplegable donde "ninguno" es una opción: la
+ * cadena vacía y el null significan lo mismo (sin grupo, sin ámbito).
+ *
+ * ⚠ El `.nullish()` va ANTES del `.transform()` a propósito (trampa de Zod:
+ * un campo con transform sigue siendo obligatorio si no se marca nullish).
+ * Y ojo al usarlo en un esquema de EDICIÓN: omitir la clave no deja el valor
+ * como está, lo pone a null.
+ */
+export const uuidOpcional = z
+  .union([Uuid, z.literal('')])
+  .nullish()
+  .transform((v) => v || null)
+
 /** Texto obligatorio: se recorta y se limita al ancho de su columna. */
 export const textoObligatorio = (max: number, nombre: string) =>
   z
@@ -264,6 +278,11 @@ export const CategoriaNueva = z.object({
   type: z.enum(['INGRESO', 'GASTO'], {
     error: 'Indica si la categoría es de ingreso o de gasto',
   }),
+  // Un GRUPO en vez de una categoría: contenedor que agrupa y no se apunta.
+  isGroup: z.boolean().nullish().transform((v) => v ?? false),
+  // Grupo del que cuelga (vacío = suelta). Que EXISTA, sea un grupo y sea del
+  // mismo tipo lo comprueba la action, que es quien consulta la BD.
+  parentUuid: uuidOpcional,
   budget: tope,
 })
 
@@ -345,7 +364,7 @@ export const Ambito = z.object({
 
 export const TareaAlta = z.object({
   title: textoObligatorio(255, 'El título'),
-  scopeUuid: z.union([Uuid, z.literal('')]).nullish().transform((v) => v || null),
+  scopeUuid: uuidOpcional,
   notes: textoOpcional(5000),
   // null = no se repite: es un recordatorio puntual (ver `mantenimiento.ts`).
   intervalMonths: periodicidadMeses.nullish().transform((v) => v ?? null),
@@ -354,7 +373,7 @@ export const TareaAlta = z.object({
 
 export const TareaEdicion = z.object({
   title: textoObligatorio(255, 'El título').optional(),
-  scopeUuid: z.union([Uuid, z.literal('')]).nullish().transform((v) => v || null),
+  scopeUuid: uuidOpcional,
   notes: textoOpcional(5000).optional(),
   intervalMonths: periodicidadMeses.nullish().transform((v) => v ?? null),
   nextDue: fechaIso('La fecha de vencimiento').optional(),

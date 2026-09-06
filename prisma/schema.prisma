@@ -288,27 +288,57 @@ enum MovementType {
   GASTO   @map("gasto")
 }
 
+/// Categorías de los movimientos, en DOS niveles: un GRUPO ("Coche") con las
+/// categorías que se le asignan ("Taller", "Gasolina"), y categorías SUELTAS
+/// que no están en ningún grupo.
+///
+/// Las dos cosas viven en esta tabla y las distingue `is_group`. Un grupo es
+/// un contenedor: se crea vacío, agrupa, y NUNCA recibe movimientos — por eso
+/// asignarle una categoría con dos años de historial es seguro (se mueve la
+/// categoría, no sus movimientos). Los movimientos cuelgan siempre de una
+/// categoría, así que cada gasto cuenta una vez y ninguna suma tiene que
+/// decidir si incluye "lo del padre".
 model ExpenseCategory {
-  id        Int                @id @default(autoincrement())
-  uuid      String             @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
-  name      String             @db.VarChar(100)
-  /// Si la categoría es de ingreso o de gasto.
-  type      MovementType
+  id         Int                @id @default(autoincrement())
+  uuid       String             @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
+  name       String             @db.VarChar(100)
+  /// Si esta fila es un GRUPO en vez de una categoría. Hace falta explícito y
+  /// no deducido de "tiene hijas": un grupo recién creado está vacío, y sin
+  /// la marca sería indistinguible de una categoría suelta — se ofrecería al
+  /// apuntar un movimiento.
+  isGroup    Boolean            @default(false) @map("is_group")
+  /// Grupo al que pertenece (null = suelta, o es ella misma un grupo). Solo
+  /// DOS niveles: un grupo no puede estar dentro de otro (lo valida la
+  /// aplicación, que es también quien exige que el padre sea un grupo).
+  parentUuid String?            @map("parent_uuid") @db.VarChar(36)
+  /// Si la categoría es de ingreso o de gasto. Una hija hereda el de su grupo.
+  type       MovementType
   /// Color del chip y del donut, en hexadecimal (#rrggbb).
-  color     String             @db.VarChar(9)
-  /// Tope de gasto MENSUAL de la categoría (null = sin tope). Solo tiene
-  /// sentido en las categorías de gasto.
-  budget    Decimal?           @db.Decimal(12, 2)
+  color      String             @db.VarChar(9)
+  /// Tope de gasto MENSUAL (null = sin tope). Solo tiene sentido en las de
+  /// gasto. En un grupo se compara con la SUMA de sus categorías.
+  budget     Decimal?           @db.Decimal(12, 2)
   /// Último aviso de tope enviado, como 'YYYY-MM:nivel' ('2026-08:100'): el
   /// correo sale una vez por mes y por nivel alcanzado, no semanalmente.
-  notified  String?            @map("budget_notified") @db.VarChar(16)
-  createTs  DateTime           @default(now()) @map("create_ts") @db.Timestamp(0)
-  updateTs  DateTime           @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
-  expenses  Expense[]
-  recurring RecurringExpense[]
+  notified   String?            @map("budget_notified") @db.VarChar(16)
+  createTs   DateTime           @default(now()) @map("create_ts") @db.Timestamp(0)
+  updateTs   DateTime           @default(now()) @updatedAt @map("update_ts") @db.Timestamp(0)
+  expenses   Expense[]
+  recurring  RecurringExpense[]
+  parent     ExpenseCategory?   @relation("Subcategorias", fields: [parentUuid], references: [uuid], onDelete: Restrict, onUpdate: NoAction, map: "fk_expense_category_parent")
+  children   ExpenseCategory[]  @relation("Subcategorias")
 
-  @@unique([name, type], map: "uq_expense_category_name_type")
+  /// El nombre es único entre HERMANAS, no en todo el tipo: "Varios" tiene que
+  /// poder existir bajo Coche y bajo Casa. En el primer nivel compiten los
+  /// grupos y las categorías sueltas, que es lo que se quiere: dos "Coche" ahí
+  /// no se distinguirían.
+  ///
+  /// ⚠ MySQL trata los NULL como distintos, así que este índice NO protege el
+  /// primer nivel (dos grupos "Coche" pasarían): ese caso lo comprueba la
+  /// aplicación, igual que la integridad de `user_session`.
+  @@unique([name, type, parentUuid], map: "uq_expense_category_name_type_parent")
   @@index([type], map: "idx_expense_category_type")
+  @@index([parentUuid], map: "fk_expense_category_parent")
   @@map("expense_category")
 }
 

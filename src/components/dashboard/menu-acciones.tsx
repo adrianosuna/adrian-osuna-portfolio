@@ -25,6 +25,7 @@ import { MoreHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PopoverPanel, usePopover } from '@/components/ui/fields'
 import { btnIcon } from '@/components/ui/botones'
+import { Tooltip } from '@/components/ui/tooltip'
 
 export interface AccionFila {
   /** Clave de React y del elemento del menú. */
@@ -59,16 +60,19 @@ export function MenuAcciones({
   const iconos = (
     <span className="flex items-center justify-end gap-0.5">
       {acciones.map((a) => (
-        <button
-          key={a.id}
-          type="button"
-          className={cn(btnIcon, a.destructiva && 'hover:bg-danger-bg hover:text-danger')}
-          aria-label={a.label}
-          title={a.disabled && a.motivo ? a.motivo : a.label}
-          disabled={a.disabled}
-          onClick={a.onClick}>
-          {a.icon}
-        </button>
+        // Tooltip propio en vez del `title` del navegador. `envuelto` en los
+        // apagados: un botón disabled no recibe el ratón, y justo ahí es
+        // donde el tooltip más importa, porque dice POR QUÉ no se puede.
+        <Tooltip key={a.id} texto={a.disabled && a.motivo ? a.motivo : a.label} envuelto={a.disabled}>
+          <button
+            type="button"
+            className={cn(btnIcon, a.destructiva && 'hover:bg-danger-bg hover:text-danger')}
+            aria-label={a.label}
+            disabled={a.disabled}
+            onClick={a.onClick}>
+            {a.icon}
+          </button>
+        </Tooltip>
       ))}
     </span>
   )

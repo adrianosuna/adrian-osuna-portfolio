@@ -5,6 +5,7 @@
 // El cálculo de los topes está en topes.test.ts y el de los recurrentes en
 // recurrentes.test.ts.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { CategoriaRow } from '@/lib/gastos'
 // El tope de peticiones vive en memoria y es COMPARTIDO por todo el proceso:
 // sin reiniciarlo, un fichero de tests con muchas actions agotaría la ventana
 // y los siguientes fallarían por algo que no están probando.
@@ -13,7 +14,7 @@ import { reiniciarLimites } from '@/lib/rate-limit'
 const { requireAdminMock, prismaMock } = vi.hoisted(() => {
   const prismaMock = {
     expense: { create: vi.fn(), update: vi.fn(), delete: vi.fn(), findMany: vi.fn(), aggregate: vi.fn(), groupBy: vi.fn(), updateMany: vi.fn(), count: vi.fn() },
-    expenseCategory: { create: vi.fn(), update: vi.fn(), delete: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), findMany: vi.fn() },
+    expenseCategory: { create: vi.fn(), update: vi.fn(), delete: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(), count: vi.fn() },
     recurringExpense: { create: vi.fn(), update: vi.fn(), delete: vi.fn(), findMany: vi.fn(), updateMany: vi.fn(), count: vi.fn() },
     $transaction: vi.fn(),
   }
@@ -34,6 +35,8 @@ beforeEach(() => {
   prismaMock.expenseCategory.findMany.mockResolvedValue([])
   prismaMock.expense.count.mockResolvedValue(0)
   prismaMock.recurringExpense.count.mockResolvedValue(0)
+  // Sin subcategorías: los grupos se declaran en el caso que los pruebe.
+  prismaMock.expenseCategory.count.mockResolvedValue(0)
   // `altaMovimiento` comprueba que la categoría existe y que es del tipo del
   // movimiento; por defecto, la que se pida es válida para los dos tipos.
   prismaMock.expenseCategory.findUnique.mockImplementation(async ({ where }: { where: { uuid: string } }) => ({
@@ -141,11 +144,12 @@ describe('categorías', () => {
     })
     prismaMock.expenseCategory.findFirst.mockResolvedValue({ uuid: 'otra' })
     expect(await createCategoria({ name: 'Casa', type: 'GASTO' })).toEqual({
-      ok: false, message: 'Ya existe una categoría con ese nombre',
+      ok: false, message: 'Ya existe un grupo o una categoría con ese nombre',
     })
-    // La comprobación de duplicado se acota al tipo.
+    // La comprobación de duplicado se acota al tipo y al grupo (el nombre es
+    // único entre hermanas, no en todo el tipo).
     expect(prismaMock.expenseCategory.findFirst).toHaveBeenLastCalledWith({
-      where: { name: 'Casa', type: 'GASTO' },
+      where: { name: 'Casa', type: 'GASTO', parentUuid: null },
     })
     expect(prismaMock.expenseCategory.create).not.toHaveBeenCalled()
   })
@@ -185,6 +189,100 @@ describe('categorías', () => {
     expect(prismaMock.expenseCategory.delete).toHaveBeenCalledWith({ where: { uuid: 'c1' } })
   })
 
+
+  // ── Grupos y categorías ──
+  // Un grupo es un CONTENEDOR: se crea vacío, agrupa y nunca recibe
+  // movimientos. De ahí sale todo lo de abajo — y lo que NO hay que probar,
+  // que es lo importante: asignar una categoría con historial a un grupo no
+  // tiene reglas especiales, porque lo que se mueve es la categoría.
+  it('un grupo se crea vacío y nunca cuelga de otro', async () => {
+    const { createCategoria } = await import('@/app/app/finance/gastos-actions')
+    await createCategoria({ name: 'Coche', type: 'GASTO', isGroup: true, parentUuid: 'otro' })
+    expect(prismaMock.expenseCategory.create.mock.calls[0][0].data).toMatchObject({
+      name: 'Coche', type: 'GASTO', isGroup: true, parentUuid: null,
+    })
+  })
+
+  it('una categoría solo entra en un GRUPO, no en otra categoría', async () => {
+    const { createCategoria } = await import('@/app/app/finance/gastos-actions')
+    prismaMock.expenseCategory.findUnique.mockResolvedValue({
+      uuid: 'gasolina', name: 'Gasolina', type: 'GASTO', isGroup: false, parentUuid: null,
+    })
+    expect(await createCategoria({ name: 'Diésel', type: 'GASTO', parentUuid: 'gasolina' })).toEqual({
+      ok: false, message: '«Gasolina» es una categoría, no un grupo',
+    })
+    expect(prismaMock.expenseCategory.create).not.toHaveBeenCalled()
+  })
+
+  it('el grupo y la categoría tienen que ser del mismo tipo', async () => {
+    const { createCategoria } = await import('@/app/app/finance/gastos-actions')
+    prismaMock.expenseCategory.findUnique.mockResolvedValue({
+      uuid: 'ingresos', name: 'Ingresos', type: 'INGRESO', isGroup: true, parentUuid: null,
+    })
+    expect(await createCategoria({ name: 'Taller', type: 'GASTO', parentUuid: 'ingresos' })).toEqual({
+      ok: false, message: 'El grupo y la categoría deben ser del mismo tipo',
+    })
+  })
+
+  it('una categoría CON movimientos se asigna a un grupo sin más trámite', async () => {
+    // Es la razón de que el grupo sea un contenedor y no una categoría con
+    // hijas: lo que se mueve es la categoría, sus movimientos siguen en ella.
+    const { updateCategoria } = await import('@/app/app/finance/gastos-actions')
+    prismaMock.expenseCategory.findUnique
+      .mockResolvedValueOnce({ uuid: 'gasolina', name: 'Gasolina', type: 'GASTO', isGroup: false, parentUuid: null })
+      .mockResolvedValueOnce({ uuid: 'coche', name: 'Coche', type: 'GASTO', isGroup: true, parentUuid: null })
+    prismaMock.expense.count.mockResolvedValue(40)
+
+    expect(await updateCategoria('gasolina', { parentUuid: 'coche' })).toEqual({ ok: true })
+    expect(prismaMock.expenseCategory.update).toHaveBeenCalledWith({
+      where: { uuid: 'gasolina' },
+      data: { parentUuid: 'coche' },
+    })
+  })
+
+  it('un grupo no se mete dentro de otro grupo', async () => {
+    const { updateCategoria } = await import('@/app/app/finance/gastos-actions')
+    prismaMock.expenseCategory.findUnique.mockResolvedValue({
+      uuid: 'coche', name: 'Coche', type: 'GASTO', isGroup: true, parentUuid: null,
+    })
+    expect(await updateCategoria('coche', { parentUuid: 'casa' })).toEqual({
+      ok: false, message: 'Un grupo no puede meterse dentro de otro: solo hay dos niveles',
+    })
+  })
+
+  it('el nombre solo compite con sus HERMANAS: "Varios" cabe en dos grupos', async () => {
+    const { createCategoria } = await import('@/app/app/finance/gastos-actions')
+    prismaMock.expenseCategory.findUnique.mockResolvedValue({
+      uuid: 'casa', name: 'Casa', type: 'GASTO', isGroup: true, parentUuid: null,
+    })
+    await createCategoria({ name: 'Varios', type: 'GASTO', parentUuid: 'casa' })
+    expect(prismaMock.expenseCategory.findFirst).toHaveBeenLastCalledWith({
+      where: { name: 'Varios', type: 'GASTO', parentUuid: 'casa' },
+    })
+    expect(prismaMock.expenseCategory.create.mock.calls[0][0].data).toMatchObject({
+      name: 'Varios', parentUuid: 'casa', isGroup: false,
+    })
+  })
+
+  it('un grupo con categorías dentro no se borra (el mensaje lo explica)', async () => {
+    const { deleteCategoria } = await import('@/app/app/finance/gastos-actions')
+    prismaMock.expenseCategory.count.mockResolvedValue(3)
+    const res = await deleteCategoria('coche')
+    expect(res.ok).toBe(false)
+    expect(res.message).toContain('3 categorías')
+    expect(prismaMock.expenseCategory.delete).not.toHaveBeenCalled()
+  })
+
+  it('los grupos no se fusionan, por ninguno de los dos lados', async () => {
+    const { fusionarCategorias } = await import('@/app/app/finance/gastos-actions')
+    prismaMock.expenseCategory.findUnique
+      .mockResolvedValueOnce({ uuid: 'coche', name: 'Coche', type: 'GASTO', isGroup: true })
+      .mockResolvedValueOnce({ uuid: 'casa', name: 'Casa', type: 'GASTO', isGroup: false })
+    expect(await fusionarCategorias('coche', 'casa')).toEqual({
+      ok: false, message: 'Los grupos no se fusionan: fusiona las categorías que tienen dentro',
+    })
+  })
+
   it('renombrar a un nombre que ya usa OTRA del mismo tipo se rechaza (el propio vale)', async () => {
     const { updateCategoria } = await import('@/app/app/finance/gastos-actions')
     prismaMock.expenseCategory.findUnique.mockResolvedValue({ uuid: 'c1', type: 'GASTO' })
@@ -199,11 +297,27 @@ describe('categorías', () => {
 
 // ─────────── Capa de datos del mes y del año ───────────
 
+/** Fixture de categoría: cada caso declara solo lo suyo y el resto va por
+ *  defecto. Con factoría y no objetos a mano porque un campo nuevo de
+ *  `CategoriaRow` rompía cinco casos a la vez — pasó al añadir los grupos. */
+const cat = (p: Partial<CategoriaRow> & { uuid: string; name: string }): CategoriaRow => ({
+  isGroup: false,
+  parentUuid: null,
+  parentName: null,
+  hijas: 0,
+  type: 'GASTO',
+  color: '#10b981',
+  usos: 0,
+  usosRecurrentes: 0,
+  budget: null,
+  ...p,
+})
+
 describe('getMesMovimientos', () => {
   const categorias = [
-    { uuid: 'c1', name: 'Supermercado', type: 'GASTO' as const, color: '#10b981', usos: 2, usosRecurrentes: 0, budget: null },
-    { uuid: 'c2', name: 'Comer fuera', type: 'GASTO' as const, color: '#f59e0b', usos: 1, usosRecurrentes: 0, budget: null },
-    { uuid: 'i1', name: 'Nómina', type: 'INGRESO' as const, color: '#10b981', usos: 1, usosRecurrentes: 0, budget: null },
+    cat({ uuid: 'c1', name: 'Supermercado', usos: 2 }),
+    cat({ uuid: 'c2', name: 'Comer fuera', color: '#f59e0b', usos: 1 }),
+    cat({ uuid: 'i1', name: 'Nómina', type: 'INGRESO', usos: 1 }),
   ]
 
   it('pide el mes por rango [día 1, día 1 del siguiente) y cruza bien el año', async () => {
@@ -268,6 +382,61 @@ describe('getMesMovimientos', () => {
   })
 })
 
+// El donut enseña GRUPOS y el detalle al pulsar: la porción de "Coche" es la
+// suma del taller y la gasolina, no tres porciones sueltas. Con veinte
+// categorías planas no se leía ninguna, que es de donde salió la jerarquía.
+describe('desglose con grupos', () => {
+  const arbol = [
+    cat({ uuid: 'coche', name: 'Coche', isGroup: true, hijas: 2, color: '#ef4444' }),
+    cat({ uuid: 'taller', name: 'Taller', parentUuid: 'coche', parentName: 'Coche', color: '#f59e0b' }),
+    cat({ uuid: 'gasolina', name: 'Gasolina', parentUuid: 'coche', parentName: 'Coche', color: '#3b82f6' }),
+    cat({ uuid: 'casa', name: 'Casa', color: '#8b5cf6' }),
+  ]
+
+  it('agrupa las hijas en la porción del grupo y guarda el detalle en `hijas`', async () => {
+    const { getMesMovimientos } = await import('@/lib/gastos')
+    prismaMock.expense.findMany.mockResolvedValue([
+      { uuid: 'm1', type: 'GASTO', concept: 'Aceite', amount: 80, expenseDate: new Date('2026-08-02T00:00:00Z'), categoryUuid: 'taller' },
+      { uuid: 'm2', type: 'GASTO', concept: 'Diésel', amount: 120, expenseDate: new Date('2026-08-05T00:00:00Z'), categoryUuid: 'gasolina' },
+      { uuid: 'm3', type: 'GASTO', concept: 'Luz', amount: 60, expenseDate: new Date('2026-08-09T00:00:00Z'), categoryUuid: 'casa' },
+    ])
+    prismaMock.expense.groupBy.mockResolvedValue([])
+
+    const datos = await getMesMovimientos('2026-08', arbol)
+    // Dos porciones: el grupo (200) y la suelta (60), de mayor a menor. El
+    // color y el nombre de la porción son los del GRUPO.
+    expect(datos.porCategoriaGasto.map((p) => [p.uuid, p.name, p.total])).toEqual([
+      ['coche', 'Coche', 200],
+      ['casa', 'Casa', 60],
+    ])
+    expect(datos.porCategoriaGasto[0].color).toBe('#ef4444')
+    expect(datos.porCategoriaGasto[0].hijas).toEqual([
+      { uuid: 'gasolina', name: 'Gasolina', color: '#3b82f6', total: 120 },
+      { uuid: 'taller', name: 'Taller', color: '#f59e0b', total: 80 },
+    ])
+    // Una categoría del primer nivel no inventa desglose.
+    expect(datos.porCategoriaGasto[1].hijas).toBeUndefined()
+  })
+
+  it('un grupo con movimientos propios saca la diferencia como una hija más', async () => {
+    // No debería pasar (los grupos no se ofrecen al apuntar), pero si pasara
+    // el desglose sumaría menos que la porción y no habría forma de verlo.
+    const { getMesMovimientos } = await import('@/lib/gastos')
+    prismaMock.expense.findMany.mockResolvedValue([
+      { uuid: 'm1', type: 'GASTO', concept: 'Aceite', amount: 80, expenseDate: new Date('2026-08-02T00:00:00Z'), categoryUuid: 'taller' },
+      { uuid: 'm2', type: 'GASTO', concept: 'Suelto', amount: 20, expenseDate: new Date('2026-08-03T00:00:00Z'), categoryUuid: 'coche' },
+    ])
+    prismaMock.expense.groupBy.mockResolvedValue([])
+
+    const [porcion] = (await getMesMovimientos('2026-08', arbol)).porCategoriaGasto
+    expect(porcion.total).toBe(100)
+    expect(porcion.hijas?.map((h) => [h.name, h.total])).toEqual([
+      ['Taller', 80],
+      ['Coche (suelto en el grupo)', 20],
+    ])
+  })
+})
+
 describe('getAnioMovimientos', () => {
   it('reparte por mes, suma el año y la media solo cuenta meses con datos', async () => {
     const { getAnioMovimientos } = await import('@/lib/gastos')
@@ -278,8 +447,8 @@ describe('getAnioMovimientos', () => {
     ])
 
     const anio = await getAnioMovimientos(2026, [
-      { uuid: 'c1', name: 'Casa', type: 'GASTO' as const, color: '#10b981', usos: 2, usosRecurrentes: 0, budget: null },
-      { uuid: 'i1', name: 'Nómina', type: 'INGRESO' as const, color: '#3b82f6', usos: 1, usosRecurrentes: 0, budget: null },
+      cat({ uuid: 'c1', name: 'Casa', usos: 2 }),
+      cat({ uuid: 'i1', name: 'Nómina', type: 'INGRESO', color: '#3b82f6', usos: 1 }),
     ])
 
     expect(anio.meses).toHaveLength(12)

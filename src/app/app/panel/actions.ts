@@ -251,6 +251,35 @@ export async function deleteAmbito(uuid: string): Promise<Result> {
   })
 }
 
+/**
+ * Deshace el "hecha" de un recordatorio PUNTUAL: le quita `lastDone` y vuelve a
+ * estar pendiente para su fecha.
+ *
+ * ⚠ Existe porque "Hecha" es un clic sin confirmación, y en una puntual ese
+ * clic era una puerta de una sola dirección: la tarea se apagaba en la lista,
+ * salía del calendario y del correo, y la única salida era borrarla y
+ * escribirla otra vez. En una tarea que se REPITE no hace falta —su `nextDue`
+ * ya avanzó y volverá a vencer—, así que solo se admite en las puntuales: para
+ * las otras habría que saber a qué fecha volver, y eso es editar.
+ */
+export async function reopenMaintenance(uuid: string): Promise<Result> {
+  return guarded(async () => {
+    const tarea = await prisma.maintenanceTask.findUnique({ where: { uuid } })
+    if (!tarea) return fail('Esa tarea no existe')
+    if (tarea.intervalMonths !== null) {
+      return fail('Solo se puede reabrir un recordatorio puntual; en una que se repite, cambia su próximo vencimiento')
+    }
+    await prisma.maintenanceTask.update({
+      where: { uuid },
+      // `lastNotified` fuera también: si no, el aviso por correo se quedaría
+      // esperando una semana antes de volver a contar.
+      data: { lastDone: null, lastNotified: null },
+    })
+    refresh()
+    return ok
+  })
+}
+
 // ─────────── Tareas ───────────
 
 // Valida los campos comunes de alta y edición.
@@ -323,8 +352,20 @@ export async function updateMaintenance(
   return guarded(async () => {
     const parsed = await parsearTarea(datos)
     if (parsed.error !== undefined) return fail(parsed.error)
-    // Editar el vencimiento a mano resetea el aviso: si vuelve a vencer, avisa.
-    await prisma.maintenanceTask.update({ where: { uuid }, data: { ...parsed, lastNotified: null } })
+    const previa = await prisma.maintenanceTask.findUnique({ where: { uuid } })
+    if (!previa) return fail('Esa tarea no existe')
+    // ⚠ Cambiarle la FECHA a un recordatorio puntual ya cumplido lo vuelve a
+    // poner pendiente. Si no, el caso natural —«renovar el dominio», hecho, y
+    // al año siguiente le pongo la fecha nueva en vez de crearlo otra vez— lo
+    // dejaba apagado como «Hecha» para siempre: fuera del calendario y sin
+    // avisar. Solo con la fecha: corregir el título no resucita nada.
+    const eraCumplida = previa.intervalMonths === null && previa.lastDone !== null
+    const cambiaFecha = previa.nextDue.toISOString().slice(0, 10) !== datos.nextDue
+    await prisma.maintenanceTask.update({
+      where: { uuid },
+      // Editar el vencimiento a mano resetea el aviso: si vuelve a vencer, avisa.
+      data: { ...parsed, lastNotified: null, ...(eraCumplida && cambiaFecha ? { lastDone: null } : {}) },
+    })
     refresh()
     return ok
   })

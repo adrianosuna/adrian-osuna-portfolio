@@ -5,7 +5,7 @@
 // en lunes, "Hoy", "Borrar").
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { DateField, NumberField, SelectField } from '@/components/ui/fields'
+import { DateField, NumberField, SelectField, TreeSelectField } from '@/components/ui/fields'
 
 // Testing Library necesita saber que está en un entorno con act().
 ;(globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true
@@ -168,5 +168,74 @@ describe('DateField', () => {
     const h = new Date()
     const esperado = `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}-${String(h.getDate()).padStart(2, '0')}`
     expect(onChange).toHaveBeenCalledWith(esperado)
+  })
+})
+
+// El select de categoría en ÁRBOL: los grupos son cabeceras, no opciones, y el
+// buscador encuentra también por el nombre del grupo (era la razón de la lista
+// plana "Coche › Taller"; el árbol la conserva).
+describe('TreeSelectField', () => {
+  const arbol = [
+    { value: '', label: 'Sin categoría' },
+    { value: 'coche', label: 'Coche', hijos: [
+      { value: 'taller', label: 'Taller' },
+      { value: 'gasolina', label: 'Gasolina' },
+    ] },
+    { value: 'casa', label: 'Casa' },
+  ]
+
+  it('los grupos son cabeceras (role=group) y solo las hojas son opciones', () => {
+    render(<TreeSelectField ariaLabel="Categoría" value="" onChange={vi.fn()} opciones={arbol} />)
+    fireEvent.click(screen.getByLabelText('Categoría'))
+    expect(screen.getByRole('group', { name: 'Coche' })).toBeTruthy()
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'Sin categoría', 'Taller', 'Gasolina', 'Casa',
+    ])
+  })
+
+  it('elegir una hoja emite su valor y cierra; el disparador enseña "Grupo › Hoja"', () => {
+    const onChange = vi.fn()
+    const { rerender } = render(
+      <TreeSelectField ariaLabel="Categoría" value="" onChange={onChange} opciones={arbol} />,
+    )
+    fireEvent.click(screen.getByLabelText('Categoría'))
+    fireEvent.click(screen.getByText('Gasolina'))
+    expect(onChange).toHaveBeenCalledWith('gasolina')
+    expect(screen.queryByRole('listbox')).toBeNull()
+    rerender(<TreeSelectField ariaLabel="Categoría" value="gasolina" onChange={onChange} opciones={arbol} />)
+    expect(screen.getByLabelText('Categoría').textContent).toBe('Coche › Gasolina')
+  })
+
+  it('el buscador encuentra por el nombre del GRUPO y saca sus hojas', () => {
+    // Nueve hojas para que aparezca el buscador (umbral 8).
+    const grande = [
+      ...arbol,
+      ...Array.from({ length: 6 }, (_, i) => ({ value: `s${i}`, label: `Suelta ${i}` })),
+    ]
+    render(<TreeSelectField ariaLabel="Categoría" value="" onChange={vi.fn()} opciones={grande} />)
+    fireEvent.click(screen.getByLabelText('Categoría'))
+    fireEvent.change(screen.getByLabelText('Buscar en la lista'), { target: { value: 'coche' } })
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['Taller', 'Gasolina'])
+    // Y por la hoja: la cabecera de su grupo se queda para saber de dónde es.
+    fireEvent.change(screen.getByLabelText('Buscar en la lista'), { target: { value: 'gasol' } })
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['Gasolina'])
+    expect(screen.getByRole('group', { name: 'Coche' })).toBeTruthy()
+  })
+
+  it('el disparador enseña la ruta completa en un tooltip (se recorta en la rejilla)', () => {
+    const conGrupo = [
+      { value: '', label: 'Sin categoría' },
+      { value: 'coche', label: 'Coche', hijos: [{ value: 'taller', label: 'Taller' }] },
+      { value: 'casa', label: 'Casa' },
+    ]
+    // Con una hoja de grupo elegida: el tooltip trae "Grupo › Hoja".
+    render(<TreeSelectField ariaLabel="Categoría" value="taller" onChange={vi.fn()} opciones={conGrupo} />)
+    fireEvent.focus(screen.getByLabelText('Categoría'))
+    expect(screen.getByRole('tooltip').textContent).toBe('Coche › Taller')
+    cleanup()
+    // Una suelta no añade nada: repetir su nombre no aporta.
+    render(<TreeSelectField ariaLabel="Categoría" value="casa" onChange={vi.fn()} opciones={conGrupo} />)
+    fireEvent.focus(screen.getByLabelText('Categoría'))
+    expect(screen.queryByRole('tooltip')).toBeNull()
   })
 })

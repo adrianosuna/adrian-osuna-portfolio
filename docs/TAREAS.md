@@ -1,92 +1,84 @@
 # Tareas pendientes
 
-## Desplegar
+> Desplegado en producción el **02/09/2026**: las diez migraciones, la API v1
+> para los Atajos, la PWA con push, el endurecimiento (Zod, rate limiting,
+> CSP, logs por niveles, salud del contenedor, e2e), los recordatorios
+> puntuales, las tablas unificadas y los arreglos de la auditoría de
+> accesibilidad. Verificado tras el despliegue: `/api/health` y `/api/ready`
+> en 200, la API en 401 sin token, las seis cabeceras aplicadas (CSP ya no en
+> report-only) y `/app/*` en 307. El detalle, en `CHANGELOG.md`.
 
-Sin subir: **topes de gasto por categoría**, **movimientos recurrentes**, la
-**sección Ajustes** (categorías con fusión, recurrentes y años de ahorro), los
-**ámbitos del mantenimiento** (editables: servidor / casa / vehículo y los que
-se añadan), las **notas del Panel** (editor visual, HTML saneado; ahora con pin,
-buscador y listas de tareas), el **buscador de los selects**, la **barra de
-carga**, la **paleta ⌘K** con alta rápida, la **búsqueda de movimientos**
-(ahora paginada), la **PWA instalable**, la **nota y la división por
-movimiento**, los **importes con decimales**, el **calendario de
-mantenimiento**, el **histórico del monitor**, el **histórico de accesos**, las
-**sub-pestañas de Usuarios**, el bloque de **productividad transversal**
-(deshacer, búsqueda global ⌘K, atajos de teclado, accesos fijados, campana de
-avisos, confirmaciones silenciables, estado en la URL y aviso de novedades —la
-densidad compacta se hizo y se retiró—), el bloque **móvil/PWA** (push web,
-vista offline, shortcuts del icono, splash de iOS, safe-area y el **menú de
-acciones** de las filas), las **tablas unificadas**, los **recordatorios
-puntuales** del mantenimiento, la **validación con Zod** de todas las actions,
-el **rate limiting** y el bloque
-de **plataforma**: la **API v1 para los Atajos de iOS** con sus tokens, «cerrar
-todas las sesiones» y la **caducidad por inactividad**, la **CSP ampliada**,
-`/api/health` y `/api/ready`, los **logs estructurados**, más Suspense y los
-**e2e de Playwright**.
+## Antes del próximo despliegue
 
-**DIEZ migraciones** —`topes_por_categoria`, `gastos_recurrentes`,
-`ambitos_de_mantenimiento`, `origen_de_los_movimientos`, `ambitos_editables`,
-`notas_y_unicidad` (tabla `note` + los índices únicos de la auditoría),
-`notas_tareas_gastos_y_accesos` (`expense.note`, `note.pinned` y las tablas
-`login_event` e `infra_sample`), `notificaciones_push` (tabla
-`push_subscription`), `api_tokens` (tabla `api_token` + el índice
-`idx_opportunity_updated`) y `recordatorios_puntuales`
-(`maintenance_task.interval_months` pasa a admitir NULL)—, así que el build
-necesita el perfil y el paso `migrate` antes del `up`:
+Lo que trae este despliegue está contado en `CHANGELOG.md` (04 y 05/09): las
+categorías de gasto en dos niveles, el calendario del Panel, el mapa de
+visitas, el tooltip propio, el atajo de login de desarrollo, los tres findings
+de la auditoría externa que tocaban el repo y cuatro repasos de la pestaña
+Mantenimiento. Antes de subir:
 
-```bash
-cd /var/www/adrian-osuna-portfolio && git pull
-docker compose --env-file .env.production --profile setup build
-docker compose --env-file .env.production --profile setup run --rm migrate
-docker compose --env-file .env.production up -d
-```
+- [ ] **Aplicar la migración `grupos_de_categorias`** (servicio `migrate` del
+      compose, `--profile setup`; ver `DESPLIEGUE.md`). Está ya aplicada en la
+      BD local, y unifica las dos que hubo el 04/09 antes de llegar a
+      producción. No es destructiva: `parent_uuid` nace NULL e `is_group` en
+      false, así que todo lo que hay se queda como **categoría suelta** hasta
+      que se agrupe a mano desde Ajustes. Es la ÚNICA migración pendiente.
+- [ ] **Comprobar que `DEV_LOGIN_EMAIL` no está en el `.env` del VPS.** El
+      atajo de login sin Google tiene dos candados para no poder existir en
+      producción (`NODE_ENV` y la variable como opt-in), así que colarla no
+      abriría nada — pero no tiene ningún sentido que esté ahí.
+- [ ] **Los `mem_limit` del compose ya vienen activos** (`db` 768m, `web`
+      512m, con las cifras medidas el 02/09). Si en el VPS los pusiste a mano,
+      comprobar que coinciden antes de sobrescribir el fichero.
+- [ ] **Pasar los e2e antes de subir** (`pnpm test:e2e`): comprueban las
+      cabeceras sobre un build de producción y `next.config.ts` ha cambiado
+      (`poweredByHeader`). En la última ejecución: 24 en verde.
+- [ ] **Al terminar, marcar los días en el CHANGELOG.** Las cabeceras `##
+      04/09/2026` y `## 05/09/2026` pasan a `(en producción)`, como se hizo con
+      el 02/09: es lo que distingue de un vistazo lo subido de lo que está solo
+      en local. Y retirar de aquí esta sección.
 
-Tres dependencias nuevas de producción (**`sanitize-html`** para las notas,
-**`web-push`** para las notificaciones y **`zod`** para la validación) y tres de desarrollo (`@playwright/test`,
-`axe-core`, `@next/bundle-analyzer`), que el `pnpm install` del build instala
-solas desde el lockfile. Procedimiento completo en `DESPLIEGUE.md` →
-"Actualizaciones".
+## Del despliegue del 02/09: una cosa suelta
 
-⚠ El lockfile trae además **overrides nuevos** (`mariadb` 3.4.7 y
-`mysql2` >=3.22.0, que cierran los avisos de seguridad que quedaban): van en
-`pnpm-workspace.yaml` y se aplican con el `--frozen-lockfile` del build, sin
-hacer nada extra.
+- [ ] **Crear el primer token de la API** en Panel de control → Usuarios →
+      API. Sin él la API v1 no hace nada; el valor se muestra UNA vez. Después,
+      montar el Atajo del iPhone con la receta de `API.md`.
 
-**Variables de entorno nuevas, TODAS OPCIONALES** (sin ellas todo se comporta
-como antes salvo la inactividad de la sesión, que trae un valor por defecto):
+## De la auditoría externa del 03/09/2026
 
-```bash
-npx web-push generate-vapid-keys
-# → VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY (y VAPID_SUBJECT="mailto:...")
-```
+Auditoría de caja negra sobre el dominio (ver `CHANGELOG.md`, 04/09): sin
+vulnerabilidades explotables. Los tres findings que tocaban el repo ya están
+aplicados; **lo que queda es DNS**, en el panel de OVH —donde está el hallazgo
+de más impacto del documento—, más un recordatorio en Mantenimiento.
 
-- `VAPID_*` — sin ellas el push queda inactivo. La privada es un secreto y
-  **no se hornea en el build**: basta reiniciar el contenedor tras añadirlas.
-- `LOG_LEVEL` — suelo del registro (por defecto `info` en producción).
-- `SESION_DIAS` / `SESION_INACTIVIDAD_HORAS` — los dos plazos de caducidad de
-  la sesión. ⚠ **Cambio de comportamiento**: la inactividad viene a **48 h** por
-  defecto, así que una sesión que nadie toque dos días se cerrará sola (antes
-  aguantaba los 7 días completos). Ponerla a `0` la desactiva.
+- [ ] **DMARC**, lo prioritario. El dominio **no tiene registro DMARC**, así
+      que cualquiera puede falsificar remitentes `@adrianosuna.com` y los
+      receptores no tienen política que aplicar. Zona DNS de OVH → entrada
+      TXT, subdominio `_dmarc`:
+      `v=DMARC1; p=none; rua=mailto:adrianosunaalbala@gmail.com; ruf=mailto:adrianosunaalbala@gmail.com; fo=1; adkim=s; aspf=s`
+      Empezar en `p=none` (solo monitoriza y manda informes), y tras una o dos
+      semanas leyéndolos endurecer a `p=quarantine` y luego a `p=reject`.
+      Comprobar de paso que **DKIM** está activo en el panel: `adkim=s`
+      exige alineación estricta.
 
-Las diez migraciones están **aplicadas en la BD local** (`migrate diff` contra
-la BD: sin drift). En producción siguen pendientes: van con el paso `migrate`.
+- [ ] **SPF a `-all`** — hoy es `v=spf1 include:mx.ovh.com ~all` (softfail:
+      solo pide "sospechar"). Con `-all` se rechaza.
+      ⚠ Solo tras confirmar que **todo** el correo del dominio sale por
+      `mx.ovh.com`. Ojo con este proyecto: el remitente de `lib/correo.ts` es
+      `SMTP_USER`, así que hoy los avisos del cron **no** salen como
+      `@adrianosuna.com` y el `-all` no les afecta; el día que ese usuario sea
+      una dirección del dominio enviando por otro SMTP (Gmail, por ejemplo),
+      hay que añadir ese proveedor al SPF **antes** o esos correos se
+      rechazan.
 
-⚠ Una vez desplegado, el cron **apuntará movimientos solo** en cuanto haya
-recurrentes dados de alta (a las 8:00 y en la pasada de arranque), y empezará a
-**muestrear la infraestructura** una vez al día: el bloque «Evolución» de la
-pestaña Servidor necesita dos muestras, así que el primer día sale vacío y al
-segundo ya hay línea.
+- [ ] **Registro CAA** para restringir qué CA puede emitir certificados del
+      dominio: `adrianosuna.com. CAA 0 issue "letsencrypt.org"`. Barato, mismo
+      panel, mismo viaje que los dos de arriba.
 
-⚠ El healthcheck de `web` ahora apunta a **`/api/health`** (antes,
-`/robots.txt`). Es un cambio en `docker-compose.yml`, así que el `up -d`
-recreará el contenedor — nada que hacer a mano.
-
-### Primer token de la API, tras desplegar
-
-La API de los Atajos no funciona hasta que exista un token, y solo se puede
-crear desde la interfaz: **Panel de control → Usuarios → API → Nuevo token**.
-El valor se muestra una sola vez; se pega en el Atajo y listo. Receta completa
-en `API.md`.
+- [ ] **Tarea de Mantenimiento para el `Expires` del `security.txt`**: crearla
+      en Panel de control → Mantenimiento con vencimiento **antes del
+      01/09/2027**. Caducado, el fichero queda inválido según la RFC. Es
+      exactamente el problema para el que existe ese módulo, así que no se
+      queda en esta lista.
 
 ## De la auditoría del 28/08/2026
 
@@ -103,14 +95,10 @@ desbloquearon al publicarse el parche en la misma minor que el pin del adapter
 
 ### Operación en el VPS
 
-Healthcheck de `web`, techo a los logs y `.env.example` están **hechos** (ver
-`CHANGELOG.md`, 31/08 y 02/09). Queda medio abierto uno:
-
-- [ ] **Fijar el `mem_limit` de `db` y `web`**: el bloque está ya en
-      `docker-compose.yml` **comentado**, con su cifra por decidir. No se puso a
-      ciegas porque un límite por debajo de lo que consume el contenedor provoca
-      justo el OOM que se quiere evitar. Solo falta mirar la RAM del VPS
-      (`free -m`) y descomentar con un valor que deje aire a los dos.
+Todo cerrado (ver `CHANGELOG.md`): healthcheck de `web`, techo a los logs,
+`.env.example` y el **`mem_limit`**, que se fijó el 02/09/2026 con las cifras
+reales de `docker stats` en el VPS (`db` 132 MiB → 768m, `web` 141 MiB → 512m)
+y que el `docker-compose.yml` del repo ya trae **activo**, no comentado.
 
 ## Ideas para cuando toque
 

@@ -7,7 +7,7 @@ import type { YearSummary } from '@/lib/finance'
 // Formato de importes: la fuente única es `lib/euros.ts` (decimales solo si el
 // importe los tiene). Se re-exporta aquí porque todo el módulo lo importa de
 // `./comun` desde antes de unificarlo.
-export { eur } from '@/lib/euros'
+export { eur, eurEntero } from '@/lib/euros'
 
 // Ahorro anual = mensual + extras + sobrante de viajes (lo no gastado en
 // viajes se suma al cierre; si se gastó de más, el exceso resta).

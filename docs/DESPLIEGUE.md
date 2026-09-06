@@ -108,6 +108,12 @@ Rellenar TODO:
 - `NEXT_PUBLIC_GA_ID`: el example ya trae el ID real (G-04BLBZ1KMM). Se hornea
   en el build: si se cambia, hay que reconstruir la imagen.
 
+⚠ Y una que **NO va aquí**: `DEV_LOGIN_EMAIL`, el atajo de login sin Google.
+Existe solo fuera de producción y tiene dos candados independientes (el
+`NODE_ENV` que fija el build, y la propia variable como opt-in), así que
+colarla no abriría nada — pero no tiene ningún sentido que esté en el `.env`
+del servidor. Está documentada en `.env.example`, el de desarrollo.
+
 ## 6 · Construir y arrancar
 
 ```bash

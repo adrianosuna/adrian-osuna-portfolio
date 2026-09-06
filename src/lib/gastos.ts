@@ -10,6 +10,7 @@ import { botonHtml, correoConfigurado, enviarCorreo, tarjetaHtml } from '@/lib/c
 import { hoyMadrid } from '@/lib/mantenimiento'
 import { SITE_URL } from '@/lib/site'
 import { nombreMes } from '@/lib/fechas'
+import { etiquetaCategoria } from '@/lib/categorias'
 import { nivelTope, topesDelMes, UMBRAL_LIMITE, type TopeRow } from '@/lib/topes'
 import { cargosPendientes, MAX_CARGOS, type RecurrenteRow } from '@/lib/recurrentes'
 import { log } from '@/lib/log'
@@ -23,6 +24,16 @@ export type TipoMovimiento = 'INGRESO' | 'GASTO'
 export interface CategoriaRow {
   uuid: string
   name: string
+  /** Si es un GRUPO (contenedor) en vez de una categoría. */
+  isGroup: boolean
+  /** Grupo al que pertenece (null = suelta, o es un grupo ella misma). */
+  parentUuid: string | null
+  /** Nombre del grupo. Va aquí para no volver a buscarlo en cada etiqueta
+   *  "Coche › Taller" ni en cada aviso. */
+  parentName: string | null
+  /** Cuántas categorías tiene dentro (0 en una categoría, y en un grupo
+   *  recién creado). Es lo que decide si el grupo se puede borrar. */
+  hijas: number
   type: TipoMovimiento
   color: string
   /** Nº de movimientos que la usan (para avisar al borrarla). */
@@ -51,6 +62,9 @@ export interface ParteCategoria {
   name: string
   color: string
   total: number
+  /** Desglose de un GRUPO, de mayor a menor (undefined si no lo es): es lo que
+   *  el donut enseña al pulsar la porción. */
+  hijas?: ParteCategoria[]
 }
 
 export interface MesMovimientos {
@@ -120,7 +134,15 @@ const diasDelMes = (mes: string) => {
   return new Date(Date.UTC(y, m, 0)).getUTCDate()
 }
 
-/** Reparto por categoría de los movimientos de un tipo, de mayor a menor. */
+/**
+ * Reparto por categoría de los movimientos de un tipo, de mayor a menor.
+ *
+ * Se suma por la categoría del movimiento (siempre una hoja) pero la PORCIÓN
+ * se atribuye a su grupo: la pregunta que responde el donut es "cuánto me
+ * cuesta el coche", no "cuánto el taller" — y con veinte categorías sueltas no
+ * se lee ninguna. El detalle viaja en `hijas`, que es lo que se enseña al
+ * pulsar la porción.
+ */
 function desglose(
   movimientos: Array<{ type: TipoMovimiento; amount: number; categoryUuid: string | null }>,
   tipo: TipoMovimiento,
@@ -131,15 +153,52 @@ function desglose(
     if (m.type !== tipo) continue
     porUuid.set(m.categoryUuid, (porUuid.get(m.categoryUuid) ?? 0) + m.amount)
   }
-  return [...porUuid.entries()]
-    .map(([uuid, total]) => {
-      const cat = uuid === null ? undefined : categorias.find((c) => c.uuid === uuid)
-      return { uuid, name: cat?.name ?? 'Sin categoría', color: cat?.color ?? SIN_CATEGORIA, total }
+
+  const mapa = new Map(categorias.map((c) => [c.uuid, c]))
+  const parte = (cat: CategoriaRow | undefined, uuid: string | null): ParteCategoria => ({
+    uuid,
+    name: cat?.name ?? 'Sin categoría',
+    color: cat?.color ?? SIN_CATEGORIA,
+    total: 0,
+  })
+
+  const grupos = new Map<string | null, { cabeza: ParteCategoria; hijas: ParteCategoria[] }>()
+  for (const [uuid, total] of porUuid) {
+    const cat = uuid === null ? undefined : mapa.get(uuid)
+    const padre = cat?.parentUuid ? mapa.get(cat.parentUuid) : undefined
+    // Una hoja con grupo entra en la porción del grupo; el resto (primer
+    // nivel y "sin categoría") es su propia porción.
+    const clave = padre ? padre.uuid : uuid
+    let entrada = grupos.get(clave)
+    if (!entrada) entrada = { cabeza: parte(padre ?? cat, clave), hijas: [] }
+    entrada.cabeza.total += total
+    if (padre && cat) entrada.hijas.push({ ...parte(cat, cat.uuid), total })
+    grupos.set(clave, entrada)
+  }
+
+  return [...grupos.values()]
+    .map(({ cabeza, hijas }) => {
+      if (!hijas.length) return cabeza
+      // Un grupo no debería tener movimientos propios (no se ofrece al
+      // apuntar), pero si los tuviera —una categoría convertida en grupo por
+      // fuera de la aplicación— el desglose sumaría menos que la porción y no
+      // habría forma de ver la diferencia. Se saca como una hija más.
+      const sueltos = cabeza.total - hijas.reduce((s, h) => s + h.total, 0)
+      if (sueltos > 0.005) {
+        hijas.push({ uuid: cabeza.uuid, name: `${cabeza.name} (suelto en el grupo)`, color: SIN_CATEGORIA, total: sueltos })
+      }
+      return { ...cabeza, hijas: hijas.sort((a, b) => b.total - a.total) }
     })
     .sort((a, b) => b.total - a.total)
 }
 
-/** Categorías con sus usos (movimientos y recurrentes), por tipo y alfabéticas. */
+/**
+ * Categorías y grupos con sus usos (movimientos y recurrentes), en orden de
+ * ÁRBOL: por tipo, el primer nivel alfabéticamente —grupos y sueltas
+ * mezclados— y cada grupo seguido de las suyas. Ese orden lo aprovechan tal
+ * cual la lista de Ajustes y los desplegables, que si no tendrían que
+ * reordenar cada uno.
+ */
 export async function listCategorias(): Promise<CategoriaRow[]> {
   const [categorias, usos, usosRec] = await Promise.all([
     prisma.expenseCategory.findMany({
@@ -150,15 +209,38 @@ export async function listCategorias(): Promise<CategoriaRow[]> {
   ])
   const mapa = new Map(usos.map((u) => [u.categoryUuid, u._count._all]))
   const mapaRec = new Map(usosRec.map((u) => [u.categoryUuid, u._count._all]))
-  return categorias.map((c) => ({
+  const nombres = new Map(categorias.map((c) => [c.uuid, c.name]))
+  const hijas = new Map<string, number>()
+  for (const c of categorias) {
+    if (c.parentUuid) hijas.set(c.parentUuid, (hijas.get(c.parentUuid) ?? 0) + 1)
+  }
+
+  const filas: CategoriaRow[] = categorias.map((c) => ({
     uuid: c.uuid,
     name: c.name,
+    isGroup: c.isGroup,
+    parentUuid: c.parentUuid,
+    parentName: c.parentUuid ? nombres.get(c.parentUuid) ?? null : null,
+    hijas: hijas.get(c.uuid) ?? 0,
     type: c.type as TipoMovimiento,
     color: c.color,
     usos: mapa.get(c.uuid) ?? 0,
     usosRecurrentes: mapaRec.get(c.uuid) ?? 0,
     budget: c.budget === null ? null : num(c.budget),
   }))
+
+  // La consulta ya viene por tipo y nombre: basta recolocar cada hija detrás
+  // de su grupo, respetando ese orden.
+  const salida: CategoriaRow[] = []
+  for (const f of filas) {
+    if (f.parentUuid) continue
+    salida.push(f)
+    salida.push(...filas.filter((h) => h.parentUuid === f.uuid))
+  }
+  // Una hija cuyo grupo sea de otro tipo no puede existir (lo valida la
+  // action), pero si quedara huérfana no se pierde de la lista.
+  salida.push(...filas.filter((f) => f.parentUuid && !nombres.has(f.parentUuid)))
+  return salida
 }
 
 /** Movimientos de un mes con su resumen y sus dos desgloses. */
@@ -541,7 +623,11 @@ const eurTexto = (v: number) =>
 /** Topes del mes en curso con su gasto, para el aviso. */
 async function topesDeHoy(mes: string): Promise<TopeRow[]> {
   const [categorias, gastos] = await Promise.all([
-    prisma.expenseCategory.findMany({ where: { type: 'GASTO', budget: { not: null } } }),
+    // TODAS las de gasto, no solo las que tienen tope: hacen falta para saber
+    // qué cuelga de cada grupo y poder sumarle el gasto de sus hijas (que
+    // pueden no tener tope propio). `topesDelMes` ya descarta las que no lo
+    // tienen.
+    prisma.expenseCategory.findMany({ where: { type: 'GASTO' } }),
     prisma.expense.groupBy({
       by: ['categoryUuid'],
       where: { type: 'GASTO', expenseDate: rangoMes(mes) },
@@ -554,6 +640,7 @@ async function topesDeHoy(mes: string): Promise<TopeRow[]> {
     categorias.map((c) => ({
       uuid: c.uuid,
       name: c.name,
+      parentUuid: c.parentUuid,
       color: c.color,
       type: 'GASTO' as const,
       budget: c.budget === null ? null : num(c.budget),
@@ -619,7 +706,9 @@ export async function avisarTopes(hoyIso = hoyMadrid()): Promise<number> {
   const tarjetas = nuevos
     .map((t) =>
       tarjetaHtml(
-        t.name,
+        // Con el grupo delante: en un correo no hay tooltip que enseñe si esa
+        // "Gasolina" es la del coche o la de la caldera.
+        etiquetaCategoria({ name: t.name, parentName: t.parentName }),
         `${eurTexto(t.gastado)} de ${eurTexto(t.budget)} — ${Math.round(t.pct)}&nbsp;% del tope`,
         nivelTope(t.pct) === 'pasado'
           ? `Te has pasado en ${eurTexto(t.gastado - t.budget)}`

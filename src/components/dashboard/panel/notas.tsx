@@ -8,7 +8,8 @@
 //
 // Sobre eso, dos cosas que aparecen cuando las notas pasan de diez: buscador
 // (título y texto) y fijar las importantes para que no se hundan. Y listas de
-// TAREAS marcables, que se marcan desde la propia tarjeta sin abrir el editor.
+// TAREAS marcables, que se marcan DENTRO del editor: desde la tarjeta no, que
+// es donde el clic con el que ibas a abrir la nota terminaba tachando un ítem.
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import {
   Bold, Heading, Italic, Link2, List, ListChecks, ListOrdered, Pin, Plus, Search,
@@ -16,15 +17,79 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn, sinAcentos } from '@/lib/utils'
+import { Tooltip } from '@/components/ui/tooltip'
 import { Modal } from '@/components/ui/modal'
 import { TextField } from '@/components/ui/fields'
 import {
-  createNote, deleteNote, pinNote, restaurarNota, toggleNotaTarea, updateNote,
+  createNote, deleteNote, pinNote, restaurarNota, updateNote,
 } from '@/app/app/panel/actions'
 import { borrarConDeshacer } from '@/components/dashboard/deshacer'
 import type { NotaRow } from '@/lib/notas'
 import { btnIcon, btnOutline, btnPrimary } from '@/components/ui/botones'
 
+
+/**
+ * Cuerpo de una tarjeta: el HTML de la nota, recortado a cuatro líneas, con un
+ * botón para desplegarlo en su sitio. Antes se cortaba sin más, y lo que
+ * quedaba fuera solo se podía leer abriendo el editor.
+ *
+ * El recorte se MIDE (`scrollHeight` contra `clientHeight`) en vez de
+ * estimarse por la longitud del texto: una lista de ocho tareas cortas se
+ * corta con poquísimos caracteres, así que cualquier umbral fallaría justo en
+ * las notas de tareas, que son las que más se recortan.
+ */
+function CuerpoNota({ html, etiqueta }: { html: string; etiqueta: string | null }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [abierta, setAbierta] = useState(false)
+  const [recortada, setRecortada] = useState(false)
+
+  // Solo se mide CERRADA: desplegada no hay desbordamiento que medir, y
+  // medirla ahí apagaría el botón con el que volver a cerrarla.
+  useEffect(() => {
+    const el = ref.current
+    if (!el || abierta) return
+    const medir = () => setRecortada(el.scrollHeight > el.clientHeight + 1)
+    medir()
+    // Sin ResizeObserver (jsdom) basta la medida inicial.
+    if (typeof ResizeObserver === 'undefined') return
+    const observador = new ResizeObserver(medir)
+    observador.observe(el)
+    return () => observador.disconnect()
+  }, [html, abierta])
+
+  return (
+    <>
+      <div
+        ref={ref}
+        // pointer-events-none: el clic es SIEMPRE de la tarjeta (abre la nota),
+        // nunca de un enlace ni de una casilla de tarea del contenido.
+        className={cn(
+          'contenido-nota pointer-events-none text-muted-foreground',
+          !abierta && 'line-clamp-4',
+        )}
+        // Contenido ya saneado en el servidor al guardarse.
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+      {(recortada || abierta) && (
+        <button
+          type="button"
+          className="mt-1 self-start text-[11px] font-semibold uppercase tracking-[0.4px] text-primary hover:text-primary-dark"
+          aria-expanded={abierta}
+          // Con varias tarjetas, "Ver más" a secas no dice de qué nota es.
+          aria-label={`${abierta ? 'Recortar' : 'Ver entera'}: ${etiqueta || 'nota sin título'}`}
+          // La tarjeta entera abre el editor: ni el clic ni el Enter de este
+          // botón deben llegar hasta ella.
+          onClick={(e) => {
+            e.stopPropagation()
+            setAbierta((v) => !v)
+          }}
+          onKeyDown={(e) => e.stopPropagation()}>
+          {abierta ? 'Ver menos' : 'Ver más'}
+        </button>
+      )}
+    </>
+  )
+}
 
 /** Fecha de edición en relativo corto ("hace 3 h", "ayer", "12/08"). */
 function cuando(iso: string): string {
@@ -289,7 +354,7 @@ export function NotasTab({
             // enlaces), que dentro de un botón sería anidamiento inválido (React
             // avisa) y haría que un enlace disparara enlace + editor a la vez.
             // Div con role/teclado, y el preview con pointer-events-none para
-            // que el clic —salvo en las casillas— siempre abra el editor.
+            // que el clic, caiga donde caiga, siempre abra el editor.
             <div
               key={n.uuid}
               role="button"
@@ -306,49 +371,31 @@ export function NotasTab({
                 n.pinned ? 'border-primary/40' : 'border-border',
               )}>
               {/* Fijar: encima de la tarjeta, y para el clic para no abrirla */}
-              <button
-                type="button"
-                className={cn(
-                  'absolute right-2 top-2 rounded-md p-1.5 transition-colors',
-                  n.pinned
-                    ? 'text-primary hover:bg-primary/10'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                )}
-                aria-label={n.pinned ? 'Soltar la nota' : 'Fijar la nota arriba'}
-                aria-pressed={n.pinned}
-                title={n.pinned ? 'Soltar' : 'Fijar arriba'}
-                disabled={pending}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  startTransition(async () => {
-                    const res = await pinNote(n.uuid, !n.pinned)
-                    if (!res.ok) toast.error(res.message ?? 'Error')
-                  })
-                }}>
-                <Pin className={cn('size-3.5', n.pinned && 'fill-current')} />
-              </button>
+              <Tooltip texto={n.pinned ? 'Soltar' : 'Fijar arriba'}>
+                <button
+                  type="button"
+                  className={cn(
+                    'absolute right-2 top-2 rounded-md p-1.5 transition-colors',
+                    n.pinned
+                      ? 'text-primary hover:bg-primary/10'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                  )}
+                  aria-label={n.pinned ? 'Soltar la nota' : 'Fijar la nota arriba'}
+                  aria-pressed={n.pinned}
+                  disabled={pending}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    startTransition(async () => {
+                      const res = await pinNote(n.uuid, !n.pinned)
+                      if (!res.ok) toast.error(res.message ?? 'Error')
+                    })
+                  }}>
+                  <Pin className={cn('size-3.5', n.pinned && 'fill-current')} />
+                </button>
+              </Tooltip>
 
               {n.title && <p className="mb-1 truncate pr-8 font-semibold">{n.title}</p>}
-              <div
-                // `tareas-pulsables` reactiva el puntero SOLO en los ítems de
-                // tarea: se marcan desde aquí, sin abrir el editor.
-                className="contenido-nota tareas-pulsables pointer-events-none line-clamp-4 text-muted-foreground"
-                onClick={(e) => {
-                  const li = (e.target as HTMLElement).closest('li[data-check]')
-                  if (!li) return
-                  // No abrir el editor: este clic era para marcar la tarea.
-                  e.stopPropagation()
-                  const items = [...e.currentTarget.querySelectorAll('li[data-check]')]
-                  const indice = items.indexOf(li)
-                  if (indice < 0) return
-                  startTransition(async () => {
-                    const res = await toggleNotaTarea(n.uuid, indice)
-                    if (!res.ok) toast.error(res.message ?? 'Error')
-                  })
-                }}
-                // Contenido ya saneado en el servidor al guardarse.
-                dangerouslySetInnerHTML={{ __html: n.content }}
-              />
+              <CuerpoNota html={n.content} etiqueta={n.title} />
 
               {/* Pie: progreso de tareas y cuándo se editó */}
               <div className="mt-3 flex flex-wrap items-center gap-1.5">
@@ -478,15 +525,16 @@ function BotonFormato({
   activo?: boolean
 }) {
   return (
-    <button
-      type="button"
-      className={cn(btnIcon, activo && 'bg-primary/15 text-primary')}
-      aria-label={label}
-      aria-pressed={activo}
-      title={label}
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={onClick}>
-      <Icon className="size-4" />
-    </button>
+    <Tooltip texto={label}>
+      <button
+        type="button"
+        className={cn(btnIcon, activo && 'bg-primary/15 text-primary')}
+        aria-label={label}
+        aria-pressed={activo}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={onClick}>
+        <Icon className="size-4" />
+      </button>
+    </Tooltip>
   )
 }

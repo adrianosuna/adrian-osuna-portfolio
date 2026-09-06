@@ -10,6 +10,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ExternalLink, Keyboard, LogOut, Menu, Plus, RotateCcw, Search, UserRound, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Tooltip } from '@/components/ui/tooltip'
 import { useAcciones } from '@/components/dashboard/acciones-rapidas'
 import { useSilenciadas } from '@/components/dashboard/confirmar'
 import { Notificaciones } from '@/components/dashboard/notificaciones'
@@ -103,14 +104,15 @@ export function TopNav({ user, avisos, onSignOut }: TopNavProps) {
               <span>Buscar</span>
               <kbd className="rounded border border-border px-1 text-[11px] leading-relaxed">Ctrl&nbsp;K</kbd>
             </button>
-            <button
-              type="button"
-              className="flex items-center justify-center rounded-md bg-primary p-2 text-primary-foreground transition-opacity hover:opacity-90"
-              aria-label="Nuevo movimiento"
-              title="Nuevo movimiento"
-              onClick={() => acc.abrirAlta('GASTO')}>
-              <Plus className="size-4" />
-            </button>
+            <Tooltip texto="Nuevo movimiento">
+              <button
+                type="button"
+                className="flex items-center justify-center rounded-md bg-primary p-2 text-primary-foreground transition-opacity hover:opacity-90"
+                aria-label="Nuevo movimiento"
+                onClick={() => acc.abrirAlta('GASTO')}>
+                <Plus className="size-4" />
+              </button>
+            </Tooltip>
           </div>
         )}
 

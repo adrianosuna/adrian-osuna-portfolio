@@ -13,8 +13,14 @@
 export interface TopeRow {
   uuid: string
   name: string
+  /** Grupo al que pertenece, si es una subcategoría (para leer "Coche ›
+   *  Gasolina" en la barra y no una "Gasolina" suelta). */
+  parentUuid: string | null
+  parentName: string | null
   color: string
   budget: number
+  /** Gastado en la categoría Y en sus subcategorías: el tope de un grupo es
+   *  el de todo lo que cuelga de él. */
   gastado: number
   /** Consumido en tanto por ciento, SIN recortar a 100 (puede pasarse). */
   pct: number
@@ -39,6 +45,11 @@ interface Movimiento {
 interface Categoria {
   uuid: string
   name: string
+  /** Grupo al que pertenece (null = primer nivel). Obligatorio a propósito:
+   *  quien llame tiene que pasar TODAS las categorías del tipo, no solo las
+   *  que tienen tope — si no, el gasto de una subcategoría sin tope no se
+   *  podría sumar al tope de su grupo y este saldría siempre a cero. */
+  parentUuid: string | null
   color: string
   type: 'INGRESO' | 'GASTO'
   budget: number | null
@@ -60,14 +71,29 @@ export function topesDelMes(categorias: Categoria[], movimientos: Movimiento[]):
     gastoPorCat.set(m.categoryUuid, (gastoPorCat.get(m.categoryUuid) ?? 0) + m.amount)
   }
 
+  // Un solo nivel, como el esquema: las hijas no tienen hijas.
+  const hijasDe = new Map<string, string[]>()
+  const nombres = new Map(categorias.map((c) => [c.uuid, c.name]))
+  for (const c of categorias) {
+    if (!c.parentUuid) continue
+    hijasDe.set(c.parentUuid, [...(hijasDe.get(c.parentUuid) ?? []), c.uuid])
+  }
+  // Lo gastado "en" una categoría incluye lo de sus subcategorías: el tope de
+  // un grupo ("el coche, 200 al mes") cuenta el taller y la gasolina.
+  const gastadoDe = (uuid: string) =>
+    (gastoPorCat.get(uuid) ?? 0) +
+    (hijasDe.get(uuid) ?? []).reduce((s, h) => s + (gastoPorCat.get(h) ?? 0), 0)
+
   return categorias
     .filter((c) => c.type === 'GASTO' && c.budget !== null && c.budget > 0)
     .map((c) => {
       const budget = c.budget as number
-      const gastado = gastoPorCat.get(c.uuid) ?? 0
+      const gastado = gastadoDe(c.uuid)
       return {
         uuid: c.uuid,
         name: c.name,
+        parentUuid: c.parentUuid,
+        parentName: c.parentUuid ? nombres.get(c.parentUuid) ?? null : null,
         color: c.color,
         budget,
         gastado,
@@ -88,10 +114,22 @@ export interface ResumenTopes {
   alLimite: number
 }
 
-/** Cifras de cabecera de los topes de un mes. */
+/**
+ * Cifras de cabecera de los topes de un mes.
+ *
+ * ⚠ Los topes ANIDADOS no se suman dos veces: si "Coche" tiene tope y su
+ * subcategoría "Gasolina" también, el techo del conjunto es el del grupo (la
+ * gasolina ya va dentro), así que solo cuenta el del grupo. Sumar los dos
+ * daría un presupuesto que no existe y un "restante" inflado.
+ *
+ * Los CONTADORES, en cambio, cuentan todos los topes: que la gasolina se haya
+ * pasado importa aunque el coche en conjunto siga bajo su límite.
+ */
 export function resumenTopes(topes: TopeRow[]): ResumenTopes {
-  const total = topes.reduce((s, t) => s + t.budget, 0)
-  const gastado = topes.reduce((s, t) => s + t.gastado, 0)
+  const conTope = new Set(topes.map((t) => t.uuid))
+  const raiz = topes.filter((t) => !(t.parentUuid && conTope.has(t.parentUuid)))
+  const total = raiz.reduce((s, t) => s + t.budget, 0)
+  const gastado = raiz.reduce((s, t) => s + t.gastado, 0)
   return {
     total,
     gastado,

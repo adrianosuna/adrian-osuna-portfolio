@@ -14,6 +14,7 @@
 import { useEffect, useState } from 'react'
 import { Bell, BellOff, BellRing, Send } from 'lucide-react'
 import { toast } from 'sonner'
+import { Tooltip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { desuscribirPush, estadoPush, probarPush, suscribirPush } from '@/app/app/push-actions'
 
@@ -184,11 +185,11 @@ export function TogglePush() {
         {activo ? 'Avisos activados aquí' : 'Activar avisos aquí'}
       </button>
       {activo && (
+        <Tooltip texto="Probar" envuelto={ocupado}>
         <button
           type="button"
           className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground max-sm:p-2.5"
           aria-label="Enviar una notificación de prueba"
-          title="Probar"
           disabled={ocupado}
           onClick={async () => {
             const res = await probarPush()
@@ -197,6 +198,7 @@ export function TogglePush() {
           }}>
           <Send className="size-3.5" />
         </button>
+        </Tooltip>
       )}
     </div>
   )

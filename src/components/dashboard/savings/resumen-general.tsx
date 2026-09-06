@@ -8,7 +8,7 @@ import { BarChart3, LineChart, Percent, TrendingDown, TrendingUp, Trophy } from 
 import { cn } from '@/lib/utils'
 import type { YearSummary } from '@/lib/finance'
 import { AhorroAcumulado } from './charts'
-import { ahorroAnualDe, cardClass, eur, pct, proyeccionDe, tasaAhorroDe } from './comun'
+import { ahorroAnualDe, cardClass, eur, eurEntero, pct, proyeccionDe, tasaAhorroDe } from './comun'
 import { tdClass, thClass } from '@/components/ui/tabla'
 
 // Clases de la tabla: las comunes de `ui/tabla`.
@@ -68,17 +68,17 @@ export function ResumenGeneral({ years, hoy }: { years: YearSummary[]; hoy: stri
     kpis = [
       {
         label: `Ahorrado en ${añoActual}`,
-        valor: eur(ahorro),
+        valor: eurEntero(ahorro),
         Icon: TrendingUp,
         pie: actual.goal
           ? ahorro >= actual.goal
             ? '🎉 objetivo cumplido'
-            : `faltan ${eur(actual.goal - ahorro)} para el objetivo`
+            : `faltan ${eurEntero(actual.goal - ahorro)} para el objetivo`
           : 'sin objetivo fijado',
       },
       {
         label: 'Proyección a cierre de año',
-        valor: proy.proyeccion === null ? '—' : eur(proy.proyeccion),
+        valor: proy.proyeccion === null ? '—' : eurEntero(proy.proyeccion),
         Icon: LineChart,
         pie:
           proy.proyeccion === null
@@ -86,35 +86,35 @@ export function ResumenGeneral({ years, hoy }: { years: YearSummary[]; hoy: stri
             : actual.goal
               ? proy.proyeccion >= actual.goal
                 ? 'a este ritmo, da para el objetivo'
-                : `a este ritmo se queda a ${eur(actual.goal - proy.proyeccion)}`
+                : `a este ritmo se queda a ${eurEntero(actual.goal - proy.proyeccion)}`
               : 'a ritmo de los meses rellenos',
       },
       {
         label: `Frente a ${añoActual - 1} a estas alturas`,
-        valor: deltaAltura === null ? '—' : `${deltaAltura >= 0 ? '+' : '−'}${eur(Math.abs(deltaAltura))}`,
+        valor: deltaAltura === null ? '—' : `${deltaAltura >= 0 ? '+' : '−'}${eurEntero(Math.abs(deltaAltura))}`,
         Icon: deltaAltura !== null && deltaAltura < 0 ? TrendingDown : TrendingUp,
         pie:
           deltaAltura === null
             ? 'sin año anterior con el que comparar'
-            : `${eur(hastaMes(actual, mesActual))} frente a ${eur(mismaAltura!)} en ${mesActual} meses`,
+            : `${eurEntero(hastaMes(actual, mesActual))} frente a ${eurEntero(mismaAltura!)} en ${mesActual} meses`,
       },
       {
         label: 'Ritmo mensual',
-        valor: ritmo === null ? '—' : `${eur(ritmo)}/mes`,
+        valor: ritmo === null ? '—' : `${eurEntero(ritmo)}/mes`,
         Icon: BarChart3,
         pie:
           ritmoPrevio === null || ritmo === null
             ? `tasa de ahorro ${pct(tasaActual)}`
-            : `en ${añoActual - 1}: ${eur(ritmoPrevio)}/mes · tasa ${pct(tasaActual)}`,
+            : `en ${añoActual - 1}: ${eurEntero(ritmoPrevio)}/mes · tasa ${pct(tasaActual)}`,
       },
     ]
   } else {
     // Sin año en curso (o solo histórico): los agregados sí son lo útil.
     kpis = [
-      { label: 'Ahorro total histórico', valor: eur(totalAhorro), Icon: TrendingUp },
-      { label: 'Media anual de ahorro', valor: eur(totalAhorro / years.length), Icon: BarChart3 },
+      { label: 'Ahorro total histórico', valor: eurEntero(totalAhorro), Icon: TrendingUp },
+      { label: 'Media anual de ahorro', valor: eurEntero(totalAhorro / years.length), Icon: BarChart3 },
       { label: 'Tasa de ahorro histórica', valor: pct(tasaHistorica), Icon: Percent },
-      { label: 'Mejor año de ahorro', valor: `${mejor.year} · ${eur(ahorroAnualDe(mejor))}`, Icon: Trophy },
+      { label: 'Mejor año de ahorro', valor: `${mejor.year} · ${eurEntero(ahorroAnualDe(mejor))}`, Icon: Trophy },
     ]
   }
 

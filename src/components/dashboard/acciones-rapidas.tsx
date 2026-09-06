@@ -24,7 +24,7 @@ import {
 import { cn, sinAcentos } from '@/lib/utils'
 import { Modal } from '@/components/ui/modal'
 import {
-  DateField, Field, NumberField, SelectField, TextareaField, TextField,
+  DateField, Field, NumberField, TextareaField, TextField, TreeSelectField,
 } from '@/components/ui/fields'
 import { useCarga } from '@/components/dashboard/barra-carga'
 import { btnOutline, btnPrimary, TIPOS } from '@/components/dashboard/savings/comun'
@@ -32,6 +32,7 @@ import { categoriasParaAlta, createGasto } from '@/app/app/finance/gastos-action
 import { buscarGlobal } from '@/app/app/buscar-actions'
 import { MINIMO_BUSQUEDA, type ResultadoGlobal } from '@/lib/buscar'
 import type { CategoriaRow, TipoMovimiento } from '@/lib/gastos'
+import { arbolDeCategoria } from '@/lib/categorias'
 import { MESES } from '@/lib/fechas'
 import { eur } from '@/lib/euros'
 
@@ -541,11 +542,9 @@ function AltaRapida({
     }
   }, [])
 
-  // Las categorías se ofrecen según el tipo (un ingreso no lleva "Supermercado").
-  const opcionesCat = (t: TipoMovimiento) => [
-    { value: '', label: 'Sin categoría' },
-    ...(categorias ?? []).filter((c) => c.type === t).map((c) => ({ value: c.uuid, label: c.name })),
-  ]
+  // Las categorías se ofrecen según el tipo (un ingreso no lleva
+  // "Supermercado") y sin los grupos, que no se apuntan (ver `lib/categorias.ts`).
+  const opcionesCat = (t: TipoMovimiento) => arbolDeCategoria(categorias ?? [], t)
 
   const crear = () => {
     if (!concept.trim() || amount === null) return
@@ -621,7 +620,7 @@ function AltaRapida({
           </Field>
         </div>
         <Field label="Categoría">
-          <SelectField value={cat} onChange={setCat} options={opcionesCat(tipo)} ariaLabel="Categoría del movimiento" />
+          <TreeSelectField value={cat} onChange={setCat} opciones={opcionesCat(tipo)} ariaLabel="Categoría del movimiento" />
         </Field>
         <Field label="Nota">
           <TextareaField value={note} onChange={setNote} ariaLabel="Nota del movimiento" />

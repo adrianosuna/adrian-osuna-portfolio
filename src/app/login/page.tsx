@@ -3,9 +3,10 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { ArrowLeft, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, FlaskConical, ShieldCheck } from 'lucide-react'
 import { FaGoogle } from 'react-icons/fa6'
 import { auth, signIn } from '@/auth'
+import { correoDevLogin } from '@/lib/dev-login'
 
 // noindex: el Disallow de robots.txt impide rastrear, pero no indexar si
 // alguien enlaza la página; la meta robots sí.
@@ -19,6 +20,8 @@ export default async function LoginPage({
   const session = await auth()
   if (session?.user) redirect('/app')
   const { error } = await searchParams
+  // Atajo de desarrollo (ver `lib/dev-login.ts`): null en producción siempre.
+  const devLogin = correoDevLogin()
 
   return (
     // `main` y no `div`: sin un landmark, un lector de pantalla no puede
@@ -54,6 +57,27 @@ export default async function LoginPage({
             Entrar con Google
           </button>
         </form>
+
+        {devLogin && (
+          // Solo en desarrollo con DEV_LOGIN_EMAIL: un clic y dentro, sin
+          // teclear nada. Pasa por la misma allowlist y el mismo registro de
+          // sesión que Google — lo único que se salta es el OAuth.
+          <form
+            action={async () => {
+              'use server'
+              await signIn('dev', { redirectTo: '/app' })
+            }}>
+            <button
+              type="submit"
+              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-warning/60 bg-warning/10 px-6 py-2.5 text-sm font-semibold text-warning transition-colors hover:bg-warning/15">
+              <FlaskConical className="size-4" />
+              Entrar como {devLogin}
+              <span className="rounded-md bg-warning/20 px-1.5 py-0.5 text-[10px] uppercase tracking-wide">
+                dev
+              </span>
+            </button>
+          </form>
+        )}
 
         <p className="mt-5 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
           <ShieldCheck className="size-3.5" />

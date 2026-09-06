@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { Tooltip } from '@/components/ui/tooltip'
 import { useCarga } from '@/components/dashboard/barra-carga'
 import type { MetricasPipeline } from '@/lib/pipeline'
 import {
@@ -77,12 +78,12 @@ function Tarjeta({
 
       {/* Seguimiento: la tarjeta avisa si la próxima acción venció */}
       {o.nextActionDate && (
+        <Tooltip texto={`${fmtFecha(o.nextActionDate)}${o.nextAction ? ` · ${o.nextAction}` : ''}`}>
         <p
           className={cn(
             'mt-1.5 flex items-start gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium',
             CLASE_URGENCIA[urgenciaSeguimiento(o.nextActionDate, hoy)],
-          )}
-          title={`${fmtFecha(o.nextActionDate)}${o.nextAction ? ` · ${o.nextAction}` : ''}`}>
+          )}>
           <CalendarClock className="mt-px size-3 shrink-0" />
           <span className="min-w-0">
             {/* La urgencia primero (es la señal) y la acción debajo: con la
@@ -93,6 +94,7 @@ function Tarjeta({
             )}
           </span>
         </p>
+        </Tooltip>
       )}
       {!o.nextActionDate && o.nextAction && (
         <p className="mt-1.5 flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground">
@@ -116,15 +118,16 @@ function Tarjeta({
         {moverControl}
         <span className="flex items-center">
           {TERMINALES.includes(o.status) && (
-            <button
-              type="button"
-              className={btnIcon}
-              title="Archivar (mover al histórico)"
-              aria-label="Archivar"
-              disabled={pending}
-              onClick={() => run(archiveOpportunity(o.uuid, true), 'Archivada en el histórico')}>
-              <Archive className="size-3.5" />
-            </button>
+            <Tooltip texto="Archivar (mover al histórico)" envuelto={pending}>
+              <button
+                type="button"
+                className={btnIcon}
+                aria-label="Archivar"
+                disabled={pending}
+                onClick={() => run(archiveOpportunity(o.uuid, true), 'Archivada en el histórico')}>
+                <Archive className="size-3.5" />
+              </button>
+            </Tooltip>
           )}
           <button type="button" className={btnIcon} aria-label="Editar" onClick={onEditar}>
             <Pencil className="size-3.5" />
@@ -351,24 +354,26 @@ export function PipelineBoard({
                         }}
                         moverControl={
                           <span className="flex">
-                            <button
-                              type="button"
-                              className={btnIcon}
-                              disabled={pending || o.status === COLUMNAS[0].estado}
-                              title="Mover al estado anterior"
-                              aria-label="Mover al estado anterior"
-                              onClick={() => mover(o, -1)}>
-                              <ChevronLeft className="size-4" />
-                            </button>
-                            <button
-                              type="button"
-                              className={btnIcon}
-                              disabled={pending || o.status === COLUMNAS[COLUMNAS.length - 1].estado}
-                              title="Mover al siguiente estado"
-                              aria-label="Mover al siguiente estado"
-                              onClick={() => mover(o, 1)}>
-                              <ChevronRight className="size-4" />
-                            </button>
+                            <Tooltip texto="Mover al estado anterior" envuelto={pending || o.status === COLUMNAS[0].estado}>
+                              <button
+                                type="button"
+                                className={btnIcon}
+                                disabled={pending || o.status === COLUMNAS[0].estado}
+                                aria-label="Mover al estado anterior"
+                                onClick={() => mover(o, -1)}>
+                                <ChevronLeft className="size-4" />
+                              </button>
+                            </Tooltip>
+                            <Tooltip texto="Mover al siguiente estado" envuelto={pending || o.status === COLUMNAS[COLUMNAS.length - 1].estado}>
+                              <button
+                                type="button"
+                                className={btnIcon}
+                                disabled={pending || o.status === COLUMNAS[COLUMNAS.length - 1].estado}
+                                aria-label="Mover al siguiente estado"
+                                onClick={() => mover(o, 1)}>
+                                <ChevronRight className="size-4" />
+                              </button>
+                            </Tooltip>
                           </span>
                         }
                       />

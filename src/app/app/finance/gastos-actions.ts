@@ -18,7 +18,7 @@ import {
   tipoValido,
   type DatosAlta,
 } from '@/lib/alta-movimiento'
-import { CategoriaNueva, textoObligatorio, tope, validar } from '@/lib/esquemas'
+import { CategoriaNueva, textoObligatorio, tope, uuidOpcional, validar } from '@/lib/esquemas'
 
 /** 100 caracteres: el ancho de `expense_category.name`. */
 const NombreCategoria = textoObligatorio(100, 'El nombre')
@@ -436,20 +436,72 @@ export async function deleteRecurrente(uuid: string): Promise<Result> {
 
 // ─────────── Categorías ───────────
 
+/** Nº de movimientos y de recurrentes que apuntan a una categoría. */
+async function usosDe(uuid: string): Promise<{ movimientos: number; recurrentes: number }> {
+  const [movimientos, recurrentes] = await Promise.all([
+    prisma.expense.count({ where: { categoryUuid: uuid } }),
+    prisma.recurringExpense.count({ where: { categoryUuid: uuid } }),
+  ])
+  return { movimientos, recurrentes }
+}
+
+/** "3 movimientos y 1 recurrente" (omite lo que esté a cero). */
+const listaUsos = (u: { movimientos: number; recurrentes: number }) =>
+  [
+    u.movimientos > 0 ? `${u.movimientos} ${u.movimientos === 1 ? 'movimiento' : 'movimientos'}` : '',
+    u.recurrentes > 0 ? `${u.recurrentes} ${u.recurrentes === 1 ? 'recurrente' : 'recurrentes'}` : '',
+  ]
+    .filter(Boolean)
+    .join(' y ')
+
+/**
+ * ¿Puede una categoría de tipo `type` entrar en el grupo `parentUuid`?
+ * Devuelve el mensaje del problema, o null si se puede.
+ *
+ * Solo dos reglas, y las dos son de forma: el destino tiene que ser un GRUPO
+ * (no otra categoría, que daría un tercer nivel) y del mismo tipo. Nada más:
+ * asignar una categoría con dos años de movimientos es seguro porque lo que
+ * se mueve es la CATEGORÍA — sus movimientos siguen colgando de ella.
+ */
+async function grupoInvalido(parentUuid: string, type: 'INGRESO' | 'GASTO'): Promise<string | null> {
+  const padre = await prisma.expenseCategory.findUnique({ where: { uuid: parentUuid } })
+  if (!padre) return 'El grupo elegido no existe'
+  if (!padre.isGroup) return `«${padre.name}» es una categoría, no un grupo`
+  if (padre.type !== type) return 'El grupo y la categoría deben ser del mismo tipo'
+  return null
+}
+
+/**
+ * Crea una categoría o un GRUPO (`isGroup`), que en la tabla son lo mismo con
+ * la marca cambiada. Un grupo nace vacío y nunca cuelga de otro: dos niveles.
+ */
 export async function createCategoria(datos: {
   name?: string
   color?: string
   type?: string
+  isGroup?: boolean
+  parentUuid?: string | null
   budget?: number | null
 }): Promise<Result> {
   return guarded(async () => {
     const v = validar(CategoriaNueva, datos)
     if (!v.ok) return fail(v.message)
-    const { name } = v.datos
-    // El nombre solo debe ser único DENTRO de su tipo ("Regalos" puede ser
-    // categoría de gasto y de ingreso a la vez).
-    if (await prisma.expenseCategory.findFirst({ where: { name, type: v.datos.type } })) {
-      return fail('Ya existe una categoría con ese nombre')
+    const { name, isGroup } = v.datos
+    // Un grupo no entra en otro grupo, así que se ignora lo que llegue ahí en
+    // vez de fallar: el formulario ya no ofrece el campo al crear un grupo.
+    const parentUuid = isGroup ? null : v.datos.parentUuid
+    if (parentUuid) {
+      const problema = await grupoInvalido(parentUuid, v.datos.type)
+      if (problema) return fail(problema)
+    }
+    // El nombre es único entre HERMANAS de su tipo: "Varios" tiene que poder
+    // existir bajo Coche y bajo Casa, y "Regalos" ser gasto e ingreso a la vez.
+    if (await prisma.expenseCategory.findFirst({ where: { name, type: v.datos.type, parentUuid } })) {
+      return fail(
+        parentUuid
+          ? 'Ese grupo ya tiene una categoría con ese nombre'
+          : 'Ya existe un grupo o una categoría con ese nombre',
+      )
     }
     // El tope solo tiene sentido en las categorías de gasto: en una de ingreso
     // se ignora en vez de fallar (el formulario ya no lo ofrece).
@@ -462,6 +514,8 @@ export async function createCategoria(datos: {
       data: {
         name,
         type: v.datos.type,
+        isGroup,
+        parentUuid,
         color: colorLibre(usados.map((c) => c.color)),
         budget: v.datos.type === 'GASTO' ? limite : null,
       },
@@ -473,18 +527,56 @@ export async function createCategoria(datos: {
 
 export async function updateCategoria(
   uuid: string,
-  datos: { name?: string; budget?: number | null },
+  datos: { name?: string; parentUuid?: string | null; budget?: number | null },
 ): Promise<Result> {
   return guarded(async () => {
-    const patch: { name?: string; budget?: number | null; notified?: null } = {}
+    const patch: {
+      name?: string
+      parentUuid?: string | null
+      budget?: number | null
+      notified?: null
+    } = {}
+    // El grupo se resuelve primero: de él depende con quién compite el nombre.
+    // Se mira `datos.parentUuid !== undefined` sobre la entrada CRUDA y no a
+    // través del esquema porque `uuidOpcional` convierte la clave ausente en
+    // null, y eso sacaría del grupo a una categoría al renombrarla.
+    let destino: string | null | undefined
+    if (datos.parentUuid !== undefined) {
+      const p = validar(uuidOpcional, datos.parentUuid)
+      if (!p.ok) return fail(p.message)
+      destino = p.datos
+      const actual = await prisma.expenseCategory.findUnique({ where: { uuid } })
+      if (!actual) return fail('Categoría no encontrada')
+      // Un grupo no entra en otro: solo hay dos niveles. (Sacarlo de uno no
+      // tiene sentido tampoco, pero eso es un no-op inofensivo.)
+      if (destino && actual.isGroup) {
+        return fail('Un grupo no puede meterse dentro de otro: solo hay dos niveles')
+      }
+      if (destino) {
+        const problema = await grupoInvalido(destino, actual.type)
+        if (problema) return fail(problema)
+      }
+      patch.parentUuid = destino
+    }
     if (datos.name !== undefined) {
       const n = validar(NombreCategoria, datos.name)
       if (!n.ok) return fail(n.message)
       const name = n.datos
       const actual = await prisma.expenseCategory.findUnique({ where: { uuid } })
       if (!actual) return fail('Categoría no encontrada')
-      const otra = await prisma.expenseCategory.findFirst({ where: { name, type: actual.type } })
-      if (otra && otra.uuid !== uuid) return fail('Ya existe una categoría con ese nombre')
+      // Compite con sus HERMANAS: las del grupo al que va a quedar (el nuevo
+      // si se está moviendo, el suyo de siempre si no).
+      const parentUuid = destino !== undefined ? destino : actual.parentUuid
+      const otra = await prisma.expenseCategory.findFirst({
+        where: { name, type: actual.type, parentUuid },
+      })
+      if (otra && otra.uuid !== uuid) {
+        return fail(
+          parentUuid
+            ? 'Ese grupo ya tiene una categoría con ese nombre'
+            : 'Ya existe una categoría con ese nombre',
+        )
+      }
       patch.name = name
     }
     if (datos.budget !== undefined) {
@@ -520,6 +612,12 @@ export async function fusionarCategorias(origenUuid: string, destinoUuid: string
     if (!origen || !destino) return fail('Categoría no encontrada')
     // Mezclar un gasto con un ingreso no significa nada: son dos listas.
     if (origen.type !== destino.type) return fail('Las dos categorías deben ser del mismo tipo')
+    // Los grupos se quedan fuera de la fusión por los dos lados: uno no tiene
+    // movimientos propios que llevarse y al otro no se le pueden colgar (los
+    // movimientos van siempre a una categoría).
+    if (origen.isGroup || destino.isGroup) {
+      return fail('Los grupos no se fusionan: fusiona las categorías que tienen dentro')
+    }
 
     const [movimientos, recurrentes] = await prisma.$transaction([
       prisma.expense.updateMany({
@@ -554,16 +652,19 @@ export async function fusionarCategorias(origenUuid: string, destinoUuid: string
  */
 export async function deleteCategoria(uuid: string): Promise<Result> {
   return guarded(async () => {
-    const [movimientos, recurrentes] = await Promise.all([
-      prisma.expense.count({ where: { categoryUuid: uuid } }),
-      prisma.recurringExpense.count({ where: { categoryUuid: uuid } }),
+    const [usos, hijas] = await Promise.all([
+      usosDe(uuid),
+      prisma.expenseCategory.count({ where: { parentUuid: uuid } }),
     ])
-    if (movimientos > 0 || recurrentes > 0) {
-      const partes = [
-        movimientos > 0 ? `${movimientos} ${movimientos === 1 ? 'movimiento' : 'movimientos'}` : '',
-        recurrentes > 0 ? `${recurrentes} ${recurrentes === 1 ? 'recurrente' : 'recurrentes'}` : '',
-      ].filter(Boolean)
-      return fail(`No se puede borrar: la usan ${partes.join(' y ')}. Fusiónala en otra categoría.`)
+    // Un grupo con subcategorías tampoco: el FK es Restrict y la BD lo
+    // rechazaría, pero con un "Error inesperado" que no dice qué pasa.
+    if (hijas > 0) {
+      return fail(
+        `No se puede borrar: es un grupo con ${hijas} ${hijas === 1 ? 'categoría' : 'categorías'} dentro. Sácalas del grupo o bórralas primero.`,
+      )
+    }
+    if (usos.movimientos > 0 || usos.recurrentes > 0) {
+      return fail(`No se puede borrar: la usan ${listaUsos(usos)}. Fusiónala en otra categoría.`)
     }
     await prisma.expenseCategory.delete({ where: { uuid } })
     refresh()

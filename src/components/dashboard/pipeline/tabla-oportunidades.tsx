@@ -10,6 +10,7 @@ import { useState, useTransition } from 'react'
 import { Archive, ArchiveRestore, CalendarClock, Pencil, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { Tooltip } from '@/components/ui/tooltip'
 import { SelectField, TextField } from '@/components/ui/fields'
 import {
   archiveOpportunity, deleteOpportunity, restaurarOportunidad,
@@ -91,12 +92,12 @@ export function TablaOportunidades({
       // Igual que la tarjeta del tablero: la urgencia primero y la acción
       // debajo. Con la fecha delante, en 245px de columna la acción se cortaba.
       return (
+        <Tooltip texto={`${fmtFecha(o.nextActionDate)}${o.nextAction ? ` · ${o.nextAction}` : ''}`}>
         <span
           className={cn(
             'inline-flex max-w-full items-start gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium',
             CLASE_URGENCIA[urgenciaSeguimiento(o.nextActionDate, hoy)],
-          )}
-          title={`${fmtFecha(o.nextActionDate)}${o.nextAction ? ` · ${o.nextAction}` : ''}`}>
+          )}>
           <CalendarClock className="mt-px size-3 shrink-0" />
           <span className="min-w-0">
             <span className="block">{cuandoSeguimiento(o.nextActionDate, hoy)}</span>
@@ -105,6 +106,7 @@ export function TablaOportunidades({
             )}
           </span>
         </span>
+        </Tooltip>
       )
     }
     if (o.nextAction) return <span className="text-xs text-muted-foreground">{o.nextAction}</span>

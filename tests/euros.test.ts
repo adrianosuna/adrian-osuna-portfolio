@@ -5,9 +5,31 @@
 // Ojo con el espacio: Intl en es-ES separa la cifra del € con un espacio
 // IRROMPIBLE (U+00A0), no con uno normal, así que las comparaciones lo usan.
 import { describe, expect, it } from 'vitest'
-import { eur, num, redondearCentimos, tieneCentimos } from '@/lib/euros'
+import { eur, eurEntero, num, redondearCentimos, tieneCentimos } from '@/lib/euros'
 
 const NB = ' ' // espacio irrompible
+
+// Los KPI son la excepción a la regla: cifra grande, sin céntimos nunca. Un
+// "1.373,72 €" a 24 px no se lee mejor que "1.374 €", solo más sucio.
+describe('eurEntero (KPI)', () => {
+  it('nunca pinta decimales, aunque el importe los tenga', () => {
+    expect(eurEntero(1373.72)).toBe(`1.374${NB}€`)
+    expect(eurEntero(45.79)).toBe(`46${NB}€`)
+    expect(eurEntero(60)).toBe(`60${NB}€`)
+  })
+
+  it('redondea al euro más cercano (no trunca)', () => {
+    expect(eurEntero(596.28)).toBe(`596${NB}€`)
+    expect(eurEntero(596.5)).toBe(`597${NB}€`)
+    expect(eurEntero(-810.4)).toBe(`-810${NB}€`)
+  })
+
+  it('agrupa los miles y respeta el guion de "sin dato"', () => {
+    expect(eurEntero(3950)).toBe(`3.950${NB}€`)
+    expect(eurEntero(null)).toBe('—')
+    expect(eurEntero(Number.NaN)).toBe('—')
+  })
+})
 
 describe('eur', () => {
   it('sin céntimos no pinta decimales', () => {
