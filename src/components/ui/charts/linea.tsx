@@ -1,10 +1,7 @@
 'use client'
 
-// Gráfica de línea sobre Chart.js — portada del componente equivalente del
-// proyecto de Inversiones, a TypeScript y al tema oscuro.
-//
-// Del original se conservan `animation: false`, `tension: 0.35`, el área
-// rellena opcional, las deps serializadas y el `destroy()` en el cleanup.
+// Gráfica de línea sobre Chart.js: `animation: false`, `tension: 0.35`, área
+// rellena opcional, deps serializadas y `destroy()` en el cleanup.
 import { useEffect, useRef } from 'react'
 import type { ChartDataset, ChartOptions } from 'chart.js'
 import { Chart, coloresTema, resolverColor, tooltipPlugin } from './comun'

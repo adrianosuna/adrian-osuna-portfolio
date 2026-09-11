@@ -1,11 +1,7 @@
 'use client'
 
-// Búsqueda de movimientos dentro de Gastos: por concepto, tipo, rango de fechas
-// e importe. A diferencia de la vista del mes (que solo mira lo ya pasado de UN
-// mes), esto barre todo el histórico — para responder "¿cuánto llevo gastado en
-// X este año?". Es de CONSULTA: las filas son de solo lectura y cada una lleva
-// a su mes, donde se edita. Los filtros viajan por query param (el servidor
-// consulta y pasa el resultado como props), como el resto del módulo.
+// Búsqueda de movimientos en todo el histórico por concepto, tipo, fechas e importe.
+// Solo consulta: cada fila lleva a su mes. Los filtros viajan por query param.
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, ChevronLeft, ChevronRight, Search, TrendingDown, TrendingUp } from 'lucide-react'
@@ -60,9 +56,8 @@ export function BuscarGastos({
     return p
   }
 
-  // Cambiar de página conserva los filtros YA APLICADOS (los del servidor), no
-  // los del formulario: si se ha escrito algo sin pulsar Buscar, paginar no
-  // debe aplicarlo a medias.
+  // Paginar conserva los filtros ya aplicados (los del servidor), no los del
+  // formulario: lo escrito sin pulsar Buscar no debe aplicarse a medias.
   const irAPagina = (n: number) => {
     const p = new URLSearchParams({ s: 'gastos', buscar: '1' })
     if (filtros.q?.trim()) p.set('q', filtros.q.trim())

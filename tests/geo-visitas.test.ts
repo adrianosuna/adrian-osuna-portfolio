@@ -1,7 +1,5 @@
-// Coordenadas del mapa de visitas: GA4 devuelve NOMBRES, no lat/lon, así que
-// lo que hay que probar es que el emparejado de nombres aguanta lo que GA
-// manda de verdad (con y sin tildes, con la provincia detrás) y que la
-// proyección corresponde al mapa que se dibuja.
+// Coordenadas del mapa: el emparejado de nombres aguanta lo que GA manda (tildes,
+// provincia detrás) y la proyección corresponde al mapa.
 import { describe, expect, it } from 'vitest'
 import { CIUDADES, PAISES, proyectar, puntoDeCiudad, puntoDePais } from '@/lib/geo-visitas'
 

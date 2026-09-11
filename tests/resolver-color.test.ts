@@ -1,7 +1,5 @@
 // @vitest-environment jsdom
-// resolverColor: canvas NO entiende `var(--primary)`. Los consumidores pasan
-// colores así (en SVG funcionaba tal cual) y Chart.js los pintaría en NEGRO,
-// que es exactamente el fallo que se colcó al migrar el donut del ahorro.
+// resolverColor: canvas no entiende `var(--primary)` y Chart.js lo pintaría en negro.
 import { beforeEach, describe, expect, it } from 'vitest'
 import { resolverColor, token } from '@/components/ui/charts/comun'
 

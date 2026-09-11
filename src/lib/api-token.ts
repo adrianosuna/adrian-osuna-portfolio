@@ -1,15 +1,5 @@
-// Tokens de la API (solo servidor): generación, verificación y listado.
-//
-// Para qué: apuntar un gasto o una nota desde un Atajo del iPhone, un widget o
-// una automatización, sin sesión de Google. El Atajo manda
-// `Authorization: Bearer <token>` y se acabó.
-//
-// Cómo se guarda: **solo el SHA-256 del token**, nunca el token. Quien lea la
-// tabla no puede usarlo, y por eso el valor completo se muestra UNA vez al
-// crearlo (si se pierde, se revoca y se crea otro). SHA-256 a secas y no bcrypt
-// a propósito: un token es 256 bits aleatorios, no una contraseña que alguien
-// pueda adivinar por fuerza bruta, y el hash tiene que ser rápido porque se
-// comprueba en cada petición.
+// Tokens de la API (solo servidor). Se guarda solo el SHA-256: el valor se muestra
+// una vez. SHA-256 y no bcrypt: 256 bits aleatorios comprobados en cada petición.
 import 'server-only'
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { prisma } from '@/lib/prisma'
@@ -79,31 +69,15 @@ export interface Identidad {
   tokenUuid: string
 }
 
-/**
- * Resultado de comprobar un token. Tres estados y no dos, porque "el token
- * no vale" y "no he podido comprobarlo" NO son lo mismo: con la base de datos
- * caída, responder 401 le diría al Atajo que su token está mal —y lo primero
- * que haría su dueño es revocarlo y crear otro, que tampoco funcionaría—.
- * `indisponible` acaba en un 503, que es la verdad.
- *
- * Lo encontró un test e2e: contra una BD inalcanzable, esto devolvía un 500.
- */
+/** Resultado de comprobar un token, con tres estados: "no vale" y "no he podido
+ *  comprobarlo" no son lo mismo. `indisponible` acaba en 503, no en 401. */
 export type Identificacion =
   | { estado: 'ok'; identidad: Identidad }
   | { estado: 'invalido' }
   | { estado: 'indisponible' }
 
-/**
- * Comprueba la cabecera `Authorization` de una petición.
- *
- * Además de existir, el token tiene que pertenecer a un usuario **ACTIVE y
- * ADMIN**: si la cuenta se deshabilita, sus tokens dejan de valer al instante
- * (igual que la sesión del navegador, que el callback `jwt` reverifica en cada
- * petición).
- *
- * `lastUsed` se actualiza sin esperar (`void`): es telemetría para reconocer
- * tokens olvidados, no debe añadir latencia a la petición.
- */
+/** Comprueba la cabecera Authorization. El token debe pertenecer a un usuario
+ *  ACTIVE y ADMIN. `lastUsed` se actualiza sin esperar: es telemetría. */
 export async function identificar(authorization: string | null): Promise<Identificacion> {
   const invalido = { estado: 'invalido' } as const
 

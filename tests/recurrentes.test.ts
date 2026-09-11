@@ -1,7 +1,5 @@
-// Movimientos recurrentes: la aritmética de fechas (que es donde están todas
-// las trampas: meses cortos, febrero, cruce de año), la recuperación de cargos
-// atrasados, el generador del cron, el botón "Apuntar ahora" y el listado de lo
-// que ha generado cada recurrente.
+// Recurrentes: aritmética de fechas, recuperación de atrasados, generador del cron,
+// "Apuntar ahora" y el listado de lo generado.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   cargosPendientes,
@@ -331,10 +329,8 @@ describe('movimientosDeRecurrente', () => {
   })
 })
 
-// ⚠ Lo que decide qué recurrentes salen en la tarjeta de la vista del MES (y
-// también en el calendario del Panel, que usa esta misma función). Antes la
-// tarjeta enseñaba todos los activos en cualquier mes, así que un seguro anual
-// de marzo figuraba en septiembre con un "próximo 12/03" que no dice nada.
+// Lo que decide qué recurrentes salen en la tarjeta del mes y en el calendario: antes
+// salían todos los activos en cualquier mes.
 describe('fechasEnMes', () => {
   it('un mensual carga en todos los meses', () => {
     const r = rec({ intervalMonths: 1, nextDate: '2026-09-03', dayAnchor: 3 })
@@ -366,10 +362,8 @@ describe('fechasEnMes', () => {
   })
 
   it('un mes PASADO devuelve vacío: la serie solo se conoce hacia delante', () => {
-    // Es deliberado. Para un mes pasado la verdad son los movimientos ya
-    // apuntados (`recurringUuid`), no una proyección hacia atrás que se
-    // inventaría cargos que quizá nunca ocurrieron (servidor parado, alta
-    // posterior, el recurrente creado el mes siguiente...).
+    // Para un mes pasado la verdad son los movimientos apuntados, no una proyección
+    // hacia atrás que inventaría cargos.
     const r = rec({ intervalMonths: 1, nextDate: '2026-09-03', dayAnchor: 3 })
     expect(fechasEnMes(r, '2026-08')).toEqual([])
     expect(fechasEnMes(r, '2025-12')).toEqual([])
@@ -382,9 +376,8 @@ describe('fechasEnMes', () => {
   })
 
   it('una fecha vieja se proyecta igual: no es un caso especial', () => {
-    // 1999 → 2026 son 332 saltos, que caben de sobra en el freno. Un alta con
-    // la fecha atrasada tiene que salir en el mes que se está viendo, no
-    // desaparecer: eso es exactamente lo que el cron va a apuntar.
+    // 1999 → 2026 son 332 saltos, dentro del freno. Un alta atrasada debe salir en el
+    // mes visto: es lo que el cron va a apuntar.
     const r = rec({ intervalMonths: 1, nextDate: '1999-01-15', dayAnchor: 15 })
     expect(fechasEnMes(r, '2026-09')).toEqual(['2026-09-15'])
   })

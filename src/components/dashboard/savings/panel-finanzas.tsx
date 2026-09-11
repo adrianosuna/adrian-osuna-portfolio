@@ -1,9 +1,7 @@
 'use client'
 
-// Panel principal de Finanzas: lo importante de las dos secciones en una
-// pantalla — el ahorro del año (con su objetivo, proyección y ritmo) y el mes
-// en curso del control de movimientos (ingresos, gastos, balance y en qué se
-// va el dinero). Cada bloque enlaza a su sección para trabajar en detalle.
+// Panel de Finanzas: el ahorro del año (objetivo, proyección, ritmo) y el mes en
+// curso de movimientos. Cada bloque enlaza a su sección.
 import Link from 'next/link'
 import { ArrowUpRight, Euro, PiggyBank, Receipt, Scale, TrendingDown, TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -46,9 +44,8 @@ function Kpi({ label, valor, pie, tono, Icon, to }: {
 
 function Cabecera({ titulo, href, enlace }: { titulo: string; href: string; enlace: string }) {
   return (
-    // min-w-0 en el título y shrink-0 en el enlace: con un título largo ("En
-    // qué se va el dinero en Agosto") el enlace se comprimía a 72px y se
-    // partía en dos líneas, con la flecha suelta debajo.
+    // min-w-0 en el título y shrink-0 en el enlace: con un título largo el enlace se
+    // comprimía y se partía en dos líneas.
     <div className="flex items-center justify-between gap-2 border-b border-border px-5 py-3">
       {/* `h2`: primer nivel bajo el `h1` de la página (orden de encabezados). */}
       <h2 className="min-w-0 font-semibold">{titulo}</h2>
@@ -107,9 +104,8 @@ export function PanelFinanzas({
 
   const nIngresos = mes.movimientos.filter((m) => m.type === 'INGRESO').length
 
-  // El panel es un RESUMEN: con doce categorías la leyenda hacía la tarjeta de
-  // 568px de alto en móvil. Aquí van las cinco primeras y el resto agrupado
-  // (el desglose completo está en la sección Gastos, a un clic).
+  // El panel es un resumen: con doce categorías la leyenda hacía la tarjeta de 568 px
+  // en móvil. Cinco primeras y el resto agrupado.
   const TOPE = 5
   const gastoTop = mes.porCategoriaGasto.slice(0, TOPE).map((c) => ({
     label: c.name, valor: c.total, color: c.color,

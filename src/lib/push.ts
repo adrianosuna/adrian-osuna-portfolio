@@ -1,17 +1,5 @@
-// Notificaciones push web (solo servidor).
-//
-// Es el mismo aviso que ya manda el cron por correo, pero llegando al móvil en
-// el momento. El correo se sigue enviando: son canales distintos y el correo es
-// el que queda como registro.
-//
-// Degrada como GA y el SMTP: **sin claves VAPID no hace nada** y lo dice en el
-// log una vez. Las claves se generan con `npx web-push generate-vapid-keys` y
-// van en el entorno (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`);
-// la pública no es secreta —el navegador la necesita para suscribirse— pero la
-// privada sí, así que ninguna se hornea en el build.
-//
-// ⚠ En iPhone el push exige que la app esté INSTALADA en la pantalla de inicio
-// (iOS 16.4+). En Safari a pelo el navegador ni ofrece el permiso.
+// Push web (solo servidor): el mismo aviso del correo, al móvil. Sin claves VAPID no
+// hace nada. En iPhone exige la app instalada (iOS 16.4+).
 import 'server-only'
 import webpush from 'web-push'
 import { prisma } from '@/lib/prisma'
@@ -59,16 +47,8 @@ function preparar(): boolean {
   return true
 }
 
-/**
- * Manda una notificación a TODOS los navegadores suscritos.
- *
- * Las suscripciones caducadas se limpian solas: cuando el servicio de push
- * responde 404 o 410 (permiso revocado, app desinstalada, navegador
- * reinstalado) la fila se borra. Cualquier otro error se registra y no frena a
- * los demás envíos.
- *
- * Devuelve cuántas notificaciones se entregaron.
- */
+/** Manda una notificación a todos los navegadores suscritos. Un 404/410 borra la
+ *  suscripción; otros errores se registran sin frenar al resto. */
 export async function enviarPush(carga: CargaPush): Promise<number> {
   if (!preparar()) return 0
   const suscripciones = await prisma.pushSubscription.findMany()
@@ -101,15 +81,8 @@ export async function enviarPush(carga: CargaPush): Promise<number> {
   return entregadas
 }
 
-/**
- * Empuja al móvil los avisos pendientes, en UNA notificación.
- *
- * Una por aviso sería un carrusel de tres notificaciones cada mañana; agrupadas
- * dicen lo mismo en un vistazo y llevan al inicio, donde está la franja
- * completa. Lo llama el cron después de los correos.
- *
- * Devuelve cuántas notificaciones se entregaron (0 si no había nada que avisar).
- */
+/** Empuja los avisos pendientes en una sola notificación: una por aviso sería un
+ *  carrusel. Lo llama el cron tras los correos. Devuelve cuántas se entregaron. */
 export async function avisarPush(avisos: Aviso[]): Promise<number> {
   if (!avisos.length) return 0
   const urgentes = avisos.filter((a) => a.gravedad === 'urgente')

@@ -1,11 +1,5 @@
-// Autenticación con Google + allowlist en la tabla `user` (mismo modelo que el
-// Portfolio original): solo entra un correo dado de alta. INVITED pasa a ACTIVE
-// en su primer login; DISABLED (o no existente) se rechaza. Sesión JWT en
-// cookie con dos plazos: tope absoluto y cierre por inactividad, los dos
-// configurables (ver `lib/sesion-caducidad.ts`).
-// Cada login registra además una fila en `user_session`: el callback jwt la
-// comprueba en cada petición, así el panel puede listar las sesiones activas
-// y cerrarlas remotamente (borrar la fila mata esa sesión al instante).
+// Autenticación con Google + allowlist en `user`. Sesión JWT con dos plazos
+// (`lib/sesion-caducidad.ts`) y fila en `user_session` comprobada por petición.
 import NextAuth, { type NextAuthConfig } from 'next-auth'
 import Google from 'next-auth/providers/google'
 import Credentials from 'next-auth/providers/credentials'
@@ -16,17 +10,8 @@ import { log } from '@/lib/log'
 import { inactivaDemasiado, SEGUNDOS_SESION } from '@/lib/sesion-caducidad'
 import { correoDevLogin } from '@/lib/dev-login'
 
-/**
- * Proveedor del atajo de DESARROLLO (ver `lib/dev-login.ts`): entra como el
- * correo de `DEV_LOGIN_EMAIL` sin Google. Solo se registra si el atajo está
- * activo — en producción `correoDevLogin()` es null y este array queda vacío,
- * así que el proveedor ni existe en la ruta de auth.
- *
- * Sin formulario (`credentials: {}`): no hay nada que teclear, el correo es
- * el de la variable. `authorize` vuelve a comprobar la allowlist igual que
- * hará después el callback `signIn`: dos comprobaciones por si algún día una
- * de las dos cambia.
- */
+/** Proveedor del atajo de desarrollo (`lib/dev-login.ts`): entra como DEV_LOGIN_EMAIL
+ *  sin Google. En producción el array queda vacío y el proveedor ni existe. */
 const proveedorDev = () => {
   const email = correoDevLogin()
   if (!email) return []
@@ -80,10 +65,8 @@ export const authConfig = {
       return true
     },
     async jwt({ token, user }) {
-      // Se reverifica el usuario en BD en cada petición: así deshabilitar o
-      // eliminar a alguien corta su sesión al instante (equivalente al purgado
-      // de sesiones Redis del Portfolio original) y los cambios de rol se
-      // aplican en vivo sin esperar a que caduque el JWT.
+      // Se reverifica el usuario en BD en cada petición: deshabilitar o eliminar corta la
+      // sesión al instante y los cambios de rol aplican en vivo.
       const email = (user?.email ?? token.email)?.toLowerCase()
       if (!email) return null
       const registro = await prisma.user.findUnique({ where: { email } })
@@ -99,9 +82,8 @@ export const authConfig = {
           const userAgent = ua ? ua.slice(0, 255) : null
           const [sesion] = await Promise.all([
             prisma.userSession.create({ data: { userUuid: registro.uuid, userAgent } }),
-            // Histórico de accesos: `user_session` solo guarda lo VIVO (se
-            // purga a los 7 días y el logout retira la suya), así que el
-            // registro de "desde dónde entré" tiene que vivir aparte.
+            // Histórico de accesos: `user_session` solo guarda lo vivo, así que "desde dónde
+            // entré" vive aparte.
             prisma.loginEvent.create({
               data: { userUuid: registro.uuid, userEmail: email, userAgent },
             }),
@@ -113,20 +95,16 @@ export const authConfig = {
         return token
       }
 
-      // Peticiones posteriores: la fila debe seguir existiendo — borrarla desde
-      // el panel cierra la sesión aquí. Tokens antiguos sin registro (emitidos
-      // antes de esta función) se invalidan: fuerza un relogin único y deja el
-      // inventario de sesiones completo.
+      // La fila debe seguir existiendo: borrarla desde el panel cierra la sesión. Tokens
+      // antiguos sin registro se invalidan (un relogin único).
       if (!token.sessionUuid) return null
       const sesion = await prisma.userSession.findUnique({
         where: { uuid: token.sessionUuid as string },
       })
       if (!sesion) return null
 
-      // Segundo plazo, el de INACTIVIDAD: una sesión que nadie toca se cierra
-      // sola aunque el JWT siga en plazo (ver `sesion-caducidad.ts`). Se borra
-      // la fila, no solo se rechaza el token: si no, seguiría figurando como
-      // activa en el Panel para siempre.
+      // Plazo de inactividad: se borra la fila, no solo se rechaza el token, o seguiría
+      // figurando como activa en el Panel.
       if (inactivaDemasiado(sesion.lastSeen)) {
         await prisma.userSession
           .delete({ where: { uuid: sesion.uuid } })

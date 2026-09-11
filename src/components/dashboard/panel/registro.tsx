@@ -1,17 +1,7 @@
 'use client'
 
-// Pestaña "Registro" del Panel de control: los `warn` y `error` que la
-// aplicación ha guardado, sin entrar por SSH a leer `docker compose logs`.
-//
-// La lista es el 90 % del valor, así que lo que se cuida es poder llegar al
-// evento: filtro por nivel, por scope y por texto, ventana de días y
-// paginación en el servidor. Cada fila se despliega para ver sus datos —que es
-// donde está la traza del error, lo único que sirve para depurar de verdad.
-//
-// ⚠ Los filtros viven en la URL (`?nivel=`, `?scope=`, `?q=`, `?dias=`, `?p=`)
-// y no en estado local, por lo mismo que en el resto del proyecto: el enlace a
-// "los errores del cron de esta semana" se puede guardar y el botón atrás
-// funciona.
+// Pestaña "Registro": los warn y error guardados en BD, con filtros por nivel, scope,
+// texto y días, y paginación en el servidor. Los filtros viven en la URL.
 import { useState, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AlertTriangle, ChevronDown, ChevronRight, XCircle } from 'lucide-react'
@@ -143,10 +133,8 @@ export function Registro({
             onChange={setBusqueda}
             onEnter={() => ir({ q: busqueda.trim() || null })}
           />
-          {/* Los scopes que HAY, no una lista fija: uno nuevo aparece solo. Y
-              con `SelectField`, no un `<select>` nativo: el dashboard tiene su
-              propio desplegable (popover en portal, buscador) y mezclarlos se
-              ve al instante. */}
+          {/* Los scopes que hay, no una lista fija. Con `SelectField` y no un <select>
+              nativo: el dashboard tiene su propio desplegable. */}
           {datos.scopes.length > 1 && (
             <SelectField
               className="w-40 shrink-0"
@@ -218,9 +206,8 @@ export function Registro({
                   </span>
                 </button>
                 {desplegado && (
-                  // Los datos en crudo: aquí está la traza, que es lo único
-                  // que sirve para saber QUÉ pasó. `pre` con scroll propio
-                  // para que una traza larga no ensanche la página.
+                  // Los datos en crudo, con la traza. `pre` con scroll propio para que una traza
+                  // larga no ensanche la página.
                   <div className="px-4 pb-3 pl-11">
                     {f.datos ? (
                       <pre className="max-h-72 overflow-auto rounded-lg bg-background p-3 text-[11.5px] leading-relaxed text-muted-foreground">

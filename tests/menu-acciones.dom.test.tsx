@@ -1,14 +1,6 @@
 // @vitest-environment jsdom
-// Menú de acciones de una fila: iconos en escritorio, «⋯» con menú en móvil.
-//
-// Lo que se comprueba es el CONTRATO, no el aspecto (jsdom no aplica media
-// queries: las dos variantes están siempre en el DOM y las oculta Tailwind):
-//   · con pocas acciones NO hay menú — esconder dos iconos detrás de un menú
-//     son dos toques donde había uno;
-//   · con muchas, el disparador existe y se anuncia como menú;
-//   · cada acción tiene NOMBRE (no solo icono) y se ejecuta una sola vez;
-//   · una acción apagada no se dispara y explica por qué;
-//   · y el menú se cierra al elegir.
+// Menú de acciones: el contrato, no el aspecto. Sin menú con pocas acciones; con
+// muchas, disparador con nombre, acción apagada con motivo y cierre al elegir.
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import axe from 'axe-core'

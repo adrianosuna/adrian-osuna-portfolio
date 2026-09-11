@@ -1,15 +1,7 @@
 'use client'
 
-// Pestaña "Notas" del Panel de control: apuntes propios del admin con formato.
-// Se editan en un editor VISUAL (contentEditable, tipo Word: siempre se ve el
-// formato) y se guardan como HTML. Ese HTML se SANEA en el servidor antes de
-// guardarlo (`lib/sanitizar-html.ts`), así que pintarlo con dangerouslySetInnerHTML
-// —tanto en el editor como en las tarjetas— es seguro.
-//
-// Sobre eso, dos cosas que aparecen cuando las notas pasan de diez: buscador
-// (título y texto) y fijar las importantes para que no se hundan. Y listas de
-// TAREAS marcables, que se marcan DENTRO del editor: desde la tarjeta no, que
-// es donde el clic con el que ibas a abrir la nota terminaba tachando un ítem.
+// Pestaña "Notas": editor visual (contentEditable) que guarda HTML saneado en el
+// servidor. Buscador, fijar notas y checklists que se marcan dentro del editor.
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import {
   Bold, Heading, Italic, Link2, List, ListChecks, ListOrdered, Pin, Plus, Search,
@@ -28,16 +20,8 @@ import type { NotaRow } from '@/lib/notas'
 import { btnIcon, btnOutline, btnPrimary } from '@/components/ui/botones'
 
 
-/**
- * Cuerpo de una tarjeta: el HTML de la nota, recortado a cuatro líneas, con un
- * botón para desplegarlo en su sitio. Antes se cortaba sin más, y lo que
- * quedaba fuera solo se podía leer abriendo el editor.
- *
- * El recorte se MIDE (`scrollHeight` contra `clientHeight`) en vez de
- * estimarse por la longitud del texto: una lista de ocho tareas cortas se
- * corta con poquísimos caracteres, así que cualquier umbral fallaría justo en
- * las notas de tareas, que son las que más se recortan.
- */
+/** Cuerpo de una tarjeta, recortado a cuatro líneas con botón para desplegar. El
+ *  recorte se mide (scrollHeight/clientHeight): un umbral de caracteres fallaría. */
 function CuerpoNota({ html, etiqueta }: { html: string; etiqueta: string | null }) {
   const ref = useRef<HTMLDivElement>(null)
   const [abierta, setAbierta] = useState(false)
@@ -104,9 +88,8 @@ function cuando(iso: string): string {
   return iso.slice(8, 10) + '/' + iso.slice(5, 7)
 }
 
-/** Ancho en píxeles de la casilla de una tarea (padding-left del `li` en CSS).
- *  Dentro del editor solo se alterna pulsando AHÍ: en el resto del `li` el
- *  clic tiene que poder colocar el cursor para escribir. */
+/** Ancho en píxeles de la casilla de una tarea (padding-left del `li`). Dentro del
+ *  editor solo se alterna pulsando ahí: el resto del clic coloca el cursor. */
 const ZONA_CASILLA = 26
 
 export function NotasTab({
@@ -133,9 +116,8 @@ export function NotasTab({
     () => !nueva && Boolean(abrirUuid && rows.find((n) => n.uuid === abrirUuid)?.texto),
   )
   const editorRef = useRef<HTMLDivElement>(null)
-  // HTML con el que se siembra el editor al abrir. Solo cambia al abrir otra
-  // nota, así que durante la edición el prop no cambia y React no repisa lo que
-  // se escribe (el DOM del contentEditable diverge, pero el `__html` es el mismo).
+  // HTML con el que se siembra el editor. Solo cambia al abrir otra nota: durante la
+  // edición el prop es estable y React no pisa lo que se escribe.
   const [htmlInicial, setHtmlInicial] = useState(
     () => (nueva || !abrirUuid ? '' : (rows.find((n) => n.uuid === abrirUuid)?.content ?? '')),
   )
@@ -144,10 +126,8 @@ export function NotasTab({
   // Filtro de la lista
   const [busqueda, setBusqueda] = useState('')
 
-  // La `<ul>` que contiene la selección, si está dentro del editor.
-  // En useCallback (igual que `sincronizarActivos`): las dos son estables —solo
-  // tocan refs y setState— y así el efecto que escucha la selección puede
-  // declararlas como dependencia sin resuscribirse en cada render.
+  // La `<ul>` que contiene la selección, si está dentro del editor. En useCallback
+  // para que el efecto que escucha la selección no se resuscriba en cada render.
   const ulDeSeleccion = useCallback((): HTMLUListElement | null => {
     const nodo = document.getSelection()?.anchorNode
     if (!nodo || !editorRef.current?.contains(nodo)) return null
@@ -192,10 +172,8 @@ export function NotasTab({
   // botones activos (mover el cursor, escribir o seleccionar dispara este evento).
   useEffect(() => {
     if (!modal) return
-    // Formato por ETIQUETAS (`<b>`, `<i>`...), no por CSS: algunos navegadores
-    // emiten `<span style="font-weight:bold">` y el saneador tira `style` (por
-    // seguridad), con lo que el formato se perdería al guardar. `false` fuerza
-    // la salida por etiquetas, que sí sobrevive a la allowlist.
+    // Formato por etiquetas (`<b>`, `<i>`), no por CSS: el saneador tira `style` y el
+    // formato se perdería al guardar.
     try {
       document.execCommand('styleWithCSS', false, 'false')
     } catch {
@@ -297,9 +275,8 @@ export function NotasTab({
 
   const editando = modal !== 'nueva' ? rows.find((n) => n.uuid === modal) : undefined
 
-  // ── Filtrado (buscador) ──
-  // Busca en el título y en el TEXTO plano del contenido, no en el HTML
-  // ("strong" no es una palabra de la nota).
+  // Buscador: título y texto plano del contenido, no el HTML ("strong" no es una
+  // palabra de la nota).
   const q = sinAcentos(busqueda.trim())
   const visibles = q
     ? rows.filter((n) => sinAcentos(`${n.title ?? ''} ${n.texto}`).includes(q))
@@ -350,11 +327,8 @@ export function NotasTab({
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {visibles.map((n) => (
-            // NO es un <button>: la tarjeta pinta el HTML de la nota (bloques y
-            // enlaces), que dentro de un botón sería anidamiento inválido (React
-            // avisa) y haría que un enlace disparara enlace + editor a la vez.
-            // Div con role/teclado, y el preview con pointer-events-none para
-            // que el clic, caiga donde caiga, siempre abra el editor.
+            // No es un <button>: la tarjeta pinta HTML con bloques y enlaces, anidamiento
+            // inválido dentro de un botón. Div con role/teclado y preview sin pointer-events.
             <div
               key={n.uuid}
               role="button"
@@ -479,9 +453,8 @@ export function NotasTab({
               <BotonFormato label="Enlace" icon={Link2} onClick={enlazar} />
             </div>
 
-            {/* Editor: contentEditable, siempre con el formato a la vista. Se
-                siembra una sola vez (key por nota + html estable) para no pisar
-                lo que se escribe. */}
+            {/* Editor contentEditable. Se siembra una sola vez (key por nota + html estable)
+                para no pisar lo que se escribe. */}
             <div
               key={modal}
               ref={editorRef}

@@ -1,13 +1,5 @@
-// Color de las categorías: se elige solo, y nunca repetido.
-//
-// Antes se elegía a mano de una paleta de ocho, así que a partir de la novena
-// categoría había repetidos sí o sí — y elegir color al dar de alta un gasto
-// es trabajo que no aporta nada. Ahora el color lo pone la aplicación: busca
-// el TONO más alejado de los que ya se usan, así que cada categoría nueva cae
-// en el hueco más grande del círculo cromático.
-//
-// Saturación y luminosidad fijas: son las que se ven bien sobre el fondo
-// oscuro del dashboard (y las que ya tenía la paleta original).
+// Color de las categorías: lo elige la aplicación buscando el tono más alejado de
+// los usados. Saturación y luminosidad fijas, las que se ven bien sobre oscuro.
 
 const SATURACION = 0.62
 const LUMINOSIDAD = 0.55
@@ -53,15 +45,8 @@ const distancia = (a: number, b: number) => {
   return d > 180 ? 360 - d : d
 }
 
-/**
- * Color para una categoría nueva: el tono más lejano de todos los que ya se
- * usan. Con la lista vacía sale el esmeralda del tema, que es el color de la
- * casa; a partir de ahí, cada uno cae en el hueco más grande que quede.
- *
- * Recorre los 360 tonos en vez de repartir por ángulo áureo porque así también
- * reacciona a los colores que ya había (los 19 sembrados) y a los huecos que
- * deja borrar una categoría.
- */
+/** Color para una categoría nueva: el tono más lejano de los usados (esmeralda con
+ *  la lista vacía). Recorre los 360 tonos para reaccionar a los colores ya sembrados. */
 export function colorLibre(usados: string[]): string {
   const tonos = usados.map(tonoDe).filter((t): t is number => t !== null)
   if (!tonos.length) return colorDeTono(160) // esmeralda, como --primary

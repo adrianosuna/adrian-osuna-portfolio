@@ -1,12 +1,5 @@
-// Previsión de cierre de mes: en qué va a acabar el gasto del mes si sigue
-// así, y no solo en cuánto va.
-//
-// Lo que responde: a día 7 llevas 1.398 € gastados. ¿Eso es mucho o poco? Sin
-// esto hay que hacer la regla de tres a mano, y encima mal, porque el alquiler
-// del día 3 ya cayó y el seguro del 25 todavía no.
-//
-// Sin `server-only`, como `topes.ts` y `recurrentes.ts`: es aritmética pura y
-// la usa la vista del mes (cliente) sobre datos que ya viajan a la página.
+// Previsión de cierre de mes: en qué acaba el gasto si sigue así. Puro y sin
+// `server-only`; lo usa la vista del mes.
 import { fechasEnMes } from '@/lib/recurrentes'
 
 export interface MovimientoPrevision {
@@ -28,10 +21,7 @@ export interface RecurrentePrevision {
 }
 
 export interface Prevision {
-  /**
-   * Un mes PASADO no se prevé: ya se sabe en qué acabó. Uno FUTURO no tiene
-   * ritmo del que tirar, así que solo se sabe lo recurrente.
-   */
+  /** Un mes pasado no se prevé; uno futuro solo sabe lo recurrente. */
   estado: 'cerrado' | 'en curso' | 'futuro'
   /** Gastado de verdad hasta ahora en el mes. */
   gastado: number
@@ -54,20 +44,8 @@ const diasDe = (mes: string) => {
 
 const redondear = (v: number) => Math.round(v * 100) / 100
 
-/**
- * Previsión del gasto a fin de mes.
- *
- * ⚠ **El ritmo se calcula SOLO sobre el gasto no recurrente**, y es la
- * decisión que hace que la cifra signifique algo. Si se extrapolara el gasto
- * total, el alquiler que cayó el día 3 se multiplicaría por los 30 días del
- * mes: a día 5 la previsión diría que vas a gastar cuatro alquileres. Los
- * recurrentes no siguen un ritmo, tienen fecha — así que se suman aparte y
- * solo los que aún no han caído.
- *
- * Por el mismo motivo, un recurrente que YA cayó no se cuenta dos veces: está
- * dentro de `gastado` y se excluye de `porCaer` mirando su `recurringUuid` en
- * los movimientos del mes.
- */
+/** Previsión del gasto a fin de mes. El ritmo se calcula solo sobre el gasto no
+ *  recurrente; los recurrentes se suman aparte y solo los que aún no han caído. */
 export function previsionCierre({
   mes, hoy, movimientos, recurrentes,
 }: {
@@ -119,19 +97,15 @@ export function previsionCierre({
   const diasRestantes = diasDelMes - diasTranscurridos
   const variables = gastos.filter((m) => m.recurringUuid === null)
 
-  // ⚠ El ritmo se mide SOLO con lo que ya ha pasado (`expenseDate <= hoy`).
-  // Un movimiento con fecha futura —se pueden apuntar por adelantado— no dice
-  // nada del ritmo, y meterlo dividía el gasto de medio mes entre los días
-  // transcurridos: con datos reales a día 7 la previsión salía cuatro veces el
-  // gasto del mes anterior. Se vio en el navegador, no en los tests.
+  // El ritmo mide solo lo ya pasado (`expenseDate <= hoy`): un movimiento con fecha
+  // futura dividido entre los días transcurridos multiplicaba la previsión por cuatro.
   const hastaHoy = variables
     .filter((m) => m.expenseDate <= hoy)
     .reduce((s, m) => s + m.amount, 0)
   const mediaDiaria = diasTranscurridos > 0 ? redondear(hastaHoy / diasTranscurridos) : 0
 
-  // Y lo ya apuntado CON FECHA FUTURA no se extrapola: se sabe. Se resta de la
-  // estimación de los días que quedan (con suelo en 0) para no contarlo dos
-  // veces — ya está dentro de `gastado`.
+  // Lo apuntado con fecha futura no se extrapola: se resta de la estimación (suelo
+  // en 0) porque ya está en `gastado`.
   const futuroApuntado = variables
     .filter((m) => m.expenseDate > hoy)
     .reduce((s, m) => s + m.amount, 0)

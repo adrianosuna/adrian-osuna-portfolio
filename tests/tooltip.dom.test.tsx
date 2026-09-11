@@ -1,9 +1,6 @@
 // @vitest-environment jsdom
-// Tooltip propio (sustituye al `title` nativo): se abre con retardo al pasar el
-// ratón y al instante con el foco, se cierra al salir y con Escape, describe al
-// hijo con aria-describedby, y no cambia el DOM del hijo (cloneElement). Con
-// `envuelto`, rodea a un hijo `disabled` —que no recibe ratón— con un span
-// que sí lo recibe.
+// Tooltip propio: retardo con ratón, inmediato con foco, cierre con Escape,
+// aria-describedby, sin cambiar el DOM del hijo; `envuelto` para disabled.
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Tooltip } from '@/components/ui/tooltip'

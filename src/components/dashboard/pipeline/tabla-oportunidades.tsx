@@ -1,11 +1,7 @@
 'use client'
 
-// Vista de tabla del pipeline, con dos contextos: 'todas' (todas las
-// oportunidades, activas y archivadas, con su seguimiento) e 'historico'
-// (solo archivadas). Buscador, tarjetas en móvil y acciones por fila según
-// su estado: editar siempre, archivar/restaurar en terminales, eliminar.
-// En móvil esta ES la vista de trabajo del pipeline (el kanban no existe
-// ahí): con `onMover`, las tarjetas cambian de estado con un selector.
+// Vista de tabla del pipeline: 'todas' (con seguimiento) e 'historico' (archivadas).
+// En móvil es la vista de trabajo: con `onMover` las tarjetas cambian de estado.
 import { useState, useTransition } from 'react'
 import {
   AlarmClockPlus, Archive, ArchiveRestore, CalendarClock, Pencil, Search, Trash2,
@@ -63,17 +59,13 @@ export function TablaOportunidades({
       )
     : rows
 
-  // Se pinta de a tandas. El filtro es de CLIENTE (busca en seis campos, notas
-  // incluidas), así que paginar en el servidor rompería la búsqueda: lo que se
-  // recorta es lo que se PINTA, no lo que se consulta. Con el histórico de unos
-  // años son cientos de filas —y cada una con su selector de estado en móvil—,
-  // y ese DOM se nota al escribir en el buscador.
+  // Se pinta por tandas: el filtro es de cliente (seis campos, notas incluidas) y
+  // paginar en el servidor rompería la búsqueda. Se recorta lo que se pinta.
   const visibles = filtradas.slice(0, tanda)
   const quedan = filtradas.length - visibles.length
 
-  // Al cambiar la búsqueda se vuelve a la primera tanda. Ajuste EN RENDER (no
-  // en un efecto): así no hay un pintado intermedio con la tanda anterior, y
-  // `react-hooks/set-state-in-effect` no lo permitiría de otro modo.
+  // Al cambiar la búsqueda se vuelve a la primera tanda, en render y no en un
+  // efecto: sin pintado intermedio y sin `set-state-in-effect`.
   if (qPrevio !== q) {
     setQPrevio(q)
     setTanda(POR_TANDA)
@@ -126,10 +118,8 @@ export function TablaOportunidades({
         onClick: () => onEditar(o),
       },
     ]
-    // Posponer una semana: es lo que más se hace con un seguimiento vencido, y
-    // hasta ahora el camino era abrir la ficha y elegir día en el calendario.
-    // Solo si HAY seguimiento y no está archivada: sin fecha no hay nada que
-    // posponer, y crearla aquí sería inventarse una próxima acción.
+    // Posponer una semana: lo que más se hace con un vencido. Solo si hay seguimiento
+    // y no está archivada; crearlo aquí sería inventarse una próxima acción.
     if (o.nextActionDate && !o.archived) {
       lista.push({
         id: 'posponer',

@@ -1,13 +1,5 @@
-// Endpoints de NextAuth, con un tope de peticiones por IP delante.
-//
-// Por qué: el OAuth de Google ya protege el login (no hay contraseña que
-// probar), así que esto NO es contra la fuerza bruta. Es contra el machaque de
-// `/api/auth/*`: cada intento hace trabajo real —consulta la allowlist y, si
-// entra, escribe en `user_session` y `login_event`—, y eso es superficie
-// pública que conviene no dejar sin freno.
-//
-// El límite es generoso (ver `LIMITE_LOGIN`): un login normal son dos o tres
-// peticiones, así que 30 por minuto no lo nota nadie.
+// Endpoints de NextAuth con tope de peticiones por IP. No es contra fuerza bruta
+// (OAuth), sino contra el machaque de /api/auth/*, que consulta y escribe en BD.
 import type { NextRequest } from 'next/server'
 import { handlers } from '@/auth'
 import { avisarFrenado, claveIp, limitar, LIMITE_LOGIN } from '@/lib/rate-limit'

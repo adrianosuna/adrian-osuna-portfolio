@@ -1,8 +1,7 @@
 'use client'
 
-// Pestaña Resumen del módulo de finanzas: la foto de todos los años — KPIs
-// globales, tabla comparativa (cada año enlaza a su pestaña) y la curva de
-// ahorro acumulado. Solo lectura: los datos se editan en el tab de cada año.
+// Resumen del módulo de finanzas: KPIs globales, tabla comparativa y curva de
+// ahorro acumulado. Solo lectura.
 import Link from 'next/link'
 import { BarChart3, LineChart, Percent, TrendingDown, TrendingUp, Trophy } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -39,9 +38,8 @@ export function ResumenGeneral({ years, hoy }: { years: YearSummary[]; hoy: stri
   const totalIngresos = years.reduce((s, y) => s + y.incomeTotal + y.extrasTotal, 0)
   const tasaHistorica = totalIngresos > 0 ? totalAhorro / totalIngresos : null
 
-  // KPIs útiles = los del año EN CURSO comparados con su objetivo, su ritmo y
-  // el año anterior. Los agregados históricos (total, mejor año) ya están en la
-  // tabla y la gráfica de abajo: como tarjetas no hacían pensar nada.
+  // KPIs del año en curso frente a objetivo, ritmo y año anterior. Los agregados
+  // históricos ya están en la tabla y la gráfica.
   const añoActual = Number(hoy.slice(0, 4))
   const mesActual = Number(hoy.slice(5, 7))
   const actual = years.find((y) => y.year === añoActual)

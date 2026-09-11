@@ -1,14 +1,5 @@
-// Pantallas de arranque de iOS: qué tamaños se generan y con qué media query
-// las pide cada dispositivo.
-//
-// iOS elige la imagen comparando `device-width`, `device-height` y
-// `-webkit-device-pixel-ratio` con las de cada `<link>`. Si NINGUNA cuadra, no
-// pinta ninguna y vuelve el fogonazo blanco, así que la lista cubre los iPhone
-// y iPad en uso; el resto degrada al fondo del `theme_color`, que ya es oscuro.
-//
-// Los tamaños van en PÍXELES FÍSICOS (device-width × ratio), que es lo que la
-// imagen tiene que medir. Sin `server-only`: los usan la ruta que las genera y
-// el layout que las declara.
+// Splash de iOS: tamaños y media queries. Si ninguna cuadra, iOS no pinta nada.
+// Tamaños en píxeles físicos. Sin `server-only`.
 
 interface Splash {
   /** Tamaño físico de la imagen, 'anchoxalto'. */
@@ -21,10 +12,8 @@ interface Splash {
   ratio: number
 }
 
-/**
- * Familias de pantalla cubiertas, en vertical. Una entrada por combinación
- * real de (ancho, alto, densidad); varios modelos comparten entrada.
- */
+/** Familias de pantalla cubiertas, en vertical: una entrada por combinación real
+ *  de (ancho, alto, densidad). */
 export const SPLASHES: Splash[] = [
   // iPhone 15/16 Pro Max, 14 Pro Max
   { dim: '1290x2796', w: 430, h: 932, ratio: 3 },
@@ -57,10 +46,7 @@ export const SPLASHES: Splash[] = [
 /** Tamaños permitidos en `/splash/[dim]` (allowlist de la ruta). */
 export const DIMENSIONES_SPLASH: string[] = SPLASHES.map((s) => s.dim)
 
-/**
- * Los `<link rel="apple-touch-startup-image">` para el layout, en el formato
- * que espera `metadata.icons.other` de Next.
- */
+/** Los `<link rel="apple-touch-startup-image">` para `metadata.icons.other`. */
 export const LINKS_SPLASH = SPLASHES.map((s) => ({
   rel: 'apple-touch-startup-image',
   url: `/splash/${s.dim}`,

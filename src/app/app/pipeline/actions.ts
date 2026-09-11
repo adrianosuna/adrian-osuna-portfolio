@@ -1,9 +1,7 @@
 'use server'
 
-// Server actions del pipeline de oportunidades (personal del administrador):
-// crear, editar (incluye mover de estado, que se registra en el historial y
-// sella/limpia la fecha de cierre), archivar, eliminar y el timeline de
-// actividad. Devuelven { ok, message? } y revalidan la página.
+// Server actions del pipeline (solo admin): crear, editar (incluye mover de estado,
+// con historial y cierre), archivar, eliminar y el timeline. { ok, message? }.
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/auth'
 import { AppError } from '@/lib/errors'
@@ -48,10 +46,8 @@ type TipoManual = (typeof TIPOS_MANUALES)[number]
 async function guarded<T extends Result>(fn: () => Promise<T>): Promise<T | Result> {
   try {
     const sesionActual = await requireAdmin()
-    // Freno por usuario: 120 escrituras por minuto no las alcanza nadie
-    // pulsando botones, pero sí un bucle en el cliente o un doble envío
-    // desbocado — que es lo único de lo que hay que protegerse aquí, porque
-    // llegar hasta este punto ya exige sesión de admin.
+    // Freno por usuario: 120 escrituras/min solo las alcanza un bucle en el cliente
+    // o un doble envío desbocado.
     const freno = limitar(`accion:${sesionActual.user.uuid}`, LIMITE_ACCIONES)
     if (!freno.ok) {
       avisarFrenado('pipeline', `accion:${sesionActual.user.uuid}`, freno.esperaS)
@@ -78,14 +74,8 @@ interface DatosOportunidad {
   nextActionDate?: string | null
 }
 
-/**
- * Normaliza los campos de la oportunidad con el esquema compartido
- * (`OportunidadEdicion`): textos recortados y vacío → null, importe validado
- * y fecha de seguimiento pasada a Date.
- *
- * Devuelve `{ error }` para que las actions contesten con el mensaje, igual
- * que antes de tener Zod: el contrato hacia el cliente no cambia.
- */
+/** Normaliza la oportunidad con el esquema compartido (`OportunidadEdicion`).
+ *  Devuelve `{ error }` para que las actions contesten con el mensaje. */
 function limpiar(datos: DatosOportunidad) {
   const v = validar(CamposOportunidad, datos)
   if (!v.ok) return { error: v.message }
@@ -155,9 +145,8 @@ export async function updateOpportunity(uuid: string, datos: DatosOportunidad): 
       }
     }
 
-    // Cambio de estado: se apunta en el historial; entrar en un estado
-    // terminal sella closed_at y retira el seguimiento (ya no hay próxima
-    // acción que perseguir); salir de él reabre (y desarchiva).
+    // Cambio de estado: se apunta en el historial; un estado terminal sella closed_at
+    // y retira el seguimiento; salir de él reabre y desarchiva.
     let evento: string | null = null
     if (datos.status !== undefined) {
       if (!estadoValido(datos.status)) return fail('Estado no válido')
@@ -209,12 +198,8 @@ export async function archiveOpportunity(uuid: string, archived: boolean): Promi
   })
 }
 
-/**
- * Lo necesario para devolver una oportunidad borrada a su sitio, **con su
- * historial**: el FK de `opportunity_event` es CASCADE, así que borrarla se
- * lleva también el timeline. Sin traerlo aquí, "Deshacer" devolvería la ficha
- * vacía de historia, que es peor que no ofrecer deshacer.
- */
+/** Lo necesario para restaurar una oportunidad borrada con su historial: el FK de
+ *  `opportunity_event` es CASCADE y el borrado se lleva el timeline. */
 export interface OportunidadRestaurable {
   uuid: string
   title: string
@@ -333,9 +318,8 @@ export async function restaurarOportunidad(datos: OportunidadRestaurable): Promi
 
 // ─────────── Timeline de actividad ───────────
 
-/** Añade una entrada manual al historial (nota, llamada, email o reunión).
- *  Pasa por update de la oportunidad: si no existe falla, y su update_ts se
- *  refresca (la actividad reciente sube la tarjeta en el tablero). */
+/** Añade una entrada manual al historial. Va por update de la oportunidad: si no
+ *  existe falla, y su update_ts se refresca (sube la tarjeta en el tablero). */
 export async function addOpportunityEvent(
   uuid: string,
   datos: { type: string; detail: string },
@@ -394,23 +378,8 @@ export async function getOpportunityEvents(uuid: string): Promise<
   }
 }
 
-/**
- * Posponer el seguimiento: mueve `next_action_date` N días hacia delante.
- *
- * Por qué existe: hoy, para retrasar un seguimiento hay que abrir la
- * oportunidad, buscar el campo de la fecha y elegir el día en el calendario.
- * Y es lo que más se hace con un seguimiento vencido —«esta semana no, la que
- * viene»—, así que era el gesto más frecuente con el camino más largo.
- *
- * ⚠ Cuenta **desde hoy**, no desde la fecha que tenía. Un seguimiento vencido
- * hace tres semanas, sumándole 7 a su propia fecha, seguiría vencido: se
- * pospone y no pasa nada, que es justo lo contrario de lo que se pedía.
- *
- * ⚠ Y deja un apunte en el timeline. Posponer es una decisión sobre la
- * oportunidad, y sin rastro no hay forma de ver que algo lleva un mes
- * aplazándose semana a semana — que es la señal de que hay que cerrarlo o
- * descartarlo.
- */
+/** Pospone el seguimiento N días contando desde hoy, no desde la fecha que tenía
+ *  (un vencido seguiría vencido), y deja apunte en el timeline. */
 export async function snoozeSeguimiento(uuid: string, dias: number): Promise<Result> {
   return guarded(async () => {
     if (!Number.isInteger(dias) || dias < 1 || dias > 90) {

@@ -1,12 +1,7 @@
 'use client'
 
-// Tablero del pipeline de oportunidades (solo administrador): métricas del
-// embudo y, en escritorio (md+), el kanban de 5 columnas con drag&drop y
-// botones ←/→. En móvil el kanban no es cómodo y NO se muestra: la vista de
-// trabajo es la Tabla (listado completo, cuyas tarjetas mueven de estado con
-// un selector) — el conmutador ni ofrece "Tablero" en pantallas pequeñas.
-// Además, vistas Tabla (todas) e Histórico (archivadas), ambas sobre
-// TablaOportunidades. El detalle/edición y el timeline viven en OportunidadModal.
+// Tablero del pipeline (solo admin): métricas y kanban de 5 columnas en md+. En
+// móvil no hay kanban: la vista de trabajo es la Tabla. Histórico: archivadas.
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -41,9 +36,8 @@ function Metrica({ label, valor }: { label: string; valor: string }) {
   )
 }
 
-// Tarjeta del tablero, compartida por el kanban de escritorio y la lista
-// móvil: mismo contenido, y el control de mover estado (flechas o selector)
-// lo aporta cada variante vía `moverControl`.
+// Tarjeta del tablero, compartida por el kanban y la lista móvil: el control de
+// mover estado lo aporta cada variante vía `moverControl`.
 function Tarjeta({
   o, hoy, pending, run, onEditar, onBorrar, moverControl, dragProps, className,
 }: {
@@ -246,9 +240,8 @@ export function PipelineBoard({
         />
       </div>
 
-      {/* En móvil los controles se apilan y "Tablero" no existe: la vista de
-          trabajo es la Tabla (si la vista guardada es el tablero, en móvil se
-          resalta y se muestra la Tabla — puro CSS, sin líos de hidratación). */}
+      {/* En móvil "Tablero" no existe: si la vista guardada es el tablero se muestra
+          la Tabla, por CSS, sin líos de hidratación. */}
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex rounded-lg border border-border bg-card/50 p-0.5 sm:inline-flex">
           <button

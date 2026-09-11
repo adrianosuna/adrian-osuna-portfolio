@@ -1,26 +1,7 @@
 'use client'
 
-// Acciones de una fila: iconos en escritorio, menú de tres puntos en móvil.
-//
-// El problema: en una fila con tres o cuatro acciones (editar, dividir,
-// eliminar…) los iconos se comen el ancho del móvil, empujan el concepto y el
-// importe, y quedan tan juntos que se pulsa el de al lado. En escritorio, en
-// cambio, tenerlos a la vista es lo cómodo: se ve todo y se acierta con el ratón.
-//
-// Así que se declaran UNA vez y el componente decide cómo pintarlos:
-//
-//   · **≥ sm** — los iconos en línea, como siempre.
-//   · **< sm** — un solo botón «⋯» que abre un menú con las acciones POR SU
-//     NOMBRE. En móvil el texto gana al icono: no hay `title` que enseñar al
-//     pasar el dedo por encima, así que un icono suelto es una adivinanza.
-//
-// Con pocas acciones (menos de `desde`) no hay menú en ninguna parte: dos
-// iconos caben de sobra, y esconderlos detrás de un menú serían dos toques
-// donde había uno.
-//
-// El popover se reutiliza de `ui/fields.tsx` (portal con posición fija): así no
-// lo recorta ninguna tabla con overflow ni el cuerpo de un modal, y hereda el
-// cierre con Escape, con clic fuera y al hacer scroll.
+// Acciones de una fila declaradas una vez: iconos en línea desde sm, menú «⋯» por
+// nombre en móvil. Con menos de `desde` acciones no hay menú. Popover de `fields.tsx`.
 import { MoreHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PopoverPanel, usePopover } from '@/components/ui/fields'
@@ -60,9 +41,8 @@ export function MenuAcciones({
   const iconos = (
     <span className="flex items-center justify-end gap-0.5">
       {acciones.map((a) => (
-        // Tooltip propio en vez del `title` del navegador. `envuelto` en los
-        // apagados: un botón disabled no recibe el ratón, y justo ahí es
-        // donde el tooltip más importa, porque dice POR QUÉ no se puede.
+        // Tooltip propio. `envuelto` en los apagados: un botón disabled no recibe el ratón
+        // y ahí es donde el tooltip dice por qué no se puede.
         <Tooltip key={a.id} texto={a.disabled && a.motivo ? a.motivo : a.label} envuelto={a.disabled}>
           <button
             type="button"
@@ -102,10 +82,8 @@ export function MenuAcciones({
             popRef={popRef}
             rol="menu"
             etiqueta={`Acciones de ${etiqueta}`}
-                        // `bg-popover` y NO `bg-card`: las tarjetas del proyecto son
-            // translúcidas a propósito (`--card` es un blanco al 4 %), y un
-            // panel flotante con ese fondo deja ver la lista de debajo. Es el
-            // token que ya usan el modal y los popovers de `fields.tsx`.
+            // `bg-popover` y no `bg-card`: las tarjetas son translúcidas y un panel flotante
+            // con ese fondo deja ver la lista de debajo.
             className="min-w-52 overflow-hidden rounded-xl border border-border bg-popover py-1 shadow-lg">
             {acciones.map((a) => (
               <button

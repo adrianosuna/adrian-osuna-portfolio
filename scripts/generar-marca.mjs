@@ -1,21 +1,5 @@
-// Genera TODAS las piezas de la marca a partir del PNG maestro
-// (`docs/marca/logo-blanco.png`, el fichero que entregó Adrián):
-//
-//   · el trazo vectorial  → `MARCA_D` de src/lib/marca.ts
-//   · el favicon SVG      → src/app/icon.svg
-//   · el favicon .ico     → public/favicon.ico (16/32/48)
-//   · el logo del correo  → public/img/logo-correo.png
-//
-// Se ejecuta con `pnpm marca` y SOLO hace falta si cambia el logo. Existe para
-// que las piezas binarias no sean un callejón sin salida: sin receta, cambiar
-// el logo dentro de un año significa rehacer a mano un .ico y un trazo de 134
-// puntos. Todo lo demás (el icono de iOS, las pantallas de arranque, la
-// tarjeta de OpenGraph y la interfaz) lee `MARCA_D` en caliente y no necesita
-// regenerarse.
-//
-// Sin dependencias: decodifica y codifica PNG con `zlib`, que es lo único que
-// hace falta para un logo de un color. Meter `sharp` en el proyecto por un
-// script que se ejecuta una vez al año no sale a cuenta.
+// Genera las piezas de la marca desde el PNG maestro: `MARCA_D`, icon.svg,
+// favicon.ico y el PNG del correo. Solo si cambia el logo (`pnpm marca`). Sin dependencias.
 import { deflateSync, inflateSync } from 'node:zlib'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -24,11 +8,8 @@ import { dirname, join } from 'node:path'
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..')
 const MAESTRO = join(RAIZ, 'docs/marca/logo-blanco.png')
 
-// Encuadre del favicon: SIN placa debajo no hay plato que respetar, así que la
-// marca va de BORDE A BORDE — el máximo posible sin recortar el dibujo, porque
-// lo que topa es el ancho (la marca es 1,887:1 y la casilla del favicon es
-// cuadrada). El icono de iOS sí lleva fondo y por eso deja margen (54 de cada
-// 64), pero ese se genera en runtime: su encuadre vive en `apple-icon.tsx`.
+// Encuadre del favicon: de borde a borde, sin placa que respetar. El icono de iOS
+// deja margen (54/64) y su encuadre vive en `apple-icon.tsx`.
 const ENCUADRE_SUELTO = 64 / 64
 /** El favicon del navegador va en NEGRO y sin fondo (petición de Adrián). */
 const NEGRO = '#000000'
@@ -112,15 +93,8 @@ function alfaBilineal(fx, fy) {
   return (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty
 }
 
-/**
- * Contorno por "grietas" entre píxeles llenos y vacíos, sobre una máscara
- * supermuestreada.
- *
- * ⚠ Se hace así y no con marching squares porque aquí cada esquina tiene
- * tantas salidas como entradas POR CONSTRUCCIÓN, y los contornos cierran
- * siempre. Con marching squares, el vértice afilado de la A dejaba el contorno
- * exterior partido en dos trozos abiertos.
- */
+/** Contorno por grietas entre píxeles sobre una máscara supermuestreada: cada esquina
+ *  tiene tantas salidas como entradas, así que los contornos cierran siempre. */
 function trazar() {
   const margen = 6
   const bx0 = CAJA.x0 - margen, by0 = CAJA.y0 - margen
@@ -210,11 +184,8 @@ function simplificar(pts, tol) {
   return pts.filter((_, i) => guardar[i])
 }
 
-/**
- * Comprueba el trazo rellenándolo de vuelta (regla par-impar) y comparándolo
- * con la máscara original. Es la única forma de saber que la simplificación no
- * se ha comido nada: a ojo, un contorno perdido no se ve hasta que se ve.
- */
+/** Comprueba el trazo rellenándolo de vuelta (par-impar) contra la máscara original:
+ *  un contorno perdido no se ve a ojo. */
 function fidelidad(poligonos) {
   const aristas = []
   for (const p of poligonos) for (let i = 0; i < p.length - 1; i++) aristas.push([p[i], p[i + 1]])
@@ -304,14 +275,8 @@ function codificarPNG(ancho, alto, rgba) {
 
 const hex = (c) => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)]
 
-/**
- * Cobertura de la marca a un tamaño, con filtro de caja: cada píxel de destino
- * promedia TODO el rectángulo de origen que le toca. Al bajar de 655 px a 27
- * un muestreo puntual dejaría el trazo roto a trocitos.
- *
- * Se remuestrea el maestro y no el trazo vectorial a propósito: el original
- * conserva mejor el filo, y así el ráster no hereda la simplificación.
- */
+/** Cobertura de la marca a un tamaño con filtro de caja. Se remuestrea el maestro y
+ *  no el trazo: conserva mejor el filo. */
 function cobertura(ancho, alto) {
   const out = new Float32Array(ancho * alto)
   const cw = CAJA.x1 - CAJA.x0, ch = CAJA.y1 - CAJA.y0
@@ -336,14 +301,8 @@ function cobertura(ancho, alto) {
   return out
 }
 
-/**
- * Lienzo con la marca centrada.
- *
- * Con `colorFondo` a null el fondo es TRANSPARENTE, y entonces el suavizado
- * del borde va por el canal alfa en vez de por la mezcla con el fondo: si se
- * compusiera igual, el filo del trazo quedaría teñido del color de la placa
- * que ya no está, y se vería una orla clara alrededor.
- */
+/** Lienzo con la marca centrada. Con `colorFondo` null el suavizado va por el canal
+ *  alfa: mezclando con un fondo inexistente quedaría una orla clara. */
 function lienzo(ancho, alto, anchoMarca, colorFondo, colorTinta) {
   const fondo = colorFondo ? hex(colorFondo) : null
   const tinta = hex(colorTinta)
@@ -413,14 +372,8 @@ if (sustituida === marcaTs && !marcaTs.includes(`'${d}'`)) {
 }
 writeFileSync(rutaMarca, sustituida)
 
-// 2) El favicon SVG: la marca NEGRA y sin fondo, suelta sobre la pestaña.
-//
-// ⚠ Lleva un `prefers-color-scheme` dentro del propio SVG, y no es un adorno:
-// sin fondo, el negro sobre la barra de pestañas OSCURA del navegador no se
-// ve. Un favicon SVG sí admite CSS —es de las pocas cosas que lo distinguen
-// del .ico—, así que en tema oscuro la misma marca se pinta en blanco. Se
-// declara el claro en `:root` y solo se redefine el oscuro, igual que la
-// paleta del sitio.
+// 2) El favicon SVG, negro y sin fondo. Lleva `prefers-color-scheme` dentro: sin
+// fondo, el negro no se ve sobre la barra de pestañas oscura.
 const suelto = {
   x: ((64 - 64 * ENCUADRE_SUELTO) / 2).toFixed(2),
   y: ((64 - 64 * ENCUADRE_SUELTO * (ALTO_CAJA / ANCHO_CAJA)) / 2).toFixed(2),
@@ -439,10 +392,8 @@ writeFileSync(join(RAIZ, 'src/app/icon.svg'), `<svg xmlns="http://www.w3.org/200
 </svg>
 `)
 
-// 3) El favicon .ico (16/32/48, marcos PNG), a juego con el SVG: negro y sin
-//    fondo, así que tampoco lleva las esquinas redondeadas —no hay placa que
-//    redondear—. Es el respaldo para quien no admita el SVG, y ahí no hay
-//    media query posible: se queda en negro siempre.
+// 3) El favicon .ico (16/32/48) a juego: negro, sin fondo ni esquinas. Sin media
+// query posible, se queda en negro siempre.
 const marcos = [16, 32, 48].map((lado) => ({
   lado,
   datos: lienzo(lado, lado, Math.round(lado * ENCUADRE_SUELTO), null, NEGRO),

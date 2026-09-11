@@ -1,6 +1,5 @@
-// Lógica del pipeline de oportunidades: métricas del embudo (cabecera del
-// tablero) y aviso por correo de seguimientos vencidos (lo dispara el cron
-// diario, mismo patrón que el mantenimiento: reaviso semanal, no diario).
+// Lógica del pipeline: métricas del embudo y aviso por correo de seguimientos
+// vencidos (cron diario, reaviso semanal).
 import 'server-only'
 import { prisma } from '@/lib/prisma'
 import { botonHtml, correoConfigurado, enviarCorreo, tarjetaHtml } from '@/lib/correo'
@@ -52,9 +51,8 @@ export function metricasPipeline(filas: FilaMetrica[]): MetricasPipeline {
 
 const fmt = (iso: string) => iso.split('-').reverse().join('/')
 
-/** Aviso por correo de los seguimientos vencidos (próxima acción con fecha ya
- *  pasada en oportunidades vivas). Reaviso semanal mientras no se muevan.
- *  Devuelve cuántas oportunidades se avisaron. */
+/** Aviso por correo de los seguimientos vencidos en oportunidades vivas. Reaviso
+ *  semanal. Devuelve cuántas se avisaron. */
 export async function avisarSeguimientos(): Promise<number> {
   if (!correoConfigurado()) return 0
   const hoy = hoyMadrid()

@@ -1,8 +1,5 @@
-// Capa de datos del control de gastos e ingresos (solo servidor). Réplica del
-// Excel "Control de gastos": cada movimiento es un ingreso o un gasto con
-// FECHA PROPIA (el mes se deriva de ella, no cuelga del año de ahorro), y cada
-// mes tiene su resumen (ingresos, gastos, balance) y sus dos desgloses por
-// categoría: en qué se va el dinero y de dónde viene.
+// Capa de datos del control de gastos (solo servidor): cada movimiento es ingreso o
+// gasto con fecha propia; el mes se deriva de ella.
 import 'server-only'
 import type { RecurringExpenseModel } from '@/generated/prisma/models'
 import { prisma } from '@/lib/prisma'
@@ -54,9 +51,8 @@ export interface MovimientoRow {
   categoryUuid: string | null
   /** Nota libre: el contexto que no cabe en el concepto. */
   note: string | null
-  /** El recurrente que lo apuntó, si lo apuntó uno. Es lo que permite decir
-   *  qué recurrentes YA cargaron en un mes —incluido uno pasado, donde la
-   *  proyección desde `nextDate` no alcanza. */
+  /** El recurrente que lo apuntó, si lo apuntó uno: permite saber qué recurrentes ya
+   *  cargaron en un mes, incluso uno pasado. */
   recurringUuid: string | null
 }
 
@@ -138,15 +134,8 @@ const diasDelMes = (mes: string) => {
   return new Date(Date.UTC(y, m, 0)).getUTCDate()
 }
 
-/**
- * Reparto por categoría de los movimientos de un tipo, de mayor a menor.
- *
- * Se suma por la categoría del movimiento (siempre una hoja) pero la PORCIÓN
- * se atribuye a su grupo: la pregunta que responde el donut es "cuánto me
- * cuesta el coche", no "cuánto el taller" — y con veinte categorías sueltas no
- * se lee ninguna. El detalle viaja en `hijas`, que es lo que se enseña al
- * pulsar la porción.
- */
+/** Reparto por categoría de un tipo, de mayor a menor. Se suma por la hoja pero la
+ *  porción se atribuye a su grupo; el detalle viaja en `hijas`. */
 function desglose(
   movimientos: Array<{ type: TipoMovimiento; amount: number; categoryUuid: string | null }>,
   tipo: TipoMovimiento,
@@ -183,10 +172,8 @@ function desglose(
   return [...grupos.values()]
     .map(({ cabeza, hijas }) => {
       if (!hijas.length) return cabeza
-      // Un grupo no debería tener movimientos propios (no se ofrece al
-      // apuntar), pero si los tuviera —una categoría convertida en grupo por
-      // fuera de la aplicación— el desglose sumaría menos que la porción y no
-      // habría forma de ver la diferencia. Se saca como una hija más.
+      // Un grupo no debería tener movimientos propios; si los tuviera (convertido por
+      // fuera), se saca como una hija más para que el desglose cuadre con la porción.
       const sueltos = cabeza.total - hijas.reduce((s, h) => s + h.total, 0)
       if (sueltos > 0.005) {
         hijas.push({ uuid: cabeza.uuid, name: `${cabeza.name} (suelto en el grupo)`, color: SIN_CATEGORIA, total: sueltos })
@@ -196,13 +183,8 @@ function desglose(
     .sort((a, b) => b.total - a.total)
 }
 
-/**
- * Categorías y grupos con sus usos (movimientos y recurrentes), en orden de
- * ÁRBOL: por tipo, el primer nivel alfabéticamente —grupos y sueltas
- * mezclados— y cada grupo seguido de las suyas. Ese orden lo aprovechan tal
- * cual la lista de Ajustes y los desplegables, que si no tendrían que
- * reordenar cada uno.
- */
+/** Categorías y grupos con sus usos, en orden de árbol (por tipo, primer nivel
+ *  alfabético, cada grupo seguido de las suyas). Lo aprovechan Ajustes y los desplegables. */
 export async function listCategorias(): Promise<CategoriaRow[]> {
   const [categorias, usos, usosRec] = await Promise.all([
     prisma.expenseCategory.findMany({
@@ -371,16 +353,8 @@ export interface ResultadoBusqueda {
   paginas: number
 }
 
-/**
- * Movimientos por página.
- *
- * Antes la búsqueda devolvía las 200 primeras coincidencias y avisaba de que
- * había recortado: con un histórico de años, "los primeros 200 de 1.340" deja
- * el resto INALCANZABLE — y son 200 filas en el DOM de golpe. Ahora se pagina:
- * la consulta pide solo su página (`skip`/`take`, que en MySQL es LIMIT/OFFSET)
- * y las sumas siguen calculándose sobre todas las coincidencias, que es el dato
- * que se venía a ver.
- */
+/** Movimientos por página. La búsqueda pagina en el servidor (skip/take); las
+ *  sumas siguen sobre todas las coincidencias. */
 export const POR_PAGINA = 50
 
 /** ¿Tiene la búsqueda algún filtro con el que consultar? (form vacío → nada). */
@@ -390,13 +364,8 @@ export function hayFiltros(f: FiltrosBusqueda): boolean {
   )
 }
 
-/**
- * Busca movimientos por concepto, tipo, rango de fechas e importe.
- *
- * Las sumas (ingresos/gastos) y el total se calculan sobre TODAS las
- * coincidencias; las filas vienen de a `POR_PAGINA`. Sin ningún filtro no
- * consulta: devuelve vacío.
- */
+/** Busca movimientos por concepto, tipo, fechas e importe. Sumas y total sobre
+ *  todas las coincidencias; filas de a `POR_PAGINA`. Sin filtros devuelve vacío. */
 export async function buscarMovimientos(f: FiltrosBusqueda): Promise<ResultadoBusqueda> {
   if (!hayFiltros(f)) {
     return { movimientos: [], total: 0, ingresos: 0, gastos: 0, pagina: 1, paginas: 0 }
@@ -426,10 +395,8 @@ export async function buscarMovimientos(f: FiltrosBusqueda): Promise<ResultadoBu
     ...(importe.gte != null || importe.lte != null ? { amount: importe } : {}),
   }
 
-  // El total se cuenta ANTES de pedir la página: hace falta para saber
-  // cuántas páginas hay, y una página pedida más allá del final se recorta a
-  // la última en vez de devolver una lista vacía (recargar con ?p=9 tras
-  // afinar los filtros no debe dejar la pantalla en blanco).
+  // El total se cuenta antes de pedir la página: hace falta para saber cuántas hay, y
+  // una página más allá del final se recorta a la última.
   const total = await prisma.expense.count({ where })
   const paginas = Math.max(1, Math.ceil(total / POR_PAGINA))
   const pagina = Math.min(Math.max(1, Math.trunc(f.pagina ?? 1)), paginas)
@@ -495,14 +462,8 @@ export async function listRecurrentes(): Promise<RecurrenteRow[]> {
   }))
 }
 
-/**
- * Apunta los movimientos recurrentes que ya han vencido y adelanta su próxima
- * fecha. La ejecuta el cron diario ANTES de los avisos, para que el aviso de
- * topes cuente ya con el alquiler del día 1.
- *
- * Devuelve cuántos movimientos ha creado. Es idempotente dentro del día: al
- * adelantar `next_date` después de crear, una segunda pasada no duplica nada.
- */
+/** Apunta los recurrentes vencidos y adelanta su próxima fecha. Lo ejecuta el cron
+ *  antes de los avisos. Idempotente dentro del día. Devuelve cuántos creó. */
 export async function generarRecurrentes(hoyIso = hoyMadrid()): Promise<number> {
   const vencidos = await prisma.recurringExpense.findMany({
     where: { active: true, nextDate: { lte: new Date(`${hoyIso}T00:00:00Z`) } },
@@ -514,23 +475,12 @@ export async function generarRecurrentes(hoyIso = hoyMadrid()): Promise<number> 
   return creados
 }
 
-/**
- * Fila de recurrente tal y como la devuelve Prisma: el tipo del modelo, no una
- * copia a mano. La copia declaraba `amount: unknown` y luego lo pasaba con un
- * `as number`, cuando en realidad es un `Decimal` — funcionaba solo porque
- * Prisma acepta Decimal de vuelta, pero el tipo mentía sobre lo que hay dentro.
- */
+/** Fila de recurrente con el tipo del modelo de Prisma, no una copia a mano: la
+ *  copia declaraba `amount: unknown` cuando es un `Decimal`. */
 type FilaRecurrente = RecurringExpenseModel
 
-/**
- * Apunta los cargos de UN recurrente hasta `hastaIso` y adelanta su fecha.
- * Devuelve cuántos movimientos ha creado.
- *
- * Lo comparten el cron (que pasa el día de hoy) y el botón "Apuntar ahora" de
- * la sección Ajustes (que pasa la propia fecha del cargo, para no esperar a
- * que venza). Que sea la misma rutina es lo que garantiza que apuntar a mano y
- * dejar que lo haga el cron produzcan exactamente lo mismo.
- */
+/** Apunta los cargos de un recurrente hasta `hastaIso` y adelanta su fecha. La
+ *  comparten el cron y "Apuntar ahora": así producen exactamente lo mismo. */
 async function apuntarCargos(r: FilaRecurrente, hastaIso: string): Promise<number> {
   const { fechas, siguiente, truncado } = cargosPendientes(
     { nextDate: iso(r.nextDate), intervalMonths: r.intervalMonths, dayAnchor: r.dayAnchor },
@@ -570,16 +520,8 @@ async function apuntarCargos(r: FilaRecurrente, hastaIso: string): Promise<numbe
   return fechas.length
 }
 
-/**
- * Apunta YA el cargo de un recurrente, sin esperar al cron.
- *
- * Apunta el cargo de su propia fecha (y todos los atrasados, si los hubiera) y
- * adelanta `next_date`, exactamente lo que haría el cron: así no se duplica
- * cuando llegue el día. Vale también con el recurrente en pausa — es una acción
- * manual y deliberada — y no lo reactiva.
- *
- * Devuelve cuántos movimientos ha apuntado y hasta qué fecha.
- */
+/** Apunta ya el cargo de un recurrente (su fecha y los atrasados) y adelanta
+ *  `next_date` como haría el cron. Vale en pausa y no lo reactiva. */
 export async function apuntarRecurrenteYa(
   uuid: string,
   hoyIso = hoyMadrid(),
@@ -630,10 +572,8 @@ const eurTexto = (v: number) =>
 /** Topes del mes en curso con su gasto, para el aviso. */
 async function topesDeHoy(mes: string): Promise<TopeRow[]> {
   const [categorias, gastos] = await Promise.all([
-    // TODAS las de gasto, no solo las que tienen tope: hacen falta para saber
-    // qué cuelga de cada grupo y poder sumarle el gasto de sus hijas (que
-    // pueden no tener tope propio). `topesDelMes` ya descarta las que no lo
-    // tienen.
+    // Todas las de gasto, no solo con tope: hacen falta para sumar el gasto de las
+    // hijas a su grupo. `topesDelMes` ya descarta las que no lo tienen.
     prisma.expenseCategory.findMany({ where: { type: 'GASTO' } }),
     prisma.expense.groupBy({
       by: ['categoryUuid'],
@@ -660,18 +600,8 @@ async function topesDeHoy(mes: string): Promise<TopeRow[]> {
   )
 }
 
-/**
- * Avisa por correo de los topes de gasto alcanzados en el mes en curso.
- *
- * A diferencia del resto de avisos, este **no se repite semanalmente**: manda
- * un correo por mes y por nivel alcanzado (80 % y 100 %), y lo recuerda en
- * `expense_category.budget_notified` como 'YYYY-MM:nivel'. El motivo es que un
- * gasto ya hecho no se puede "marcar como hecho": insistir cada semana solo
- * enseñaría a ignorar el aviso. Al cambiar de mes la clave deja de coincidir y
- * los topes vuelven a avisar solos.
- *
- * Devuelve cuántas categorías se han avisado.
- */
+/** Avisa por correo de los topes alcanzados. No se repite semanalmente: un correo
+ *  por mes y nivel, recordado en `budget_notified` como 'YYYY-MM:nivel'. */
 export async function avisarTopes(hoyIso = hoyMadrid()): Promise<number> {
   if (!correoConfigurado()) return 0
   const mes = hoyIso.slice(0, 7)
@@ -760,17 +690,8 @@ export async function gastadoEnMesDe(hoyIso: string): Promise<number> {
   return num(suma._sum.amount)
 }
 
-/**
- * TODOS los movimientos, para la exportación global.
- *
- * Sin paginar y sin filtros a propósito: el destino es un .xlsx que se abre
- * fuera de la aplicación, y una exportación "de todo" que se quedara en las
- * 50 primeras filas no sería una exportación. La cifra a la que puede llegar
- * esto son unos cientos de filas al año — nada que un stream mejore.
- *
- * Trae la categoría YA resuelta (con su grupo) porque el Excel no puede seguir
- * una FK: quien abra el fichero tiene que ver "Coche › Gasolina", no un uuid.
- */
+/** Todos los movimientos para la exportación global, sin paginar. Trae la
+ *  categoría resuelta con su grupo: el Excel no puede seguir una FK. */
 export async function todosLosMovimientos(): Promise<
   Array<{
     expenseDate: string

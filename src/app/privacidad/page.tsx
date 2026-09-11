@@ -1,6 +1,4 @@
-// Política de privacidad y cookies (requerida por el uso de Google Analytics).
-// Paleta pública, texto plano y honesto: este sitio solo trata datos de
-// analítica con consentimiento previo.
+// Política de privacidad y cookies, requerida por Google Analytics. Paleta pública.
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'

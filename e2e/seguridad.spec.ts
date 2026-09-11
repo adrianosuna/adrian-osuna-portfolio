@@ -1,8 +1,5 @@
-// Las invariantes de seguridad, vistas DESDE FUERA.
-//
-// Es lo que ningún test unitario puede afirmar: allí `auth()` está mockeado, así
-// que "el dashboard exige sesión" se prueba sobre un doble. Aquí se le pregunta
-// al servidor montado, sin cookie, y se comprueba que no suelta nada.
+// Invariantes de seguridad desde fuera: en los unitarios `auth()` está mockeado;
+// aquí se pregunta al servidor montado sin cookie.
 import { expect, test } from '@playwright/test'
 
 /** Páginas del dashboard (las que renderizan). */
@@ -17,13 +14,8 @@ const PAGINAS_PRIVADAS = [
   '/app/una-ruta-que-no-existe',
 ]
 
-/**
- * Textos que SOLO existen dentro del dashboard. Si alguno aparece en la
- * respuesta de una ruta pedida sin sesión, se está sirviendo contenido privado.
- *
- * Son cadenas de componentes, no palabras genéricas: la landing habla del
- * dashboard en sus casos de estudio, y buscar "dashboard" daría falsos rojos.
- */
+/** Textos que solo existen dentro del dashboard: si aparecen sin sesión se está
+ *  sirviendo contenido privado. Cadenas de componentes, no palabras genéricas. */
 const MARCADORES_PRIVADOS = [
   'Sesiones activas',
   'Tokens de la API',
@@ -39,11 +31,8 @@ test.describe('el dashboard no sirve nada sin sesión', () => {
       const res = await request.get(ruta, { maxRedirects: 0 })
       const cuerpo = await res.text()
 
-      // Next puede resolver el redirect de DOS formas, y las dos valen:
-      //   · 3xx con Location, cuando la guarda corta antes de renderizar.
-      //   · 200 con el "error shell" cuyo payload lleva el NEXT_REDIRECT,
-      //     cuando la página ya había empezado a emitir (metadata incluida).
-      // Lo que se exige es lo que importa: que acabe en /login.
+      // Next resuelve el redirect de dos formas válidas: 3xx con Location, o 200 con el
+      // NEXT_REDIRECT en el payload. Lo que se exige es que acabe en /login.
       const redirigido =
         [302, 303, 307, 308].includes(res.status()) &&
         (res.headers()['location'] ?? '').includes('/login')
@@ -55,9 +44,8 @@ test.describe('el dashboard no sirve nada sin sesión', () => {
         `${ruta} respondió ${res.status()} sin llevar al login`,
       ).toBe(true)
 
-      // Y en ninguno de los dos casos puede venir contenido del dashboard. En
-      // el "error shell" viaja el <title> de la página (metadata, no datos):
-      // eso es lo único que se acepta.
+      // En ninguno de los dos casos puede venir contenido del dashboard; en el "error
+      // shell" solo viaja el <title>.
       for (const marcador of MARCADORES_PRIVADOS) {
         expect(cuerpo, `${ruta} filtró «${marcador}»`).not.toContain(marcador)
       }
@@ -93,9 +81,8 @@ test.describe('API v1', () => {
       data: CUERPO,
       headers: { Authorization: 'Bearer ao_esto_no_existe' },
     })
-    // 401 si la BD contesta (el token no está); 503 si la BD no contesta y por
-    // tanto no se pudo comprobar. Un 500 sería un fallo de verdad: significa
-    // que la excepción se ha escapado.
+    // 401 si la BD contesta; 503 si no se pudo comprobar. Un 500 sería la excepción
+    // escapada.
     expect([401, 503]).toContain(res.status())
     expect((await res.json()).ok).toBe(false)
   })
@@ -112,19 +99,12 @@ test.describe('API v1', () => {
   })
 
   test('una ráfaga de tokens inválidos acaba en 429 con Retry-After', async ({ request }) => {
-    // Es el tope estrecho de intentos FALLIDOS por IP: quien acierta el token
-    // entra por el normal, mucho más ancho. Se comprueba desde fuera porque el
-    // contador vive en el proceso del servidor.
-    //
-    // Con una IP PROPIA (`X-Forwarded-For`): los tests corren en paralelo y
-    // sin esto esta ráfaga agotaría el cupo de los demás, que esperan un 401.
-    // De paso comprueba que la clave sale de esa cabecera, que es de donde
-    // tiene que salir detrás de Caddy.
+    // Tope estrecho de intentos fallidos por IP. Con IP propia (`X-Forwarded-For`): los
+    // tests corren en paralelo y esta ráfaga agotaría el cupo de los demás.
     const soloParaEsteTest = { 'X-Forwarded-For': '203.0.113.99' }
 
-    // EN PARALELO a propósito: sin base de datos cada intento se come el tope
-    // de 5 s de la autenticación, y en serie esto tardaría minutos. Lanzadas
-    // a la vez, las esperas se solapan.
+    // En paralelo: sin BD cada intento se come el tope de 5 s y en serie tardaría
+    // minutos.
     const respuestas = await Promise.all(
       Array.from({ length: 30 }, () =>
         request.get('/api/v1/resumen', {

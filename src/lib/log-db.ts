@@ -1,14 +1,5 @@
-// Sumidero persistente del registro: guarda `warn` y `error` en `log_event`
-// para poder verlos desde el Panel de control, sin SSH ni `docker logs`.
-//
-// Por qué existe: `lib/log.ts` escribe a la consola, y en producción eso
-// significa entrar por SSH a leer `docker compose logs web`. Se hace cuando ya
-// se sospecha algo, no cuando pasa — así que un error de un martes por la
-// tarde no se ve nunca. Aquí se queda guardado.
-//
-// Solo warn y error: `info` incluye una línea por cada pasada del cron y por
-// cada login, y guardar eso convierte la tabla en un vertedero donde el error
-// de verdad no se encuentra.
+// Sumidero persistente del registro: guarda warn y error en `log_event` para verlos
+// desde el Panel. Solo esos niveles: info convertiría la tabla en un vertedero.
 import 'server-only'
 import { prisma } from '@/lib/prisma'
 import { NIVELES, type EventoLog, type Nivel } from '@/lib/log'
@@ -28,14 +19,8 @@ const MAX_MENSAJE = 500
 const MAX_SCOPE = 60
 const MAX_DATOS = 8000
 
-/**
- * La traza SÍ se guarda, al contrario que en la consola de producción.
- *
- * `lib/log.ts` la omite allí porque el log de un servidor es público para
- * quien pueda leerlo y la traza filtra rutas del sistema. Esta tabla es
- * privada del admin y la traza es justo lo que hace falta para depurar, así
- * que aquí se recupera del `Error` original.
- */
+/** La traza sí se guarda, al contrario que en la consola de producción: esta tabla
+ *  es privada del admin y la traza es lo que sirve para depurar. */
 function serializar(datos?: Record<string, unknown>): string | null {
   if (!datos || !Object.keys(datos).length) return null
   try {
@@ -52,17 +37,8 @@ function serializar(datos?: Record<string, unknown>): string | null {
   }
 }
 
-/**
- * Escribe el evento, sin esperarlo y sin poder fallar hacia fuera.
- *
- * ⚠ Tres cosas que no son opcionales aquí:
- *   · **No se espera** (`void`): el registro no puede añadir la latencia de un
- *     INSERT a la petición que lo generó.
- *   · **Se traga sus errores** y solo avisa por consola: si la BD está caída,
- *     el `log.error` que lo diría volvería a entrar por aquí. La guarda de
- *     re-entrada de `log.ts` corta el bucle, y este catch corta el ruido.
- *   · **Nunca lanza**: `log.ts` lo llama dentro de la petición.
- */
+/** Escribe el evento sin esperarlo (`void`), tragándose sus errores por consola y
+ *  sin lanzar nunca: `log.ts` lo llama dentro de la petición. */
 export function guardarEvento(e: EventoLog) {
   if (!GUARDADOS.includes(e.nivel)) return
   void prisma.logEvent
@@ -119,13 +95,8 @@ export interface FiltrosLog {
 const nivelDe = (v: string): Nivel =>
   (NIVELES as readonly string[]).includes(v) ? (v as Nivel) : 'error'
 
-/**
- * Una página de eventos, con las cuentas que necesita la cabecera.
- *
- * El texto se busca con `contains` sobre `message`: un `LIKE '%x%'` no usa
- * índice, pero la tabla está acotada por retención y el filtro de fecha va
- * antes — mismo criterio que la búsqueda de movimientos.
- */
+/** Una página de eventos con las cuentas de la cabecera. El texto va con `contains`
+ *  sobre `message`: sin índice, pero la tabla está acotada por retención. */
 export async function listLogs(f: FiltrosLog = {}): Promise<LogPagina> {
   const pagina = Math.max(1, f.pagina ?? 1)
   const desde =
@@ -184,12 +155,8 @@ function parsear(texto: string | null): Record<string, unknown> | null {
   }
 }
 
-/**
- * Purga los eventos más viejos que la retención. Lo llama el cron diario.
- *
- * Devuelve cuántos borró. Sin esto la tabla solo crece: un error que se repite
- * en bucle puede meter miles de filas en una noche.
- */
+/** Purga los eventos más viejos que la retención; lo llama el cron. Devuelve
+ *  cuántos borró. */
 export async function purgarLogs(): Promise<number> {
   const dias = retencionDias()
   if (dias === 0) return 0

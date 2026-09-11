@@ -1,8 +1,7 @@
 'use client'
 
-// Sesiones activas del dashboard (registro user_session): quién está dentro,
-// desde qué dispositivo y desde cuándo, con cierre remoto — al borrar la fila,
-// el callback jwt corta esa sesión en su siguiente petición.
+// Sesiones activas (`user_session`) con cierre remoto: al borrar la fila, el
+// callback jwt corta esa sesión en su siguiente petición.
 import { useTransition } from 'react'
 import Image from 'next/image'
 import { LogOut, MonitorSmartphone, UserRound } from 'lucide-react'
@@ -89,9 +88,8 @@ export function SessionsList({
       // duran, y los dos plazos se configuran por entorno.
       nota={politica}
       acciones={
-        // El botón de pánico (un portátil perdido, un navegador ajeno). Solo
-        // aparece si hay algo que cerrar: con una sola sesión —la tuya— no
-        // haría nada y sería un botón para equivocarse.
+        // El botón de pánico solo aparece si hay algo que cerrar: con una sola sesión, la
+        // tuya, no haría nada.
         otras > 0 ? (
           <button
             type="button"

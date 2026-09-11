@@ -1,8 +1,5 @@
-// Módulo de finanzas personales, en cuatro secciones (`?s=`):
-//   · Panel  (por defecto)  — lo importante del ahorro y del mes en curso
-//   · Ahorro (?s=ahorro)    — Resumen histórico + un tab por año (?year=)
-//   · Gastos (?s=gastos)    — movimientos del mes (?mes=) o del año (&vista=anio)
-//   · Ajustes (?s=ajustes)  — categorías (y su tope), recurrentes y años
+// Módulo de finanzas en cuatro secciones (`?s=`): Panel (por defecto), Ahorro
+// (?year=), Gastos (?mes= o &vista=anio) y Ajustes (categorías, recurrentes, años).
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
@@ -38,9 +35,8 @@ export default async function FinancePage({
     min?: string; max?: string
   }>
 }) {
-  // El layout ya redirige sin sesión, pero layout y página renderizan en
-  // paralelo: la página debe protegerse por sí misma (aquí hay datos reales).
-  // Las finanzas son personales del administrador: los demás roles no entran.
+  // Layout y página renderizan en paralelo: la página se protege sola. Solo el
+  // administrador entra en finanzas.
   const session = await auth()
   if (!session?.user) redirect('/login')
   if (session.user.role !== 'ADMIN') redirect('/app')
@@ -63,11 +59,8 @@ export default async function FinancePage({
 
       <FinanzasNav seccion={seccion} />
 
-      {/* Cada sección consulta lo suyo dentro de un Suspense: el título y la
-          nav se pintan al instante y solo el bloque de datos espera. La `key`
-          incluye los parámetros para que al cambiar de sección (o de mes, o
-          de año) vuelva a salir el esqueleto en vez de quedarse la vista
-          anterior congelada. */}
+      {/* Cada sección en su Suspense: título y nav al instante, solo los datos esperan.
+          La key lleva los parámetros para que al cambiar salga el esqueleto. */}
       <Suspense
         key={`${seccion}-${yearParam ?? ""}-${mesParam ?? ""}-${vista ?? ""}-${sp.buscar ?? ""}`}
         fallback={

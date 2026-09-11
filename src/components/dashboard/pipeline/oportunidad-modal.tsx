@@ -1,9 +1,7 @@
 'use client'
 
-// Detalle de una oportunidad: formulario de alta/edición (datos + seguimiento
-// con próxima acción y fecha) y, al editar, el timeline de actividad — los
-// cambios de estado los apunta el sistema y las entradas manuales (nota,
-// llamada, email, reunión) se añaden y borran desde aquí.
+// Detalle de una oportunidad: alta/edición (datos y seguimiento) y, al editar, el
+// timeline. Los cambios de estado los apunta el sistema; las entradas manuales, aquí.
 import { useEffect, useState, useTransition } from 'react'
 import {
   ArrowRight, Mail, Phone, Plus, StickyNote, Users, X,
@@ -156,9 +154,8 @@ export function OportunidadModal({
               />
             </Field>
           </div>
-          {/* La acción es texto libre ("Enviar la propuesta revisada"): a media
-              fila se queda en 145px y no se lee lo que escribes. En móvil va a
-              lo ancho y la fecha debajo; desde sm, las dos en una fila. */}
+          {/* La acción es texto libre y a media fila no se lee: en móvil a lo ancho y la
+              fecha debajo; desde sm, las dos en una fila. */}
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Próxima acción">
               <TextField

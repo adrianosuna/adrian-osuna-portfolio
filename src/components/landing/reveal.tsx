@@ -1,8 +1,7 @@
 'use client'
 
-// Revelado al hacer scroll: envuelve un bloque con la clase .reveal y alterna
-// .is-visible al entrar/salir de pantalla (observer compartido entre todos los
-// bloques). Respeta la preferencia de "reducir movimiento".
+// Revelado al hacer scroll: alterna .is-visible con un observer compartido.
+// Respeta "reducir movimiento".
 import { useEffect, useRef, type ElementType, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
@@ -25,11 +24,8 @@ interface RevealProps {
   className?: string
   /** Retardo de la transición en ms (escalonar listas). */
   delay?: number
-  /**
-   * Entrada inmediata por CSS puro (sin observer ni hidratación): para el
-   * contenido sobre el pliegue (hero) — de otro modo nace con opacity 0 hasta
-   * que React hidrata y el LCP se dispara en móviles lentos.
-   */
+  /** Entrada inmediata por CSS, sin observer: para el contenido sobre el pliegue,
+   *  que si no nace con opacity 0 hasta hidratar y dispara el LCP. */
   inmediata?: boolean
   children: ReactNode
 }

@@ -1,10 +1,5 @@
-// Forma y cálculos de las series del monitor de infraestructura.
-//
-// NO lleva `server-only` a propósito: el tipo y la tendencia los usan el
-// muestreo (servidor, `infra-historico.ts`) y las tarjetas de la pestaña
-// Servidor (cliente), y duplicarlos es justo cómo se desincronizan — mismo
-// criterio que `topes.ts`, `recurrentes.ts` y `fechas.ts`. Lo que toca Prisma
-// vive en `infra-historico.ts`, que sí es de servidor.
+// Forma y cálculos de las series del monitor, sin `server-only`: los comparten el
+// muestreo (servidor) y las tarjetas (cliente). Lo que toca Prisma va en `infra-historico.ts`.
 
 /** Una muestra diaria del monitor, en tipos planos y serializables. */
 export interface MuestraInfra {
@@ -22,14 +17,8 @@ export interface MuestraInfra {
 /** Campos numéricos de una muestra (todos menos la fecha). */
 export type CampoMuestra = keyof Omit<MuestraInfra, 'fecha'>
 
-/**
- * Variación de una serie entre su primera y su última muestra CON dato.
- *
- * Es lo que convierte la gráfica en una frase ("el disco ha subido 4 puntos en
- * 90 días"). Null con menos de dos muestras útiles: con una sola no hay
- * tendencia que contar, y los días se miden entre las muestras reales (no entre
- * los extremos de la ventana) para no inventar un periodo que no se midió.
- */
+/** Variación de una serie entre su primera y su última muestra con dato. Null con
+ *  menos de dos; los días se miden entre muestras reales, no entre los extremos. */
 export function tendencia(
   muestras: MuestraInfra[],
   campo: CampoMuestra,
@@ -47,14 +36,8 @@ export function tendencia(
   return { desde, hasta, delta: hasta - desde, dias }
 }
 
-/**
- * Serie de un campo lista para pintar, arrastrando el último valor conocido en
- * los huecos.
- *
- * Un día cuyo check falló guarda null; dibujarlo como cero haría que la línea
- * se desplomara y volviera a subir, que se lee como una caída real del disco o
- * de la BD. Arrastrar el valor anterior dice la verdad: no hubo medida nueva.
- */
+/** Serie de un campo lista para pintar, arrastrando el último valor en los huecos:
+ *  un null dibujado como cero se leería como una caída real. */
 export function serieDe(muestras: MuestraInfra[], campo: CampoMuestra): number[] {
   let ultimo = 0
   return muestras.map((m) => {

@@ -1,22 +1,13 @@
 'use client'
 
-// Tooltip compartido por TODO lo que muestra datos: las gráficas de Chart.js y
-// el mapa de calor de visitas (que sigue siendo CSS Grid, no canvas).
-//
-// Un solo div global con `position: fixed`, inmune a contenedores con scroll u
-// overflow, y colocado en coordenadas de viewport. Antes vivía dentro del
-// tooltip de Chart.js; se extrajo para que el heatmap no tuviera que quedarse
-// con el tooltip gris del navegador.
+// Tooltip compartido por las gráficas de Chart.js y el mapa de calor: un div global
+// con `position: fixed`, inmune a contenedores con scroll, en coordenadas de viewport.
 import { coloresTema } from './comun'
 
 const ID = 'grafica-tooltip'
 
-// Escape de HTML para el texto que entra en el tooltip. Este es el único sitio
-// del proyecto donde se construye HTML a mano y se inyecta con `innerHTML`, así
-// que aquí NO vale la premisa de "React escapa todo" con la que se descartó la
-// CSP con nonces. El texto que llega —nombres de categoría propios— es de bajo
-// riesgo, pero escaparlo mantiene esa premisa cierta en todo el sitio. El color
-// no pasa por aquí: viene de la paleta del código y va en un atributo `style`.
+// Escape de HTML del texto del tooltip: es el único sitio que inyecta HTML con
+// `innerHTML`, así que la premisa "React escapa todo" no vale aquí. El color no pasa.
 const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
 
@@ -70,11 +61,8 @@ export const marcoTooltip = (filas: string, titulo?: string) => {
     ${cabecera}<div style="padding:7px 10px">${filas}</div></div>`
 }
 
-/**
- * Muestra el tooltip en unas coordenadas de VIEWPORT. Si no cabe a la derecha
- * se abre a la izquierda, y si no cabe abajo sube: nunca se sale de pantalla,
- * que en móvil pasaba con las celdas del borde derecho.
- */
+/** Muestra el tooltip en coordenadas de viewport. Si no cabe a la derecha se abre
+ *  a la izquierda, y si no cabe abajo sube: nunca se sale de pantalla. */
 export const mostrarTooltip = (html: string, x: number, y: number) => {
   const el = elemento()
   el.innerHTML = html

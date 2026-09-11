@@ -1,12 +1,5 @@
-// Resolver una categoría desde la API: acepta el uuid o el NOMBRE.
-//
-// Por qué existe: en un Atajo del iPhone el campo de la categoría lo rellena
-// una persona hablando o eligiendo de una lista de texto, no pegando un uuid.
-// Así el Atajo puede decir "Compra" y funciona; el uuid sigue valiendo para
-// quien lo tenga (la respuesta de `/api/v1/categorias` lo trae).
-//
-// El nombre se compara sin tildes ni mayúsculas, igual que el buscador de
-// Ajustes: "cafe" encuentra "Café".
+// Resuelve la categoría de la API por uuid o por nombre (sin tildes ni mayúsculas):
+// en un Atajo del iPhone se dice "Compra", no se pega un uuid.
 import 'server-only'
 import { prisma } from '@/lib/prisma'
 import { sinAcentos } from '@/lib/utils'
@@ -17,13 +10,8 @@ export type CategoriaResuelta = { error: string } | { uuid: string | null; nombr
  *  mandar cualquiera de los tres, y el de la interfaz es "›"). */
 const RUTA = /\s*[>›/]\s*/
 
-/**
- * Traduce lo que llegue en el campo `categoria` a un uuid válido de ese tipo.
- *
- * Sin valor → `{ uuid: null }` (movimiento sin categoría, que es legítimo).
- * Con valor que no cuadra → error: guardarlo sin categoría en silencio es
- * justo el fallo que no se ve hasta que el desglose del mes sale raro.
- */
+/** Traduce el campo `categoria` a un uuid del tipo. Sin valor → null; con valor
+ *  que no cuadra → error: no se guarda sin categoría en silencio. */
 export async function resolverCategoria(
   valor: string | undefined,
   tipo: 'INGRESO' | 'GASTO',
@@ -36,10 +24,8 @@ export async function resolverCategoria(
     select: { uuid: true, name: true, isGroup: true, parentUuid: true },
   })
 
-  // Sin los GRUPOS: un grupo ("Coche") no recibe movimientos, así que
-  // aceptarlo aquí crearía por la API justo el dato que la interfaz no deja
-  // crear. Se mira la MARCA y no "si tiene hijas", porque un grupo recién
-  // creado está vacío y pasaría por categoría.
+  // Sin grupos: no reciben movimientos. Se mira la marca is_group, no si tiene
+  // hijas, porque un grupo recién creado está vacío.
   const nombres = new Map(todas.map((c) => [c.uuid, c.name]))
   const candidatas = todas
     .filter((c) => !c.isGroup)
@@ -68,9 +54,8 @@ export async function resolverCategoria(
   const porNombre = candidatas.filter((c) => sinAcentos(c.name) === soloNombre)
   if (porNombre.length === 1) return { uuid: porNombre[0].uuid, nombre: porNombre[0].name }
 
-  // Con grupos, el nombre solo es único entre hermanas: "Varios" puede estar
-  // en Coche y en Casa. Callar y elegir una sería peor que avisar, y el
-  // mensaje trae las rutas para que el Atajo se corrija de una.
+  // El nombre solo es único entre hermanas ("Varios" en Coche y en Casa): con
+  // ambigüedad se avisa con las rutas en vez de elegir una.
   if (porNombre.length > 1) {
     const rutas = porNombre.map((c) => `"${c.ruta}"`).join(', ')
     return { error: `Hay varias categorías llamadas "${buscado}": ${rutas}` }

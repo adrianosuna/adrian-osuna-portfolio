@@ -33,11 +33,8 @@ export function urgenciaSeguimiento(fechaIso: string, hoyIso: string): 'vencido'
 /** 'YYYY-MM-DD' (o un ISO completo) → 'DD/MM/YYYY'. */
 export const fmtFecha = (iso: string) => iso.slice(0, 10).split('-').reverse().join('/')
 
-/**
- * Cuándo toca la próxima acción, en lenguaje natural y CORTO: en la tarjeta del
- * tablero el chip solo tiene ~130px, y la fecha completa (10 caracteres) no
- * dejaba sitio para leer la acción. La fecha exacta va en el title.
- */
+/** Cuándo toca la próxima acción, en lenguaje natural y corto: el chip de la
+ *  tarjeta tiene ~130 px. La fecha exacta va en el title. */
 export function cuandoSeguimiento(fechaIso: string, hoyIso: string): string {
   const dias = Math.round(
     (Date.parse(`${fechaIso}T00:00:00Z`) - Date.parse(`${hoyIso}T00:00:00Z`)) / 86_400_000,

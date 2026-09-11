@@ -12,9 +12,8 @@ export function Landing() {
   const t = CONTENT
 
   return (
-    // .pf-public activa la paleta esmeralda/teal de las páginas públicas.
-    // min-h-dvh (no screen/100vh): con las barras dinámicas del navegador
-    // móvil, 100vh es más alto que el viewport visible.
+    // .pf-public activa la paleta pública. min-h-dvh y no 100vh: con las barras
+    // dinámicas del móvil, 100vh es más alto que el viewport visible.
     <div className="pf-public flex min-h-dvh flex-col bg-background text-body">
       {/* Skip-link: primer elemento tabulable; visible solo al recibir foco. */}
       <a

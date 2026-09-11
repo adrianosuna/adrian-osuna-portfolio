@@ -1,8 +1,5 @@
-// Los dos plazos de la sesión: tope absoluto y cierre por inactividad.
-//
-// Se prueba con el módulo recargado por cada caso porque las constantes se
-// resuelven al importar (son valores, no funciones): un test que cambie el
-// entorno tiene que volver a importar para verlo.
+// Los dos plazos de la sesión. Módulo recargado por caso: las constantes se resuelven
+// al importar.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const original = {

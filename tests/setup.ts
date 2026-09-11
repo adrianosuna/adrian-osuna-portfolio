@@ -1,11 +1,5 @@
-// Arranque de los tests. Corre en TODAS las suites, también las de entorno
-// `node`, así que todo va tras comprobar que hay `window`.
-//
-// jsdom no implementa dos cosas que el navegador sí y que ya se usan en el
-// dashboard. Se rellenan aquí y no con guardas (`el.scrollIntoView?.()`) en el
-// componente: una guarda así no protege de nada real —en un navegador siempre
-// existen— y lo que hace es esconder el fallo si algún día se llama sobre algo
-// que no es un elemento.
+// Arranque de los tests: rellena `matchMedia` y `scrollIntoView` en jsdom, tras
+// comprobar que hay `window`. Aquí y no con guardas en el componente.
 if (typeof window !== 'undefined') {
   // Usado para respetar `prefers-reduced-motion`. Devuelve "no reducido", que
   // es el ajuste por defecto de un navegador.

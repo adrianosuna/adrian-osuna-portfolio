@@ -1,11 +1,8 @@
-// Validaciones de las server actions restantes: pipeline de oportunidades
-// (saneado de textos, whitelist de estados, límites de importe, ciclo de
-// cierre/archivado, timeline) y conceptos del sistema de ahorro (extras y
-// gastos de viaje, fechas malformadas).
+// Validaciones de las server actions del pipeline y de los conceptos del ahorro
+// (extras, gastos de viaje, fechas malformadas).
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-// El tope de peticiones vive en memoria y es COMPARTIDO por todo el proceso:
-// sin reiniciarlo, un fichero de tests con muchas actions agotaría la ventana
-// y los siguientes fallarían por algo que no están probando.
+// El tope de peticiones vive en memoria del proceso: sin reiniciarlo, un fichero con
+// muchas actions agotaría la ventana.
 import { reiniciarLimites } from '@/lib/rate-limit'
 
 const { requireAdminMock, prismaMock } = vi.hoisted(() => {
@@ -261,11 +258,7 @@ describe('updateYear', () => {
   })
 })
 
-// ─────────── Posponer el seguimiento ───────────
-//
-// Es lo que más se hace con un seguimiento vencido («esta semana no, la que
-// viene»), y hasta ahora había que abrir la ficha y elegir día en el
-// calendario: el gesto más frecuente con el camino más largo.
+// Posponer el seguimiento: el gesto más frecuente con un vencido.
 describe('snoozeSeguimiento', () => {
   const conSeguimiento = (extra: Record<string, unknown> = {}) => {
     prismaMock.opportunity.findUnique.mockResolvedValue({
@@ -278,9 +271,7 @@ describe('snoozeSeguimiento', () => {
   }
 
   it('⚠ cuenta desde HOY, no desde la fecha que tenía', async () => {
-    // Un seguimiento vencido hace tres semanas, sumándole 7 días a su propia
-    // fecha, seguiría vencido: se pospone y no pasa nada, que es lo contrario
-    // de lo que se pedía.
+    // Un vencido hace tres semanas, sumándole 7 a su propia fecha, seguiría vencido.
     conSeguimiento()
     const { snoozeSeguimiento } = await import('@/app/app/pipeline/actions')
     expect(await snoozeSeguimiento('op-1', 7)).toEqual({ ok: true })

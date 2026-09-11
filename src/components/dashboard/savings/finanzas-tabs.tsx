@@ -1,13 +1,7 @@
 'use client'
 
-// Navegación del módulo de finanzas en dos niveles: la barra de SECCIONES
-// (Panel · Ahorro · Gastos · Ajustes) y, dentro de Ahorro, sus pestañas
-// (Resumen + un tab por año). Las dos solo NAVEGAN: la gestión de años vive en
-// la sección Ajustes.
-//
-// Los tabs son botones con `router.push` (no <a>), así que disparan a mano la
-// barra de carga global (`useCarga`); el feedback de "cargando" lo da esa barra
-// bajo la barra superior, no un spinner por pestaña.
+// Navegación de Finanzas en dos niveles: secciones y, en Ahorro, pestañas por año.
+// Solo navegan; son botones con `router.push` y disparan la barra de carga (`useCarga`).
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import type { YearSummary } from '@/lib/finance'
@@ -50,14 +44,8 @@ export function FinanzasNav({
   )
 }
 
-/**
- * Pestañas de la sección Ahorro (nivel 2): Resumen + un tab por año.
- *
- * Solo NAVEGAN. Crear años, cambiar su objetivo, renombrarlos, exportarlos o
- * eliminarlos es cosa de la sección Ajustes (`?s=ajustes`): aquí había un modal
- * "Gestionar años" que se retiró el 28/08/2026 al juntar toda la configuración
- * del módulo en un solo sitio.
- */
+/** Pestañas de la sección Ahorro: Resumen y un tab por año. Solo navegan; la
+ *  gestión de años vive en Ajustes. */
 export function AhorroTabs({ years, selected }: {
   years: YearSummary[]
   /** Año activo, o null si está abierto el Resumen histórico. */

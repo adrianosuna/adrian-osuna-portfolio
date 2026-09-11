@@ -1,11 +1,7 @@
 'use client'
 
-// Pestaña "Servidor" del Panel de control: todo lo del servidor en una vista.
-// Tres bloques: salud del despliegue (SSL, latencia pública, BD, tamaño de BD,
-// backup, versión), recursos de la máquina EN VIVO (CPU, memoria, swap,
-// disco, proceso, sistema — se auto-refrescan cada 40 s con una server action
-// ligera, en pausa si la pestaña del navegador está oculta) y la EVOLUCIÓN de
-// lo que solo se entiende en serie (disco, tamaño de la BD, certificado).
+// Pestaña "Servidor": salud del despliegue, recursos de la máquina en vivo (refresco
+// cada 40 s, en pausa con la pestaña oculta) y la evolución de lo que va en serie.
 import { useEffect, useState } from 'react'
 import {
   Activity, Box, Cpu, Database, DatabaseBackup, Globe, HardDrive, Layers, MemoryStick,
@@ -221,15 +217,8 @@ export function ServidorTab({
 
 // ─────────── histórico (una muestra al día, del cron) ───────────
 
-/**
- * Evolución de lo que solo dice algo en serie: ocupación del disco, tamaño de
- * la BD y días que le quedan al certificado.
- *
- * Las tarjetas de arriba contestan "¿está bien AHORA?"; esto contesta "¿va a
- * seguir estándolo?" — un disco al 60 % no preocupa, pero un disco que sube
- * cinco puntos al mes sí. CPU y memoria NO se pintan aquí a propósito: la
- * muestra es de un instante concreto del día y su serie no significaría nada.
- */
+/** Evolución de disco, tamaño de la BD y días del certificado: "¿va a seguir bien?".
+ *  CPU y memoria no van aquí: la muestra es de un instante y su serie no dice nada. */
 function Historico({ muestras }: { muestras: MuestraInfra[] }) {
   const c = coloresTema()
   // Con una sola muestra no hay línea que dibujar.
@@ -278,12 +267,8 @@ function Historico({ muestras }: { muestras: MuestraInfra[] }) {
         />
       </TarjetaSerie>
 
-      {/* Antes aquí iba el certificado SSL (días restantes). No tenía sentido
-          como serie: baja uno al día por definición, así que la gráfica era una
-          recta descendente, y el único dato útil —que se renueve a tiempo— ya
-          lo vigila la tarjeta de arriba con su umbral. Las latencias sí son
-          una serie de verdad: si la BD o el TTFB van a peor, solo se ve en el
-          tiempo. */}
+      {/* El certificado se retiró de aquí: baja uno al día por definición y ya lo vigila
+          la tarjeta con su umbral. Las latencias sí son una serie real. */}
       <TarjetaSerie
         icon={<Activity className="size-4" />}
         title="Latencias"

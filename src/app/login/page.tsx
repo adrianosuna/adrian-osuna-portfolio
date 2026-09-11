@@ -60,9 +60,8 @@ export default async function LoginPage({
         </form>
 
         {devLogin && (
-          // Solo en desarrollo con DEV_LOGIN_EMAIL: un clic y dentro, sin
-          // teclear nada. Pasa por la misma allowlist y el mismo registro de
-          // sesión que Google — lo único que se salta es el OAuth.
+          // Solo en desarrollo con DEV_LOGIN_EMAIL: pasa por la misma allowlist y el mismo
+          // registro de sesión que Google, solo se salta el OAuth.
           <form
             action={async () => {
               'use server'

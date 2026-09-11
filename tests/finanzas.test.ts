@@ -1,8 +1,4 @@
-// Semántica del sistema de ahorro anual:
-// - Ahorro anual = ahorro general mensual + ingresos extra + SOBRANTE de
-//   viajes (ahorrado - gastado): lo no gastado se suma al cierre del año y
-//   los viajes del año siguiente empiezan de cero.
-// (El capital inicial/final se retiró el 26/08/2026: solo se controla el ahorro.)
+// Ahorro anual = mensual + ingresos extra + sobrante de viajes (ahorrado − gastado).
 import { describe, expect, it, vi } from 'vitest'
 
 // finance.ts arrastra Prisma (abre conexión al cargarse) y el correo: aquí

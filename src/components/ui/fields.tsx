@@ -1,9 +1,7 @@
 'use client'
 
-// Campos de formulario custom del dashboard (sustituyen a los controles
-// nativos, que desentonan con el tema): número sin spinners, select con
-// popover propio y selector de fecha con calendario. Reutilizables en
-// cualquier módulo; estilados con los tokens del tema activo.
+// Campos de formulario propios del dashboard: número sin spinners, select con
+// popover y selector de fecha. Estilados con los tokens del tema.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -17,13 +15,8 @@ import { Tooltip } from '@/components/ui/tooltip'
 const fieldClass =
   'w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-base outline-none transition-colors focus:border-primary sm:text-sm'
 
-// Popover: cierre al hacer clic fuera (del ancla y del panel), con Escape
-// (en captura y frenando la propagación: que no cierre también el modal que
-// lo contiene) o al hacer scroll/resize fuera del panel.
-//
-// Exportado (con `PopoverPanel`) porque lo reutiliza el menú de acciones de
-// `dashboard/menu-acciones.tsx`: el comportamiento de un popover es una sola
-// cosa, y una segunda copia es una segunda copia que se desincroniza.
+// Popover: cierra con clic fuera, Escape (en captura y frenando la propagación para
+// no cerrar el modal) o scroll/resize. Exportado para `menu-acciones.tsx`.
 export function usePopover() {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null) // contenedor del disparador (ancla)
@@ -59,10 +52,8 @@ export function usePopover() {
   return { open, setOpen, ref, popRef }
 }
 
-// Panel del popover en un portal (position:fixed sobre <body>): no lo recorta
-// ningún contenedor con overflow — los modales con scroll incluidos. Se coloca
-// bajo el ancla (o encima si abajo no cabe) y se recalcula tras cada render
-// (el alto varía, p. ej. al cambiar de mes en el calendario).
+// Panel del popover en un portal (position: fixed): no lo recorta ningún overflow,
+// modales incluidos. Bajo el ancla (o encima) y recalculado tras cada render.
 export function PopoverPanel({
   anclaRef, popRef, mismaAnchura = false, rol, etiqueta, className, children,
 }: {
@@ -121,16 +112,8 @@ export function PopoverPanel({
 
 // ─────────── Field: etiqueta sobre el campo ───────────
 
-/**
- * Etiqueta encima de un campo, para los formularios de los modales.
- *
- * Es un `<label>` de verdad y no un `<div>` con un `<p>`: así el clic en el
- * texto enfoca el control (o abre su popover), que es lo que espera cualquiera.
- * El nombre que anuncia el lector de pantalla sigue saliendo del `ariaLabel`
- * de cada campo de este fichero.
- *
- * Espera UN control dentro: un `<label>` con dos se asocia solo al primero.
- */
+/** Etiqueta encima de un campo. Un `<label>` de verdad: el clic en el texto enfoca
+ *  el control. Espera un solo control dentro; con dos se asocia al primero. */
 export function Field({ label, children, className }: {
   label: string
   children: React.ReactNode
@@ -198,9 +181,8 @@ export function TextareaField({
   )
 }
 
-// ─────────── NumberField: entrada numérica sin spinners ───────────
-// Input de texto con teclado numérico; admite coma o punto decimal.
-// value null = vacío. No admite negativos (importes).
+// NumberField: input de texto con teclado numérico, coma o punto decimal, sin
+// spinners. value null = vacío. No admite negativos.
 
 const parseNum = (texto: string): number | null => {
   const limpio = texto.replace(',', '.')
@@ -278,10 +260,8 @@ export function NumberField({
           else if (e.key === 'ArrowDown') { e.preventDefault(); aplicar(-1) }
         }}
       />
-      {/* Flechas minimalistas, SOLO EN ESCRITORIO: en móvil sale el teclado
-          numérico y se teclea la cifra: dos targets de 18px pegados al campo
-          solo estaban ahí para pulsarse sin querer. Fuera del orden de
-          tabulación, porque el teclado ya incrementa con ↑/↓ sobre el input. */}
+      {/* Flechas solo en escritorio: en móvil sale el teclado numérico y dos targets de
+          18 px solo se pulsaban sin querer. Fuera del orden de tabulación (↑/↓ ya funcionan). */}
       <div className="hidden flex-col justify-center pr-1 sm:flex">
         <button type="button" tabIndex={-1} className={flecha} aria-label="Incrementar" onClick={() => aplicar(1)}>
           <ChevronUp className="size-3" />
@@ -410,17 +390,8 @@ export function SelectField({
   )
 }
 
-// ─────────── TreeSelectField: desplegable en ÁRBOL (grupos con hijas) ───────────
-//
-// El select de categoría: los grupos como cabeceras NO seleccionables y sus
-// categorías sangradas debajo; las sueltas, al primer nivel. Comparte con
-// `SelectField` el disparador, el popover y el buscador — es el mismo control
-// con otra forma de lista, no otro control.
-//
-// ⚠ El buscador filtra por la etiqueta de la hoja Y por el nombre de su
-// grupo: escribir "coche" saca Taller y Gasolina bajo su cabecera. Era la
-// razón por la que la lista era plana ("Coche › Taller"); con esto el árbol la
-// conserva y además se lee como lo que es.
+// TreeSelectField: el select de categoría en árbol, grupos como cabeceras no
+// seleccionables. El buscador filtra por la hoja y por el nombre del grupo.
 
 export interface TreeOption {
   value: string
@@ -482,9 +453,8 @@ export function TreeSelectField({
     setOpen(false)
   }
 
-  // ⚠ La hoja NO lleva la sangría: es `w-full`, y un margen encima del ancho
-  // completo la sacaba del panel y le ponía scroll horizontal. La sangría (y
-  // la guía) va en el contenedor de las hijas de cada grupo.
+  // La hoja no lleva la sangría: es `w-full` y un margen la sacaba del panel con
+  // scroll horizontal. La sangría va en el contenedor de las hijas.
   const hoja = (o: TreeOption) => (
     <button
       key={o.value}
@@ -501,9 +471,8 @@ export function TreeSelectField({
     </button>
   )
 
-  // La ruta completa en un tooltip SOLO cuando la elegida está en un grupo:
-  // en el hueco de la rejilla, "Coche › Comer fuera" se recorta y ahí es donde
-  // se pierde de qué grupo era. Sin grupo no hay nada que añadir.
+  // La ruta completa en tooltip solo si la elegida está en un grupo: en el hueco de
+  // la rejilla "Coche › Comer fuera" se recorta y se pierde el grupo.
   const rutaCompleta = actual?.grupo ? `${actual.grupo} › ${actual.label}` : undefined
 
   return (
@@ -558,9 +527,8 @@ export function TreeSelectField({
             ) : (
               visibles.map((o) =>
                 o.hijos ? (
-                  // Cabecera de grupo: NO es opción (los grupos no se apuntan).
-                  // `role="group"` con su etiqueta, que es lo que un listbox
-                  // admite para agrupar opciones.
+                  // Cabecera de grupo: no es opción (los grupos no se apuntan). `role="group"` con
+                  // su etiqueta, lo que un listbox admite para agrupar.
                   <div key={o.value} role="group" aria-label={o.label} className="mt-1 first:mt-0">
                     <div className="flex items-center gap-1.5 px-2.5 pb-0.5 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                       <FolderTree className="size-3" aria-hidden />

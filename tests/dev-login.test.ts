@@ -1,5 +1,4 @@
-// Atajo de login de DESARROLLO: entrar como DEV_LOGIN_EMAIL sin Google. Lo que
-// importa probar es que NO PUEDE existir en producción y que, cuando existe,
+// Atajo de login de desarrollo: no puede existir en producción y, cuando existe,
 // pasa por la misma allowlist que Google.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 

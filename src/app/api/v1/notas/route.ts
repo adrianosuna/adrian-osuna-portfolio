@@ -1,13 +1,5 @@
-// POST /api/v1/notas — guarda una nota en el Panel de control.
-//
-// El caso: dictarle algo al móvil y que aparezca en las notas del dashboard sin
-// abrir el navegador. El Atajo manda texto plano y aquí se convierte en
-// párrafos; quien quiera mandar HTML puede hacerlo con `contenidoHtml` y pasa
-// por el MISMO saneador que el editor visual.
-//
-// Cuerpo (JSON):
-//   { "titulo": "Ideas", "texto": "Primera línea\nSegunda línea" }
-//   { "titulo": "Ideas", "contenidoHtml": "<p>...</p>" }
+// POST /api/v1/notas: guarda una nota desde el móvil. Admite `texto` plano (se
+// pasa a párrafos) o `contenidoHtml`, que pasa por el mismo saneador del editor.
 import { revalidatePath } from 'next/cache'
 import { altaNota, textoAHtml } from '@/lib/alta-nota'
 import { log } from '@/lib/log'

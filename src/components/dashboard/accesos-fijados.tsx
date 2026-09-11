@@ -1,13 +1,7 @@
 'use client'
 
-// Accesos directos del inicio, elegidos por quien usa la app.
-//
-// Antes eran tres fijos (Finanzas, Oportunidades, Panel), que es el mapa de
-// módulos, no lo que uno abre a diario: al final se entra siempre a Gastos del
-// mes o a Mantenimiento, y había que pasar por el módulo. Aquí el catálogo está
-// completo y se marca lo que se quiere ver; la elección es de este dispositivo
-// (localStorage, ver `lib/preferencias.ts`) y por defecto quedan los tres de
-// siempre, así que sin tocar nada el inicio se ve igual que antes.
+// Accesos directos del inicio elegidos por el usuario, guardados en el dispositivo
+// (`lib/preferencias.ts`). Por defecto, los tres de siempre.
 import { useState } from 'react'
 import Link from 'next/link'
 import {

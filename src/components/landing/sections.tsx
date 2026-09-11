@@ -1,9 +1,7 @@
 'use client'
 
-// Secciones de la landing pública. Todas reciben el contenido `t` ya resuelto;
-// las fechas/duraciones de experiencia se calculan al vuelo. La página gira
-// alrededor de los casos de estudio: hero con posicionamiento → cifras →
-// proyectos → sobre mí → experiencia → contacto.
+// Secciones de la landing. Reciben el contenido `t` resuelto; la página gira
+// alrededor de los casos de estudio.
 import { Fragment, useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -72,9 +70,8 @@ export function Hero({ t }: { t: Content }) {
             </h1>
           </Reveal>
           <Reveal inmediata delay={160}>
-            {/* Cada título es indivisible: la línea solo puede partirse por el "·".
-                El espacio entre spans es imprescindible: sin él no hay punto de
-                ruptura y la línea entera desborda el ancho del móvil. */}
+            {/* Cada título es indivisible: la línea solo parte por el "·". El espacio entre
+                spans es el punto de ruptura; sin él desborda en móvil. */}
             <p className="text-[clamp(19px,1.8vw,27px)] font-semibold text-primary">
               {t.hero.role.split('·').map((parte, i, todas) => (
                 <Fragment key={i}>
@@ -227,8 +224,7 @@ export function Projects({ t }: { t: Content }) {
               // Franja de acento superior + elevación al pasar el cursor.
               className="relative overflow-hidden rounded-2xl border border-border bg-card transition-all before:absolute before:inset-x-0 before:top-0 before:z-1 before:h-0.75 before:bg-primary before:opacity-85 before:content-[''] hover:-translate-y-1 hover:border-primary/60 hover:shadow-[0_16px_40px_var(--pf-shadow)]">
               <div className="flex flex-col">
-                {/* Captura encima del contenido (misma estructura en móvil y
-                    escritorio): 16:9 en móvil y recorte panorámico en pantallas
+                {/* Captura encima del contenido: 16:9 en móvil y recorte panorámico en pantallas
                     grandes, para que no domine media pantalla. */}
                 {p.image && (
                   <div className="relative aspect-video border-b border-border bg-logo-box md:aspect-[2.4/1]">

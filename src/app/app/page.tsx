@@ -1,8 +1,5 @@
-// Inicio del dashboard: centro de mando. Primero lo que requiere atención hoy
-// (seguimientos vencidos, mantenimiento, meses de ahorro sin rellenar), luego
-// los KPIs con dato real y la actividad reciente. Los datos llegan de una sola
-// pasada paralela (lib/inicio.ts); el pulso de visitas va en Suspense para que
-// la red externa no retrase el pintado. Las piezas visuales, en components/.
+// Inicio del dashboard: avisos que requieren atención, KPIs y actividad reciente.
+// Los datos salen de lib/inicio.ts en una pasada; las visitas van en Suspense.
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
@@ -20,10 +17,8 @@ import { AccesosFijados } from '@/components/dashboard/accesos-fijados'
 import { AbrirAltaAlEntrar } from '@/components/dashboard/abrir-al-entrar'
 import { cn } from '@/lib/utils'
 
-/**
- * Comparativa del gasto del mes frente al anterior (en gastos, subir es malo →
- * rojo). Sin dato del mes pasado, cae al texto neutro de la tarjeta.
- */
+/** Comparativa del gasto del mes frente al anterior (subir es malo → rojo). Sin
+ *  dato del mes pasado, cae al texto neutro de la tarjeta. */
 function GastoMoM({ actual, previo }: { actual: number; previo: number }) {
   if (previo <= 0) return <>{actual === 0 ? 'nada registrado todavía' : 'control de gastos'}</>
   const delta = Math.round(((actual - previo) / previo) * 100)
@@ -203,9 +198,8 @@ export default async function HomePage({
       <div className="mt-4 grid gap-4 lg:grid-cols-[7fr_5fr]">
         <Actividad items={actividad} />
 
-        {/* Accesos ELEGIDOS: el catálogo está completo y cada uno fija los que
-            usa (antes eran los tres módulos fijos, que es el mapa del menú, no
-            lo que se abre a diario). */}
+        {/* Accesos elegidos por el usuario: el catálogo está completo y cada uno fija los
+            que usa. */}
         <AccesosFijados mes={new Date().toISOString().slice(0, 7)} cardClass={cardClass} />
       </div>
     </div>

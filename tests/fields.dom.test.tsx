@@ -1,8 +1,6 @@
 // @vitest-environment jsdom
-// Campos de formulario custom (fields.tsx) renderizados de verdad: parseo
-// decimal con coma o punto, flechas y teclado del NumberField (paso, suelo en
-// cero), popover del SelectField y calendario del DateField (semana empezando
-// en lunes, "Hoy", "Borrar").
+// Campos custom renderizados: parseo decimal, flechas y teclado del NumberField,
+// popover del SelectField y calendario del DateField.
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { DateField, NumberField, SelectField, TreeSelectField } from '@/components/ui/fields'
@@ -171,9 +169,8 @@ describe('DateField', () => {
   })
 })
 
-// El select de categoría en ÁRBOL: los grupos son cabeceras, no opciones, y el
-// buscador encuentra también por el nombre del grupo (era la razón de la lista
-// plana "Coche › Taller"; el árbol la conserva).
+// Select de categoría en árbol: los grupos son cabeceras, no opciones, y el buscador
+// encuentra por el nombre del grupo.
 describe('TreeSelectField', () => {
   const arbol = [
     { value: '', label: 'Sin categoría' },

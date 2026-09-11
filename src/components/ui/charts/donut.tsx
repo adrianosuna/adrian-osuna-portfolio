@@ -1,13 +1,7 @@
 'use client'
 
-// Donut sobre Chart.js — portado del componente equivalente del proyecto de
-// Inversiones, con dos añadidos que el diseño de aquí necesita y el original
-// no traía:
-//
-//  · TOTAL EN EL CENTRO (plugin propio): es la cifra que se lee primero.
-//  · LEYENDA PROPIA en HTML, con importe y porcentaje por fila. La de Chart.js
-//    solo muestra la etiqueta, y aquí la tabla de la derecha es la mitad de la
-//    información.
+// Donut sobre Chart.js con dos añadidos: total en el centro (plugin propio) y
+// leyenda en HTML con importe y porcentaje por fila.
 import { useEffect, useMemo, useRef } from 'react'
 import type { ChartDataset, ChartOptions } from 'chart.js'
 import { ChevronRight } from 'lucide-react'
@@ -22,9 +16,8 @@ export interface ParteDonut {
   label: string
   valor: number
   color: string
-  /** Con `onParte`, si ESTA porción responde al clic. Las que no, se pintan
-   *  como siempre: un cursor de mano sobre algo que no hace nada es peor que
-   *  no ofrecerlo. */
+  /** Con `onParte`, si esta porción responde al clic. Las que no, se pintan como
+   *  siempre: un cursor de mano sobre algo inerte es peor que no ofrecerlo. */
   pulsable?: boolean
 }
 
@@ -43,21 +36,14 @@ export function GraficaDonut({
   /** Título accesible del canvas. */
   titulo?: string
   diametro?: number
-  /**
-   * Qué hacer al activar una porción `pulsable` (bajar a su desglose, filtrar,
-   * abrir una vista...). Sin esto el donut es de solo lectura, que es como lo
-   * usan la mayoría de las tarjetas.
-   *
-   * El componente no sabe QUÉ significa el clic: eso lo decide quien lo usa.
-   */
+  /** Qué hacer al activar una porción `pulsable`. Sin esto el donut es de solo
+   *  lectura; el componente no sabe qué significa el clic. */
   onParte?: (parte: ParteDonut) => void
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const chartRef = useRef<Chart<'doughnut', number[], string> | null>(null)
-  // En un ref para que cambiar el manejador no reconstruya la gráfica: el
-  // efecto de abajo solo depende de los datos. Se refresca en su propio
-  // efecto y no durante el render, que es escribir en un ref mientras React
-  // pinta (y lo avisa la regla `react-hooks/refs`).
+  // En un ref para que cambiar el manejador no reconstruya la gráfica. Se refresca en
+  // su propio efecto, no en render (regla `react-hooks/refs`).
   const onParteRef = useRef(onParte)
   useEffect(() => {
     onParteRef.current = onParte
@@ -170,20 +156,14 @@ export function GraficaDonut({
           const clase = cn(
             'flex w-full items-center gap-2',
             positivas.length > 8 ? 'text-[12.5px]' : 'text-[13px]',
-            // ⚠ El padding va en TODAS las filas del donut, no solo en la
-            // pulsable. Antes la pulsable llevaba `-mx-1 px-1` para que el
-            // fondo del hover sangrara, pero `w-full` no crece con el margen
-            // negativo: su área de contenido quedaba 8 px más estrecha y su
-            // importe se iba a la izquierda del resto. Mismo padding en todas
-            // = misma geometría, y el fondo del hover encaja con la fila.
+            // El padding va en todas las filas, no solo en la pulsable: `w-full` no crece con
+            // un margen negativo y el importe de esa fila se iba 8 px a la izquierda.
             hayPulsables && 'px-1',
             pulsable &&
               'cursor-pointer rounded-sm text-left transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary',
           )
-          // El contenido se declara una vez y solo cambia el envoltorio: una
-          // fila pulsable tiene que ser un BOTÓN de verdad porque el canvas
-          // DIBUJA su texto (no es DOM), así que sin esto el desglose no
-          // existiría ni para el teclado ni para un lector de pantalla.
+          // El contenido se declara una vez y solo cambia el envoltorio: una fila pulsable
+          // es un botón de verdad, porque el canvas dibuja su texto y no es DOM.
           const contenido = (
             <>
               <span
@@ -208,15 +188,8 @@ export function GraficaDonut({
                     : ''}
                 </span>
               </span>
-              {/* ⚠ La columna del chevron se reserva en TODAS las filas de la
-                  leyenda (con un hueco vacío en las que no son pulsables), no
-                  solo en las que lo llevan. Si no, el importe y el porcentaje
-                  de la fila del grupo quedan 22 px a la izquierda de los
-                  demás y la columna de cifras deja de estar a plomo — se ve
-                  desalineada al instante, y en una leyenda de cifras eso es
-                  lo primero que canta.
-                  Solo cuando este donut tiene alguna porción pulsable: los
-                  demás (el ahorro, los ingresos) no cambian ni un píxel. */}
+              {/* La columna del chevron se reserva en todas las filas de la leyenda, con hueco en
+                  las no pulsables: si no, las cifras de la fila del grupo se desalinean 22 px. */}
               {hayPulsables &&
                 (pulsable ? (
                   <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />

@@ -1,13 +1,5 @@
-// Sumidero persistente del registro: lo que se guarda, lo que NO, y las tres
-// garantías que hacen que enchufarlo al logger no pueda romper una petición.
-//
-// ⚠ El caso que más costó no es testeable en unitarios y conviene conocerlo:
-// enganchar el sumidero DESDE FUERA (`instrumentation.ts`) con una variable de
-// módulo no funciona — ese contexto está aislado del de los route handlers, y
-// no se guardaba nada sin dar ningún error. Ahora cada contexto carga su
-// propio sumidero con un import perezoso (`persistir` en `lib/log.ts`), lo que
-// elimina la dependencia de compartir estado, y eso SÍ se verificó levantando
-// un servidor de producción de verdad contra la BD local.
+// Sumidero persistente del registro: qué se guarda, qué no, y las tres garantías. El
+// import perezoso de `persistir` no es testeable aquí; se verificó en producción.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { prismaMock } = vi.hoisted(() => ({
@@ -26,12 +18,8 @@ vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 const { guardarEvento, listLogs, purgarLogs, retencionDias } = await import('@/lib/log-db')
 const { log, registrarSumidero } = await import('@/lib/log')
 
-/**
- * Emite por el mismo camino que la aplicación, pero SIN el import perezoso:
- * `log.ts` carga `log-db` con `import()`, que en un test resolvería después de
- * la aserción. Se sustituye por el sumidero de prueba, que llama a la misma
- * función (`guardarEvento`) de forma síncrona.
- */
+/** Emite por el mismo camino que la aplicación pero con el sumidero de prueba: el
+ *  `import()` perezoso resolvería después de la aserción. */
 const emitir = () => registrarSumidero(guardarEvento)
 
 beforeEach(() => {
@@ -68,19 +56,15 @@ describe('qué se guarda y qué no', () => {
   })
 
   it('no hace falta enganchar nada: el nivel decide', () => {
-    // Sin sumidero de prueba, `log.ts` carga `log-db` por su cuenta con un
-    // import perezoso. Aquí solo se comprueba que no lanza; que el camino real
-    // ESCRIBE se verificó contra un servidor de producción de verdad, porque
-    // es exactamente lo que los dos intentos anteriores no hacían.
+    // Sin sumidero de prueba, `log.ts` carga `log-db` por su cuenta. Solo se comprueba
+    // que no lanza; que escribe se verificó contra producción.
     registrarSumidero(null)
     expect(() => log.info('t', 'informando')).not.toThrow()
     expect(() => log.error('t', 'reventando')).not.toThrow()
   })
 
   it('guarda la TRAZA del error, al contrario que la consola de producción', () => {
-    // En la consola se omite porque el log de un servidor lo lee cualquiera
-    // que pueda; esta tabla es privada del admin y la traza es justo lo que
-    // hace falta para saber qué pasó.
+    // En consola se omite la traza; esta tabla es privada del admin y ahí sí sirve.
     const e = new Error('la BD se fue')
     log.error('api', 'consulta fallida', { error: e })
     const guardado = datosGuardados()!.error as Record<string, string>

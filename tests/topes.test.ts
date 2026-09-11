@@ -1,6 +1,5 @@
-// Topes de gasto por categoría: el cálculo puro del estado de cada tope y el
-// aviso por correo, cuya gracia está en NO repetirse — un correo por mes y por
-// nivel alcanzado, recordado en `budget_notified` como 'YYYY-MM:nivel'.
+// Topes de gasto: estado de cada tope y aviso por correo sin repetirse (un correo por
+// mes y nivel, en `budget_notified`).
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { nivelTope, resumenTopes, topesDelMes, UMBRAL_LIMITE } from '@/lib/topes'
 
@@ -82,9 +81,8 @@ describe('topesDelMes', () => {
   })
 })
 
-// El tope de un grupo ("el coche, 200 al mes") tiene que contar lo de sus
-// subcategorías: si solo mirara su propia columna saldría siempre a cero,
-// porque los movimientos cuelgan de las hojas y nunca del grupo.
+// El tope de un grupo cuenta lo de sus subcategorías: los movimientos cuelgan de las
+// hojas.
 describe('topesDelMes con grupos', () => {
   it('suma el gasto de las subcategorías al tope del grupo', () => {
     const topes = topesDelMes(
@@ -143,9 +141,7 @@ describe('resumenTopes', () => {
     })
   })
 
-  // Lo que no puede pasar: que el tope del grupo y el de su hija se sumen como
-  // si fueran presupuestos independientes. El de la hija ya va DENTRO del
-  // grupo, así que el techo del conjunto son los 200 del coche, no 320.
+  // El tope del grupo y el de su hija no se suman: el de la hija ya va dentro.
   it('no suma dos veces un tope anidado dentro del de su grupo', () => {
     const topes = topesDelMes(
       [cat('coche', 200), cat('gasolina', 120, 'GASTO', 'coche')],

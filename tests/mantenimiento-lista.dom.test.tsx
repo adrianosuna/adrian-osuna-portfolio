@@ -1,8 +1,6 @@
 // @vitest-environment jsdom
-// Vista de LISTA de la pestaña Mantenimiento. Lo que se prueba aquí es lo que
-// solo se ve montando el componente: el orden en que salen las tareas, los
-// chips de ámbito, la acción principal de cada fila y que el "no hay nada" sea
-// de la lista y no de la pestaña entera.
+// Lista de Mantenimiento: orden de las tareas, chips de ámbito, acción principal de
+// cada fila y que el "no hay nada" sea de la lista.
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { auditar } from './axe'
@@ -75,9 +73,8 @@ const filtros = () => within(screen.getByRole('group', { name: 'Filtrar por ámb
 
 describe('Lista de mantenimiento: orden y marcado', () => {
   it('lo CUMPLIDO se hunde, aunque su fecha sea la más antigua', () => {
-    // La consulta las trae por nextDue ascendente y una puntual cumplida se
-    // queda con su fecha en el pasado a propósito: sin ordenar salía la
-    // primera de la lista, encima de lo urgente y con su chip apagado.
+    // La consulta ordena por nextDue y una puntual cumplida salía la primera con su chip
+    // apagado.
     montar({
       rows: [
         tarea({ uuid: 'h', title: 'Dominio renovado', intervalMonths: null, nextDue: '2026-03-01', lastDone: '2026-03-02' }),
@@ -125,8 +122,7 @@ describe('Lista de mantenimiento: filtro por ámbito', () => {
 describe('Lista de mantenimiento: la acción de la fila', () => {
   it('una que se repite se marca hecha y encadena', () => {
     montar({ rows: [tarea({ uuid: 'r', intervalMonths: 12 })] })
-    // Por su NOMBRE accesible, que es lo que oye un lector de pantalla: el
-    // texto visible del botón es `sm:hidden`, así que en escritorio el nombre
+    // Por su nombre accesible: el texto visible es `sm:hidden`, así que en escritorio
     // solo puede venir del `aria-label`.
     fireEvent.click(screen.getByRole('button', { name: 'Marcar ITV como hecha' }))
     expect(completeMaintenance).toHaveBeenCalledWith('r')
@@ -143,9 +139,8 @@ describe('Lista de mantenimiento: la acción de la fila', () => {
 
   it('la puntual cumplida lleva chip «Hecha» y no un vencimiento', () => {
     montar({ rows: [tarea({ uuid: 'p', intervalMonths: null, nextDue: '2026-03-01', lastDone: '2026-03-02' })] })
-    // ⚠ El chip se pinta DOS veces (una para móvil y otra desde sm) y el CSS
-    // decide cuál se ve; jsdom no aplica el `hidden` de Tailwind, así que aquí
-    // se encuentran las dos. Lo que importa es que ninguna sea un vencimiento.
+    // El chip se pinta dos veces (móvil y sm) y jsdom no aplica el `hidden`: se
+    // encuentran las dos. Ninguna debe ser un vencimiento.
     expect(screen.getAllByText('Hecha')).toHaveLength(2)
     expect(screen.queryByText(/Hace \d+ meses/)).toBeNull()
   })
@@ -158,9 +153,7 @@ describe('Lista de mantenimiento: el vacío es de la LISTA', () => {
   })
 
   it('sin tareas, el CALENDARIO se sigue viendo', () => {
-    // Estuvo tapado: el aviso iba delante y se llevaba la rejilla entera, con
-    // sus cargos recurrentes y sus seguimientos, que no son tareas ni les
-    // afecta el filtro de ámbitos.
+    // El aviso iba delante y tapaba la rejilla entera con sus recurrentes y seguimientos.
     montar({
       rows: [],
       vista: 'calendario',
@@ -177,14 +170,8 @@ describe('Lista de mantenimiento: el vacío es de la LISTA', () => {
   })
 })
 
-// ⚠ La auditoría axe entra aquí (y no en `accesibilidad.dom.test.tsx`) porque
-// montar la pestaña arrastra sus server actions, que hay que mockear; el
-// ayudante `auditar` es el mismo, compartido en `tests/axe.ts`.
-//
-// Está por un fallo concreto: el botón «Hecha» de cada fila —LA acción de la
-// fila— no tenía nombre accesible en escritorio. Su único texto es un
-// `<span sm:hidden>` y el tooltip describe pero no nombra, así que a partir de
-// `sm` era un botón mudo. Lo encontró un test que lo buscaba por su nombre.
+// La auditoría axe va aquí porque montar la pestaña arrastra sus server actions. Está
+// por el botón «Hecha», que en escritorio no tenía nombre accesible.
 describe('axe: la lista y sus acciones', () => {
   it('sin violaciones, con una tarea pendiente y una cumplida', async () => {
     const { baseElement } = montar({
@@ -200,9 +187,8 @@ describe('axe: la lista y sus acciones', () => {
   })
 })
 
-// Modal de Ámbitos: crear, renombrar y borrar. Es el único sitio donde se
-// gestionan, y lo que se prueba aquí son sus guardas — un ámbito en uso no se
-// borra, el vacío pide confirmación y el nombre no puede irse en blanco.
+// Modal de Ámbitos: un ámbito en uso no se borra, el vacío pide confirmación y el
+// nombre no puede irse en blanco.
 describe('Modal de Ámbitos', () => {
   const abrir = (extra: Partial<Props> = {}) => {
     montar(extra)
@@ -268,9 +254,8 @@ describe('Modal de Ámbitos', () => {
   })
 })
 
-// Modal de alta/edición. Lo que se prueba es el borrador: en la BD `null` es
-// "no se repite", pero en un campo de texto es también "vacío mientras
-// escribo", y meter las dos cosas en la misma variable era un fallo de verdad.
+// Modal de alta/edición: el borrador separa `repite` de `intervalMonths`, porque
+// null era a la vez "no se repite" y "vacío mientras escribo".
 describe('Modal de nueva tarea', () => {
   const abrir = () => {
     montar()
@@ -280,9 +265,8 @@ describe('Modal de nueva tarea', () => {
   const meses = (m: ReturnType<typeof abrir>) => m.queryByLabelText('Periodicidad en meses')
 
   it('vaciar «Cada (meses)» NO convierte la tarea en puntual', () => {
-    // Antes: el campo desaparecía bajo el cursor, «Repetición» saltaba a «Una
-    // vez», la etiqueta de la fecha cambiaba y Crear seguía activo — se
-    // guardaba una puntual creyendo que era mensual.
+    // Antes el campo desaparecía bajo el cursor y se guardaba una puntual creyendo que
+    // era mensual.
     const m = abrir()
     fireEvent.change(meses(m)!, { target: { value: '' } })
     expect(meses(m)).not.toBeNull()

@@ -1,18 +1,6 @@
 // @vitest-environment jsdom
-// El logo de la marca. Dos cosas que, si se rompen, lo hacen en SILENCIO —se
-// sigue pintando algo— y por eso tienen test:
-//
-//   · la **regla de relleno**: son tres contornos y el tercero es el hueco de
-//     la A, así que sin `evenodd` la A sale maciza y el logo deja de ser el
-//     logo. El defecto de SVG es `nonzero`, o sea que basta con olvidarlo;
-//   · el **`aria-hidden`**: la marca es un dibujo SIN texto, así que quien la
-//     mete en un enlace tiene que poner el nombre. Si el SVG dejara de estar
-//     oculto no fallaría nada visible, pero el enlace del logo pasaría a
-//     anunciarse solo, tapando el `aria-label` de quien lo envuelve.
-//
-// El trazo en sí no se comprueba punto por punto (sería copiarlo dos veces):
-// lo que se mira es que siga teniendo sus TRES contornos cerrados, que es lo
-// que se perdería al regenerarlo mal.
+// El logo: las dos trampas mudas (`evenodd`, sin él la A sale maciza; y
+// `aria-hidden`, o el enlace se anunciaría solo) y que el trazo siga con tres contornos.
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import { Logotipo } from '@/components/ui/logotipo'

@@ -1,10 +1,5 @@
-// Capa de datos del Panel de control (solo servidor). Dos instantáneas:
-// - snapshotInfra: el monitor — certificado SSL, ping de BD, backup, disco,
-//   uptime y versión desplegada. Backup y disco llegan por el volumen de solo
-//   lectura que monta docker-compose (INFRA_BACKUPS_DIR).
-// - snapshotServidor: estado en vivo del servidor — CPU, memoria, swap, disco,
-//   proceso Node y sistema. En Docker, os.* y /proc/* leen del HOST (el VPS).
-// La fase v3 (visitas vía GA Data API) está en docs/TAREAS.md.
+// Capa de datos del Panel (solo servidor): snapshotInfra (SSL, BD, backup, disco,
+// versión) y snapshotServidor (CPU, memoria, disco, proceso; en Docker lee del host).
 import 'server-only'
 import fs from 'node:fs/promises'
 import path from 'node:path'
@@ -175,9 +170,8 @@ async function checkDB(): Promise<InfraSnapshot['db']> {
   }
 }
 
-// Tamaño de la base de datos y sus tablas (information_schema). Los BIGINT
-// llegan como bigint de JS: se convierten a number (tamaños muy por debajo
-// del límite seguro) para que el snapshot sea serializable.
+// Tamaño de la BD y sus tablas (information_schema). Los BIGINT llegan como bigint:
+// se convierten a number para que el snapshot sea serializable.
 async function checkAlmacenBD(): Promise<InfraSnapshot['almacenBD']> {
   try {
     const filas = await prisma.$queryRaw<Array<{ tabla: string; bytes: bigint | number }>>`
@@ -198,9 +192,8 @@ async function checkAlmacenBD(): Promise<InfraSnapshot['almacenBD']> {
   }
 }
 
-// Latencia pública: una petición al dominio real DESDE el servidor — recorre
-// la cadena completa (DNS, Caddy, TLS, Next), que es lo que ve un visitante.
-// El resto de checks miran hacia dentro; si Caddy cae, solo este lo delata.
+// Latencia pública: una petición al dominio real desde el servidor, la cadena
+// completa que ve un visitante. Si Caddy cae, solo este check lo delata.
 async function checkWeb(): Promise<InfraSnapshot['web']> {
   const url = `https://${dominioSSL()}/`
   try {
@@ -226,10 +219,8 @@ async function checkWeb(): Promise<InfraSnapshot['web']> {
   }
 }
 
-// Carpeta con los dumps del cron de backup (en producción, el volumen de solo
-// lectura del compose). Sin definir —desarrollo—, el check queda "sin configurar".
-// Se lee en cada llamada, no a nivel de módulo: en desarrollo el env se recarga
-// en caliente y una constante se quedaría con el valor del arranque.
+// Carpeta de los dumps del backup (volumen de solo lectura en producción). Se lee en
+// cada llamada: en desarrollo el env se recarga en caliente.
 const dirBackups = () => process.env.INFRA_BACKUPS_DIR || undefined
 
 async function checkBackup(): Promise<InfraSnapshot['backup']> {
@@ -292,9 +283,8 @@ async function checkBackup(): Promise<InfraSnapshot['backup']> {
 }
 
 async function checkDisco(): Promise<InfraSnapshot['disco']> {
-  // La partición donde viven los backups es la raíz del VPS, así que medirla
-  // equivale a medir el disco del servidor. Sin volumen (desarrollo) se mide
-  // el disco local de trabajo.
+  // La partición de los backups es la raíz del VPS: medirla es medir el disco. Sin
+  // volumen (desarrollo) se mide el disco local.
   const dir = dirBackups()
   const ruta = dir ?? process.cwd()
   try {

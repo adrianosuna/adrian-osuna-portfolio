@@ -1,16 +1,5 @@
-// Exportación a Excel de Finanzas. Dos modos sobre el mismo endpoint:
-//
-//   · `?year=2026` — un año de ahorro, como siempre.
-//   · `?todo=1`    — TODO el módulo: el resumen histórico, una hoja por año,
-//                    todos los movimientos, las categorías y los recurrentes.
-//
-// El modo global existe porque hasta ahora el dato solo salía año a año, y lo
-// que se quería es tenerlo FUERA de la aplicación en un formato que se pueda
-// abrir sin ella. No sustituye al backup de la BD: aquel sirve para restaurar,
-// este para leer.
-//
-// Solo administrador (los route handlers no los protege el layout: guarda
-// propia).
+// Exportación a Excel: `?year=2026` un año de ahorro; `?todo=1` todo el módulo
+// (resumen, un año por hoja, movimientos, categorías, recurrentes). Solo admin.
 import ExcelJS from 'exceljs'
 import { auth } from '@/auth'
 import { getYearDetail, listYears, type YearDetail } from '@/lib/finance'
@@ -132,14 +121,8 @@ function hojaDeAnio(libro: ExcelJS.Workbook, detail: YearDetail) {
   }
 }
 
-/**
- * TODO el módulo en un solo libro.
- *
- * El orden de las hojas es el de lectura, no el de las consultas: primero el
- * resumen (para situarse), después un año por hoja, y al final los datos de
- * origen —movimientos, categorías, recurrentes— que son los que se filtran y
- * se cruzan en una hoja de cálculo.
- */
+/** Todo el módulo en un libro. Las hojas van en orden de lectura: resumen, un año
+ *  por hoja y al final los datos de origen que se filtran y cruzan. */
 async function exportarTodo() {
   const [anios, movimientos, categorias, recurrentes] = await Promise.all([
     listYears(),
@@ -165,9 +148,8 @@ async function exportarTodo() {
     euros(fila, [2, 3, 4, 5, 6])
   }
 
-  // ── Una hoja por año, con el mismo detalle que la exportación de un año ──
-  // En serie y no en paralelo: `getYearDetail` son cuatro consultas por año, y
-  // lanzarlas todas de golpe no gana nada frente a un puñado de años.
+  // Una hoja por año, en serie: son cuatro consultas por año y paralelizar un
+  // puñado de años no gana nada.
   for (const a of anios) {
     const detail = await getYearDetail(a.year)
     if (detail) hojaDeAnio(libro, detail)

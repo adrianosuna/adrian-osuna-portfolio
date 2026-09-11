@@ -1,16 +1,5 @@
-// Calendario del dashboard: reúne TODO lo que tiene fecha futura en un solo
-// tipo de evento y lo reparte por días.
-//
-// Las tres fuentes viven en módulos distintos y cada una tiene sus reglas:
-//   · Tareas de mantenimiento (`next_due`), que se REPITEN cada N meses —o no,
-//     si son un recordatorio puntual— y pueden estar atrasadas.
-//   · Cargos recurrentes (`next_date` + `day_anchor`), que también se repiten
-//     y cuyo día se ancla para que un recibo del 31 no se clave en el 28.
-//   · Seguimientos del pipeline (`next_action_date`), que son una fecha única.
-//
-// Sin `server-only`: lo usan el calendario (cliente) y sus tests. La
-// proyección es PURA a propósito — la aritmética de meses cortos y el cruce de
-// año es justo donde esto se rompe, y así se prueba sin BD.
+// Calendario: reúne tareas (`next_due`), cargos (`next_date` + `day_anchor`) y
+// seguimientos (`next_action_date`) en un tipo de evento por día. Puro, sin server-only.
 import { sumarMeses } from '@/lib/fechas'
 import { eurEntero } from '@/lib/euros'
 import { cumplida } from '@/lib/tareas'
@@ -76,13 +65,8 @@ const primerDia = (mes: string) => `${mes}-01`
 /** Primer día del mes SIGUIENTE: límite superior, exclusivo. */
 const finDe = (mes: string) => sumarMeses(primerDia(mes), 1)
 
-/**
- * Proyecta una serie que empieza en `desde` y salta cada `cada` meses dentro
- * de [inicio, fin), anclando el día si se pide.
- *
- * Devuelve además si la primera fecha quedó ANTES de la ventana: eso es el
- * atraso, y quien llama decide dónde lo coloca.
- */
+/** Proyecta una serie desde `desde` cada `cada` meses en [inicio, fin), anclando el
+ *  día si se pide. Dice además si la primera fecha quedó antes: eso es el atraso. */
 function ocurrencias(
   desde: string,
   cada: number | null,
@@ -111,26 +95,13 @@ function ocurrencias(
   return { fechas, atrasada }
 }
 
-/**
- * Importe con el signo de su tipo, para el detalle de un recurrente.
- *
- * ⚠ Con `eurEntero` y no con un `toLocaleString('es-ES')` a mano: es-ES NO
- * agrupa los miles de cuatro cifras por defecto, así que una nómina de 1850
- * salía como "1850 €" junto a un "12.750 €". Es la trampa que ya documenta
- * `lib/euros.ts`, y la razón de que el formateador sea uno y compartido.
- * Sin decimales porque es una previsión, como los KPI.
- */
+/** Importe con el signo de su tipo. Con `eurEntero`: es-ES no agrupa los miles de
+ *  cuatro cifras y "1850 €" salía junto a "12.750 €". Sin decimales, como los KPI. */
 const importe = (r: RecurrenteCal) =>
   `${r.type === 'GASTO' ? '−' : '+'}${eurEntero(Math.abs(r.amount))}`
 
-/**
- * Todos los eventos de un mes ('YYYY-MM'), ordenados.
- *
- * `hoy` decide qué se marca como atrasado y dónde va: lo que venció antes de
- * este mes se ancla al día de HOY, y solo si se está viendo el mes en curso.
- * Dejarlo caer fuera del calendario sería lo contrario de lo que se busca —
- * una tarea vencida es justo la que hay que ver.
- */
+/** Todos los eventos de un mes ('YYYY-MM'), ordenados. Lo vencido antes del mes se
+ *  ancla a hoy, solo si se ve el mes en curso: una tarea vencida hay que verla. */
 export function eventosDelMes(
   mes: string,
   hoy: string,
@@ -161,20 +132,16 @@ export function eventosDelMes(
       refUuid: t.uuid,
     }
     if (atrasada) conAtraso(base)
-    // ⚠ `f < hoy` y no `false`: una tarea que venció el día 3 estando hoy a 5
-    // cae DENTRO del mes, así que no se arrastra a hoy — pero sigue vencida, y
-    // pintarla como una cualquiera era perder de vista justo lo urgente. Solo
-    // se proyectan fechas desde `nextDue`, que es la próxima pendiente: una
-    // ocurrencia anterior a hoy está vencida por definición.
+    // `f < hoy` y no `false`: una tarea vencida dentro del mes no se arrastra, pero
+    // sigue vencida. Solo se proyecta desde `nextDue`, así que anterior a hoy es vencida.
     for (const f of fechas) eventos.push({ ...base, fecha: f, atrasado: f < hoy })
   }
 
   for (const r of fuentes.recurrentes ?? []) {
     // Uno en pausa no va a cargar nada: no es una previsión.
     if (!r.active) continue
-    // La proyección de un recurrente vive en `lib/recurrentes.ts`, compartida
-    // con la tarjeta de la vista del mes: el ancla del día y los meses cortos
-    // no pueden tener dos implementaciones.
+    // La proyección de un recurrente vive en `lib/recurrentes.ts`, compartida con la
+    // tarjeta del mes: el ancla del día no puede tener dos implementaciones.
     const fechas = fechasEnMes(r, mes)
     const base = {
       uuid: `recurrente:${r.uuid}`,
@@ -183,9 +150,8 @@ export function eventosDelMes(
       detalle: importe(r),
       refUuid: r.uuid,
     }
-    // ⚠ Un cargo atrasado NO se arrastra a hoy como una tarea: el cron lo
-    // apunta en cuanto corra, así que no es algo que Adrián tenga que hacer.
-    // Se queda en su día si cae en el mes, y si no, no sale.
+    // Un cargo atrasado no se arrastra a hoy: lo apunta el cron en cuanto corra. Se
+    // queda en su día si cae en el mes.
     for (const f of fechas) eventos.push({ ...base, fecha: f, atrasado: false })
   }
 
@@ -227,11 +193,8 @@ export function porDia(eventos: Evento[]): Map<string, Evento[]> {
   return m
 }
 
-/**
- * Las semanas del mes para la rejilla, empezando en LUNES y con los huecos
- * rellenos con los días de los meses vecinos: una rejilla completa se lee
- * mejor que una con celdas en blanco.
- */
+/** Semanas del mes para la rejilla, desde lunes y con los huecos rellenos con los
+ *  meses vecinos. */
 export function semanasDelMes(mes: string): Array<Array<{ fecha: string; delMes: boolean }>> {
   const [y, m] = mes.split('-').map(Number)
   const dias = new Date(Date.UTC(y, m, 0)).getUTCDate()

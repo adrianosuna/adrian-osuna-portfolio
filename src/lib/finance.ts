@@ -1,9 +1,5 @@
-// Capa de datos del módulo de finanzas (solo servidor).
-// Semántica del ahorro anual:
-//   - Ahorro anual = ahorro general mensual + ingresos extra + SOBRANTE de
-//     viajes (ahorrado - gastado): al cerrar el año, lo que no se gastó en
-//     viajes se suma al ahorro y el año siguiente empieza de cero.
-// (El capital inicial/final se retiró el 26/08/2026: solo se controla el ahorro.)
+// Capa de datos de finanzas (solo servidor). Ahorro anual = mensual + ingresos
+// extra + sobrante de viajes (ahorrado − gastado).
 import 'server-only'
 import { prisma } from '@/lib/prisma'
 import { botonHtml, correoConfigurado, enviarCorreo, tarjetaHtml } from '@/lib/correo'
@@ -130,10 +126,8 @@ export function mesesSinRellenar(
   return vacios
 }
 
-/** Recordatorio por correo de meses sin rellenar: mira el año del mes natural
- *  anterior (en enero, el diciembre del año pasado) y avisa de todos sus meses
- *  cerrados y vacíos. Reaviso semanal vía `last_reminded`, no diario. Devuelve
- *  cuántos meses se avisaron. `hoyIso` se inyecta en tests. */
+/** Recordatorio por correo de meses sin rellenar: mira el año del mes anterior y
+ *  avisa de los cerrados y vacíos. Reaviso semanal vía `last_reminded`. */
 export async function avisarMesSinRellenar(hoyIso = hoyMadrid()): Promise<number> {
   if (!correoConfigurado()) return 0
   const { year, month } = mesAnterior(hoyIso)

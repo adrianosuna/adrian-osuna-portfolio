@@ -1,6 +1,5 @@
-// Umbrales del monitor de infraestructura: la lógica que decide si una tarjeta
-// sale verde (ok), ámbar (aviso) o roja (error). TLS, sistema de ficheros,
-// Prisma y red simulados; el reloj, congelado.
+// Umbrales del monitor: verde/ámbar/rojo con TLS, ficheros, Prisma y red simulados y
+// el reloj congelado.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { tlsMock, fsMock, queryRawMock } = vi.hoisted(() => ({

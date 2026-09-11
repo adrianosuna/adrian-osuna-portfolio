@@ -1,11 +1,7 @@
 'use client'
 
-// Modal reutilizable del dashboard: cabecera fija (título + botón de cierre),
-// cuerpo con scroll propio y pie de acciones siempre visible. Cierra con
-// Escape y con clic en el fondo, y bloquea el scroll de la página mientras
-// está abierto. Los popovers de fields.tsx (calendario, select) se renderizan
-// en un portal con posición fija, así que nunca los recorta el scroll del
-// cuerpo — usar siempre este componente para nuevos modales.
+// Modal reutilizable: cabecera fija, cuerpo con scroll y pie visible. Cierra con
+// Escape y clic en el fondo, y bloquea el scroll de la página. Usar siempre este.
 import { useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -14,29 +10,12 @@ import { cn } from '@/lib/utils'
 const ENFOCABLES =
   'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
-/**
- * Pila de modales abiertos, para que **Escape cierre solo el de arriba**.
- *
- * ⚠ El listener de Escape es de `document`, así que con dos modales apilados
- * —y se apilan: una confirmación se pinta sobre el modal que la pidió— la tecla
- * llegaba a los dos y cerraba el de abajo también. El síntoma es raro de leer:
- * cancelas una confirmación y se te va la pantalla entera de detrás.
- *
- * La identidad es el propio objeto que mete cada modal al montarse (no un
- * contador: con StrictMode montando dos veces, un número se descuadra).
- */
+/** Pila de modales abiertos para que Escape cierre solo el de arriba: el listener
+ *  es de document y con dos apilados cerraba los dos. Identidad por objeto, no contador. */
 const pila: object[] = []
 
-/**
- * El `overflow` que tenía la página ANTES del primer modal, para devolverlo
- * cuando se cierre el último.
- *
- * ⚠ Module-level y no una copia por modal: el segundo modal se abre cuando el
- * body ya está en `hidden`, así que su copia ES "hidden" — y si se desmonta
- * DESPUÉS del primero (el orden no está garantizado: dos hermanos del mismo
- * árbol se limpian en orden de documento), era él quien restauraba, y la
- * página se quedaba sin scroll para siempre. Lo encontró un test.
- */
+/** El overflow de la página antes del primer modal. A nivel de módulo: la copia del
+ *  segundo modal ya es "hidden" y, si se desmontaba después, dejaba la página sin scroll. */
 let overflowPrevio = ''
 
 export function Modal({
@@ -56,10 +35,8 @@ export function Modal({
   /** Marca de este modal en la pila (ver `pila`). */
   const yo = useRef({})
 
-  // Scroll del fondo y foco, SOLO al abrir y al cerrar: va aparte del listener
-  // de teclado a propósito. Ese depende de `onClose`, que en varias llamadas es
-  // una función inline y cambia en cada render; si el foco viviera en el mismo
-  // efecto, cada render lo devolvería al primer campo mientras escribes.
+  // Scroll del fondo y foco solo al abrir y cerrar, aparte del listener de teclado:
+  // ese depende de `onClose`, que cambia en cada render, y devolvería el foco al escribir.
   useEffect(() => {
     const marca = yo.current
     // El original lo guarda solo el PRIMERO de la pila (ver `overflowPrevio`).
@@ -67,16 +44,12 @@ export function Modal({
     pila.push(marca)
     document.body.style.overflow = 'hidden'
 
-    // Quien tenía el foco al abrir, para devolvérselo al cerrar: si no, el foco
-    // cae al <body> y el siguiente Tab empieza por el principio de la página en
-    // vez de por donde estabas.
+    // Quien tenía el foco al abrir, para devolvérselo al cerrar: si no, cae al body y
+    // el siguiente Tab empieza por el principio de la página.
     const antes = document.activeElement as HTMLElement | null
 
-    // Foco inicial en el primer control del CUERPO (no en la "X" de la
-    // cabecera, que es el primero del panel y dejaría el Enter en "cerrar").
-    // Solo si ningún campo se lo ha llevado ya con autoFocus; sin esto el foco
-    // se queda en el botón que abrió el modal —fuera de él— y el primer Tab se
-    // va a la página de detrás.
+    // Foco inicial en el primer control del cuerpo (no en la X de la cabecera), salvo
+    // que un campo tenga autoFocus. Sin esto el foco se queda en el botón que abrió.
     if (!panel.current?.contains(document.activeElement)) {
       ;(cuerpo.current?.querySelector<HTMLElement>(ENFOCABLES) ?? panel.current)?.focus()
     }
@@ -84,17 +57,15 @@ export function Modal({
     return () => {
       const i = pila.lastIndexOf(marca)
       if (i !== -1) pila.splice(i, 1)
-      // El scroll del fondo se recupera solo cuando NO queda ningún modal: con
-      // dos apilados, cerrar el de arriba devolvía el scroll a la página de
-      // detrás mientras el de abajo seguía abierto.
+      // El scroll del fondo se recupera solo cuando no queda ningún modal: cerrar el de
+      // arriba no debe devolverlo mientras el de abajo sigue abierto.
       document.body.style.overflow = pila.length ? 'hidden' : overflowPrevio
       antes?.focus?.()
     }
   }, [])
 
-  // Escape cierra (los popovers abiertos frenan la tecla antes de llegar
-  // aquí: primero se cierra el popover, luego el modal) y Tab da la vuelta
-  // dentro del modal en vez de escaparse a la página de detrás.
+  // Escape cierra (un popover abierto frena la tecla antes: primero él, luego el
+  // modal) y Tab da la vuelta dentro del modal.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       // Solo el modal de ARRIBA atiende las teclas: si no, Escape cerraría
@@ -105,9 +76,8 @@ export function Modal({
         return
       }
       if (e.key !== 'Tab' || !panel.current) return
-      // Con un popover de fields.tsx abierto el foco está en un portal FUERA
-      // del panel: ahí no se atrapa nada, o tabular por el calendario saltaría
-      // de vuelta al formulario.
+      // Con un popover de fields.tsx abierto el foco está en un portal fuera del panel:
+      // ahí no se atrapa, o tabular por el calendario saltaría al formulario.
       if (!panel.current.contains(document.activeElement)) return
 
       const focos = [...panel.current.querySelectorAll<HTMLElement>(ENFOCABLES)]

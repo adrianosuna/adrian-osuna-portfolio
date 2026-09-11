@@ -1,6 +1,5 @@
-// Recordatorio de meses de ahorro sin rellenar (lo dispara el cron diario):
-// qué cuenta como mes vacío, el mes natural anterior (con cruce de año) y el
-// envío por correo con freno semanal vía last_reminded.
+// Recordatorio de meses de ahorro sin rellenar: qué cuenta como vacío, el mes
+// natural anterior con cruce de año y el freno semanal vía last_reminded.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { prismaMock, correoMock } = vi.hoisted(() => ({

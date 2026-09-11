@@ -1,9 +1,5 @@
-// Formato de importes de finanzas: la regla es "decimales SOLO si el importe
-// los tiene". Antes se redondeaba a euros y un gasto de 12,50 € se veía como
-// 13 €, que descuadraba las cuentas a ojo.
-//
-// Ojo con el espacio: Intl en es-ES separa la cifra del € con un espacio
-// IRROMPIBLE (U+00A0), no con uno normal, así que las comparaciones lo usan.
+// Formato de importes: decimales solo si el importe los tiene. Intl en es-ES separa
+// con espacio irrompible (U+00A0); las comparaciones lo usan.
 import { describe, expect, it } from 'vitest'
 import { eur, eurEntero, num, redondearCentimos, tieneCentimos } from '@/lib/euros'
 

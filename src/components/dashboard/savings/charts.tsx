@@ -1,11 +1,7 @@
 'use client'
 
-// Gráficas del sistema de ahorro, ahora sobre Chart.js (componentes portados
-// del proyecto de Inversiones, en components/ui/charts). Antes eran SVG a mano:
-// la versión anterior está en el historial de git si hiciera falta volver.
-//
-// Los colores salen de los tokens del tema, resueltos a color real dentro de
-// `comun.ts` — canvas no entiende `var(--primary)`.
+// Gráficas del ahorro sobre Chart.js (componentes de `ui/charts`). Los colores
+// salen de los tokens resueltos en `comun.ts`: canvas no entiende `var(--primary)`.
 import type { MonthRow } from '@/lib/finance'
 import { MESES, mesCorto, mesInicial } from '@/lib/fechas'
 import { GraficaBarras } from '@/components/ui/charts/barras'
@@ -18,12 +14,8 @@ import { coloresTema } from '@/components/ui/charts/comun'
 const eurCorto = (v: number) =>
   `${v.toLocaleString('es-ES', { maximumFractionDigits: 0, useGrouping: 'always' })} €`
 
-/**
- * Eje X de doce meses. Con `autoSkip` Chart.js solo pintaba seis (Ene, Mar,
- * May…); el SVG anterior enseñaba los doce, así que se fuerza a pintarlos todos
- * y por debajo de 420px se usa la INICIAL del mes, que es lo que cabe.
- * `this` es la escala: de ahí se saca el ancho real del lienzo.
- */
+/** Eje X de doce meses: se fuerza a pintarlos todos (autoSkip dejaba seis) y bajo
+ *  420 px se usa la inicial. `this` es la escala, de ahí el ancho del lienzo. */
 export const ejeMeses = {
   autoSkip: false,
   maxRotation: 0,

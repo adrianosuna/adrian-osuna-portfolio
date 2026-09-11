@@ -1,11 +1,5 @@
-// Manifiesto de la app instalable (PWA). Next lo sirve en /manifest.webmanifest
-// y añade solo el <link rel="manifest">. El sitio se puede "añadir a la pantalla
-// de inicio" y abrir a pantalla completa, entrando directo al dashboard.
-//
-// En iPhone/iPad, Safari IGNORA los iconos de aquí y usa el apple-touch-icon
-// (apple-icon.tsx) más los metadatos `appleWebApp` del layout raíz; el manifest
-// da la experiencia instalable en Android y escritorio. La marca y los colores
-// son los mismos de todo lo demás (`lib/marca.ts`, icon.svg, apple-icon.tsx).
+// Manifiesto PWA (/manifest.webmanifest). Safari en iOS ignora estos iconos y usa
+// el apple-touch-icon; el manifest da la instalación en Android y escritorio.
 import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
@@ -25,13 +19,8 @@ export default function manifest(): MetadataRoute.Manifest {
       // PNG de respaldo (el apple-icon, 180×180) para clientes sin soporte SVG.
       { src: '/apple-icon', type: 'image/png', sizes: '180x180' },
     ],
-    // Accesos directos del icono (menú contextual al mantenerlo pulsado).
-    //
-    // ⚠ Safari en iOS/iPadOS NO los implementa: en el iPhone el icono no abre
-    // menú. Se declaran igual porque son gratis, valen en Android y en
-    // escritorio (Chrome/Edge los ponen en la barra de tareas), y el día que
-    // Safari los soporte ya están. La alternativa en iPhone es añadir a la
-    // pantalla de inicio la URL concreta, que funciona desde hoy.
+    // Accesos directos del icono. Safari en iOS no los implementa; se declaran porque
+    // valen en Android y escritorio y no cuestan nada.
     shortcuts: [
       {
         name: 'Apuntar un gasto',

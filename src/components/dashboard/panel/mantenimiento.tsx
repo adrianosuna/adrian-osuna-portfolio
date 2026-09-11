@@ -1,11 +1,7 @@
 'use client'
 
-// Pestaña "Mantenimiento" del Panel de control: tareas recurrentes con su
-// periodicidad, separadas por ÁMBITO — servidor (revisar deps, backups,
-// dominio...), casa, vehículo (ITV, seguro, revisión) y los que se añadan: los
-// ámbitos son una tabla editable, no una lista fija. "Hecho" encadena el
-// siguiente vencimiento; el cron de la app avisa por correo de las vencidas
-// (diario a las 8:00, reaviso semanal).
+// Pestaña "Mantenimiento": tareas con vencimiento separadas por ámbito (tabla
+// editable). "Hecha" encadena el siguiente; el cron avisa por correo de las vencidas.
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -60,13 +56,8 @@ const fmt = (iso: string) => iso.split('-').reverse().join('/')
 const dias = (desde: string, hasta: string) =>
   Math.round((Date.parse(`${hasta}T00:00:00Z`) - Date.parse(`${desde}T00:00:00Z`)) / 86_400_000)
 
-/**
- * Periodicidad en una palabra: "cada 1 mes" no lo dice nadie.
- *
- * `null` es un **recordatorio puntual**: no se repite. Se nombra "Una vez"
- * y no "Sin periodicidad" porque lo que hay que entender de un vistazo en la
- * lista es que esa fila pasará una sola vez.
- */
+/** Periodicidad en una palabra. `null` es un recordatorio puntual y se nombra
+ *  "Una vez": lo que hay que entender de un vistazo es que pasa una sola vez. */
 export function periodicidad(meses: number | null): string {
   if (meses === null) return 'Una vez'
   const nombres: Record<number, string> = {
@@ -116,17 +107,8 @@ interface Borrador {
   title: string
   scopeUuid: string
   notes: string
-  /**
-   * ⚠ **`repite` va aparte de `intervalMonths` a propósito.** En la BD `null`
-   * significa "no se repite", pero en un campo de texto `null` es también
-   * "está vacío mientras escribo" — y con las dos cosas en la misma variable,
-   * seleccionar el contenido de «Cada (meses)» y borrarlo para escribir otro
-   * número hacía CUATRO cosas de golpe: el campo desaparecía bajo el cursor,
-   * «Repetición» saltaba a «Una vez», la etiqueta de la fecha cambiaba y el
-   * botón Crear seguía activo — se guardaba una puntual creyendo que era
-   * mensual. Aquí manda `repite`, y el número puede estar vacío sin significar
-   * nada; al guardar se compone el valor que espera la BD.
-   */
+  /** `repite` va aparte de `intervalMonths`: en la BD null es "no se repite" pero en
+   *  el campo también es "vacío mientras escribo". El valor se compone al guardar. */
   repite: boolean
   intervalMonths: number | null
   nextDue: string
@@ -224,22 +206,15 @@ export function MantenimientoTab({
       intervalMonths: borrador.repite ? borrador.intervalMonths : null,
       nextDue: borrador.nextDue,
     }
-    // ⚠ `pending` también: esto lo llama el Enter, y el botón está apagado
-    // mientras se guarda pero la tecla no — dos Enter seguidos crearían la
-    // tarea DOS veces.
+    // `pending` también: esto lo llama el Enter y la tecla no se apaga mientras se
+    // guarda; dos Enter seguidos crearían la tarea dos veces.
     if (pending || !borradorValido(borrador)) return
     if (modal === 'nueva') run(createMaintenance(datos), 'Tarea creada')
     else if (modal) run(updateMaintenance(modal, datos), 'Tarea actualizada')
   }
 
-  /**
-   * Las tareas que se pintan, filtradas por ámbito y **con las cumplidas al
-   * final**.
-   *
-   * ⚠ La consulta las trae por `nextDue` ascendente, y una puntual cumplida se
-   * queda con su fecha en el pasado a propósito — así que salía la PRIMERA de
-   * la lista, encima de lo urgente, con su chip apagado. Lo hecho se hunde.
-   */
+  /** Tareas filtradas por ámbito, con las cumplidas al final: la consulta ordena por
+   *  `nextDue` y una puntual cumplida salía la primera con su chip apagado. */
   const visibles = useMemo(() => {
     const base = filtro === 'todos' ? rows : rows.filter((t) => t.scopeUuid === (filtro === 'sin' ? null : filtro))
     return [...base].sort(
@@ -247,9 +222,8 @@ export function MantenimientoTab({
     )
   }, [rows, filtro])
 
-  // Solo los ámbitos EN USO llevan chip: uno recién creado y todavía vacío
-  // daba un filtro que no encontraba nada. Y si alguna tarea se quedó sin
-  // ámbito (el FK es SetNull), su chip aparece para poder llegar a ella.
+  // Solo los ámbitos en uso llevan chip (uno vacío daba un filtro sin resultados), y
+  // una tarea sin ámbito (FK SetNull) recibe el suyo para poder llegar a ella.
   const enUso = new Set(rows.map((t) => t.scopeUuid))
   const chipsAmbito = [
     { uuid: 'todos', name: 'Todos' },
@@ -324,15 +298,11 @@ export function MantenimientoTab({
         </button>
       </div>
 
-      {/* ⚠ El "no hay nada" es de la LISTA, no de la pestaña. Estuvo delante
-          del calendario y lo tapaba: sin tareas —o filtrando por un ámbito sin
-          ellas— desaparecía la rejilla entera, con sus cargos recurrentes y sus
-          seguimientos, que no tienen nada que ver con el filtro de ámbitos. Un
-          Panel recién estrenado no podía ni ver el calendario. */}
+      {/* El "no hay nada" es de la lista, no de la pestaña: delante del calendario lo
+          tapaba entero, con sus recurrentes y seguimientos. */}
       {vista === 'calendario' ? (
-        // El calendario de DÍAS con las tres fuentes. Solo las tareas se
-        // crean y editan aquí; un recurrente o un seguimiento llevan a su
-        // módulo, donde viven sus reglas (ver `panel/calendario.tsx`).
+        // Calendario de días con las tres fuentes. Solo las tareas se crean y editan aquí;
+        // recurrentes y seguimientos llevan a su módulo (ver `panel/calendario.tsx`).
         <Calendario
           hoy={hoy}
           tareas={visibles}
@@ -373,17 +343,14 @@ export function MantenimientoTab({
           )}
         </div>
       ) : (
-        // `ul`/`li` y no divs apilados: así un lector de pantalla anuncia
-        // cuántas tareas hay y se recorren como lista. Es una lista de tarjetas
-        // y no una tabla a propósito — la nota es texto de varias líneas.
+        // `ul`/`li` para que un lector anuncie cuántas tareas hay. Lista de tarjetas y no
+        // tabla: la nota es texto de varias líneas.
         <ul className="flex flex-col divide-y divide-border/60 rounded-xl border border-border bg-card">
           {visibles.map((t) => {
             const cumpl = cumplida(t)
             const estado = ESTADO_TAREA[chipDe(t, hoy)]
-            // El chip dice CUÁNDO (y el color, la urgencia): más útil que
-            // repetir "Vencida" y dejar la fecha para calcular a mano. La
-            // puntual cumplida es la excepción: ahí el "cuándo" del vencimiento
-            // ya no significa nada, lo que importa es que está hecha.
+            // El chip dice cuándo (y el color, la urgencia). En una puntual cumplida el
+            // vencimiento ya no significa nada: lo que importa es que está hecha.
             const chip = (
               <Tooltip
                 texto={
@@ -419,11 +386,8 @@ export function MantenimientoTab({
                       {t.lastDone && ` · ${antiguedad(t.lastDone, hoy)}`}
                     </span>
                   </p>
-                  {/* La nota ES la instrucción de la tarea: en móvil se muestra
-                      entera (con 2 líneas se perdía entre un tercio y la mitad
-                      del texto, sin forma de leerlo salvo editando). En
-                      escritorio caben en 1-2 líneas y el clamp queda de red por
-                      si alguna nota fuera larguísima. */}
+                  {/* La nota es la instrucción de la tarea: en móvil se muestra entera; en
+                      escritorio cabe en 1-2 líneas y el clamp queda de red. */}
                   {t.notes && (
                     <p className="mt-0.5 text-[12px] leading-snug text-muted-foreground max-sm:line-clamp-none sm:line-clamp-2">
                       {t.notes}
@@ -432,10 +396,8 @@ export function MantenimientoTab({
                 </div>
                 <span className="hidden shrink-0 sm:block">{chip}</span>
                 <span className="flex items-center justify-end gap-0.5 border-t border-border/60 pt-2 sm:border-0 sm:pt-0">
-                  {/* Una puntual YA cumplida no se vuelve a marcar: en su sitio
-                      va "Reabrir", que es lo que hace falta si el clic fue un
-                      error. En las que se repiten, marcar otra vez siempre
-                      tiene sentido (encadena el siguiente vencimiento). */}
+                  {/* Una puntual ya cumplida no se vuelve a marcar: en su sitio va "Reabrir". En
+                      las que se repiten, marcar otra vez encadena el siguiente vencimiento. */}
                   {cumpl ? (
                     <Tooltip
                       texto={`Hecha el ${fmt(t.lastDone!)}. Reabrir la deja pendiente otra vez para el ${fmt(t.nextDue)}`}
@@ -443,10 +405,8 @@ export function MantenimientoTab({
                       className="mr-auto sm:mr-0">
                       <button
                         type="button"
-                        // ⚠ `aria-label` y no solo el `<span>`: ese span es
-                        // `sm:hidden`, así que en ESCRITORIO el botón se
-                        // quedaba sin nombre accesible —el tooltip describe,
-                        // no nombra—. Era la acción principal de cada fila.
+                        // `aria-label` obligatorio: el `<span>` es `sm:hidden` y en escritorio el botón
+                        // quedaba sin nombre accesible (el tooltip describe, no nombra).
                         aria-label={`Reabrir ${t.title}`}
                         className={cn(btnIcon, 'mr-auto flex items-center gap-1 sm:mr-0')}
                         disabled={pending}
@@ -489,9 +449,8 @@ export function MantenimientoTab({
                       </button>
                     </Tooltip>
                   )}
-                  {/* "Hecha" se queda fuera: es LA acción de la tarjeta, y en
-                      móvil lleva su etiqueta. Lo secundario (editar, borrar)
-                      se recoge en el menú para que no compita con ella. */}
+                  {/* "Hecha" se queda fuera del menú: es la acción de la tarjeta y en móvil lleva
+                      etiqueta. Lo secundario va al menú para no competir con ella. */}
                   <MenuAcciones
                     etiqueta={t.title}
                     desde={2}
@@ -549,12 +508,8 @@ export function MantenimientoTab({
               </button>
             </>
           }>
-            {/* Enter guarda, y solo desde los dos campos de UNA línea (título y
-                meses). No desde las Notas —ahí el Enter es un salto de línea— y
-                no desde los selects ni la fecha, donde la tecla abre o elige
-                dentro de su popover. `guardar` lleva su propia guarda
-                (`borradorValido`), así que un Enter con el formulario a medias
-                no manda nada. */}
+            {/* Enter guarda solo desde los campos de una línea (título y meses): en Notas es
+                salto de línea y en selects y fecha abre su popover. `guardar` valida por sí mismo. */}
             <div className="flex flex-col gap-3">
               <Field label="Tarea *">
                 <TextField
@@ -575,10 +530,8 @@ export function MantenimientoTab({
                   options={opcionesAmbito}
                 />
               </Field>
-              {/* Repetición: "Una vez" es lo que convierte esta pantalla en un
-                  recordatorio suelto ("renovar el dominio") en vez de solo una
-                  tarea que caduca cada N meses. Con "Una vez" el campo de los
-                  meses desaparece: no hay periodicidad que pedir. */}
+              {/* "Una vez" convierte la tarea en un recordatorio suelto; con ella el campo de
+                  meses desaparece. */}
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Repetición *">
                   <SelectField
@@ -608,10 +561,8 @@ export function MantenimientoTab({
                 </Field>
               </div>
               {borrador.repite && (
-                // `w-28`: es una cifra de una a tres cifras, y a todo lo ancho
-                // del modal quedaba un campo enorme al lado del «Ámbito» de
-                // w-40. Los límites son los que valida el servidor (1-120), y
-                // el aviso sale AQUÍ en vez de esperar al error de guardado.
+                // `w-28`: es una cifra de hasta tres dígitos. Los límites (1-120) son los del
+                // servidor y el aviso sale aquí en vez de esperar al error de guardado.
                 <Field label="Cada (meses) *">
                   <NumberField
                     className="w-28"
@@ -649,13 +600,8 @@ export function MantenimientoTab({
   )
 }
 
-/**
- * Gestión de los ámbitos: crear, renombrar y borrar.
- *
- * En modal y no en una sección propia (como sí hicieron las categorías de
- * gastos) porque son cuatro o cinco, no diecinueve: no hacen falta buscador ni
- * filtros. Renombrar es seguro — las tareas apuntan por uuid, no por nombre.
- */
+/** Gestión de ámbitos: crear, renombrar y borrar. En modal y no en sección: son
+ *  cuatro o cinco. Renombrar es seguro, las tareas apuntan por uuid. */
 function AmbitosModal({ ambitos, onClose }: { ambitos: AmbitoRow[]; onClose: () => void }) {
   const [pending, startTransition] = useTransition()
   const [editando, setEditando] = useState<string | null>(null)
@@ -776,9 +722,8 @@ function AmbitosModal({ ambitos, onClose }: { ambitos: AmbitoRow[]; onClose: () 
                         )
                         return
                       }
-                      // Con confirmación, como el grupo de categorías vacío:
-                      // aquí no se pierde ninguna tarea, pero sí un nombre que
-                      // hay que volver a escribir, y era un clic sin red.
+                      // Con confirmación, como el grupo de categorías vacío: no se pierde ninguna
+                      // tarea, pero sí un nombre que hay que volver a escribir.
                       if (
                         await confirmar({
                           clave: 'borrar-ambito',

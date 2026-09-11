@@ -1,9 +1,5 @@
-# Verificación automática de cada push a main y de cada pull request.
-#
-# Dos jobs: `verificar` son las cuatro comprobaciones que hay que pasar antes
-# de dar algo por terminado (CLAUDE.md) más un `pnpm audit` informativo, y
-# `e2e` los tests de Playwright, que van aparte por lo que cuestan (navegador
-# + build de producción).
+# CI de cada push a main y pull request. Dos jobs: `verificar` (lint, tsc, test,
+# build y un audit informativo) y `e2e` (Playwright, aparte por lo que cuesta).
 name: CI
 
 on:
@@ -20,9 +16,8 @@ jobs:
   verificar:
     runs-on: ubuntu-latest
     env:
-      # El singleton de Prisma parsea DATABASE_URL al importar (src/lib/prisma.ts)
-      # y prisma.config.ts la lee: nada aquí conecta a una BD, pero la URL tiene
-      # que existir y tener formato válido. Mismo apaño que el Dockerfile.
+      # Prisma parsea DATABASE_URL al importar: nada conecta, pero la URL tiene que existir
+      # y ser válida. Mismo apaño que el Dockerfile.
       DATABASE_URL: mysql://ci:ci@localhost:3306/ci
       # Sin ella el build avisa de que la metadata apuntaría a localhost. El
       # aviso es correcto en producción y ruido aquí, así que se le da valor.
@@ -50,25 +45,21 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
-      # Aviso (no fallo) si hay dependencias con avisos de seguridad. No
-      # rompe el CI a propósito: un aviso publicado en una transitiva que no
-      # se puede subir todavía no debe bloquear un despliegue urgente. Sale en
-      # el resumen del job para que se vea sin buscarlo.
+      # Audit informativo, no rompe el CI. En bloque (`run: |`) porque el mensaje lleva
+      # «: » y en un escalar sin comillas YAML abre una clave: el workflow entero se invalida.
       - name: Auditoría de dependencias (informativa)
         if: always()
-        run: pnpm audit || echo "⚠ Hay avisos de seguridad: ver la salida" >> $GITHUB_STEP_SUMMARY
+        run: |
+          pnpm audit || echo "⚠ Hay avisos de seguridad: ver la salida" >> $GITHUB_STEP_SUMMARY
 
-  # Los e2e van en un job APARTE porque necesitan un navegador (~150 MB) y un
-  # build de producción: mezclarlos con las comprobaciones rápidas alargaría
-  # cada push. Si `verificar` falla, esto no llega a ejecutarse.
+  # Los e2e van aparte: necesitan navegador y build de producción. Si `verificar`
+  # falla, no se ejecutan.
   e2e:
     needs: verificar
     runs-on: ubuntu-latest
     env:
-      # No hay BD en el CI, y es a propósito: los e2e comprueban que sin
-      # sesión no se sirve nada y que la API rechaza sin token —cosas que no
-      # dependen de la BD—. Los endpoints que sí la necesitan aceptan el 503
-      # como respuesta válida (ver e2e/seguridad.spec.ts).
+      # Sin BD en el CI a propósito: los e2e comprueban lo que no depende de ella y los
+      # endpoints que sí la necesitan aceptan 503.
       DATABASE_URL: mysql://ci:ci@localhost:3306/ci
       NEXT_PUBLIC_SITE_URL: https://adrianosuna.com
       CI: "1"

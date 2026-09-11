@@ -1,6 +1,5 @@
-// Piezas visuales del inicio del dashboard: tarjeta de KPI, franja de avisos
-// ("requiere tu atención") y lista de actividad reciente. Sin estado: los
-// datos los prepara lib/inicio.ts y los pasa la página.
+// Piezas visuales del inicio: tarjeta KPI, franja de avisos y actividad reciente.
+// Sin estado: los datos los prepara lib/inicio.ts.
 import Link from 'next/link'
 import {
   AlertTriangle, ArrowRight, CheckCircle2, Clock, Mail, Phone, StickyNote, Users,
@@ -90,9 +89,7 @@ export function Atencion({ avisos }: { avisos: Aviso[] }) {
             )}>
             {a.gravedad === 'urgente' ? <AlertTriangle className="size-4.5" /> : <Clock className="size-4.5" />}
           </span>
-          {/* En móvil el hueco es de ~250px y el aviso se cortaba en su propio
-              título ("2 seguimientos del pipeline venci…"), que es justo lo
-              primero que hay que leer: ahí se reparte en dos líneas. */}
+          {/* En móvil el aviso se cortaba en su propio título: ahí va en dos líneas. */}
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold max-sm:line-clamp-2 sm:truncate">{a.texto}</p>
             {a.detalle && (

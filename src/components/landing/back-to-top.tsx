@@ -1,8 +1,7 @@
 'use client'
 
-// Botón "volver arriba": aparece tras ~600px de scroll, esquina inferior
-// derecha. El desplazamiento suave lo da el scroll-smooth global (que ya se
-// desactiva con reduced-motion).
+// Botón "volver arriba" tras ~600 px de scroll. El desplazamiento suave lo da el
+// scroll-smooth global.
 import { useEffect, useState } from 'react'
 import { ArrowUp } from 'lucide-react'
 import { cn } from '@/lib/utils'

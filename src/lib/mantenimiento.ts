@@ -1,7 +1,5 @@
-// Lógica del sistema de tareas de mantenimiento: el día de hoy en Madrid, el
-// estado de cada vencimiento, los ámbitos y el aviso por correo de las vencidas
-// que dispara el cron diario. La aritmética de meses vive en `fechas.ts`,
-// compartida con los recurrentes.
+// Lógica del mantenimiento: hoy en Madrid, estado de cada vencimiento, ámbitos y el
+// aviso por correo del cron. La aritmética de meses vive en `fechas.ts`.
 import 'server-only'
 import { prisma } from '@/lib/prisma'
 import { botonHtml, correoConfigurado, enviarCorreo, tarjetaHtml } from '@/lib/correo'
@@ -17,9 +15,8 @@ export const hoyMadrid = () =>
 
 const fmt = (iso: string) => iso.split('-').reverse().join('/')
 
-/** Aviso por correo de las tareas vencidas (lo dispara el cron diario a las
- *  8:00). Reaviso semanal mientras sigan pendientes, no diario: un correo al
- *  día sería spam propio. Devuelve cuántas tareas se avisaron. */
+/** Aviso por correo de las tareas vencidas (cron diario). Reaviso semanal, no
+ *  diario. Devuelve cuántas se avisaron. */
 export async function avisarVencidas(): Promise<number> {
   if (!correoConfigurado()) return 0
   const hoy = hoyMadrid()

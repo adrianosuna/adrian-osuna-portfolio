@@ -1,6 +1,5 @@
-// Pipeline de oportunidades (personal del administrador): kanban de ofertas,
-// encargos y contactos con su estado en el embudo, seguimientos con aviso por
-// correo, historial de actividad por tarjeta, métricas y vista de archivo.
+// Pipeline de oportunidades (solo admin): kanban, seguimientos con aviso por
+// correo, historial por tarjeta, métricas y archivo.
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
@@ -27,9 +26,8 @@ export default async function PipelinePage({
   if (!session?.user) redirect('/login')
   if (session.user.role !== 'ADMIN') redirect('/app')
 
-  // La vista y lo que hay abierto viven en la URL: así un enlace (o la paleta
-  // ⌘K, que busca por nombre) abre directamente el histórico o una ficha, y
-  // volver atrás devuelve a donde estabas.
+  // La vista y la ficha abierta viven en la URL: un enlace o la paleta ⌘K abren
+  // directamente, y atrás devuelve a donde estabas.
   const { vista: vistaParam, abrir, nueva } = await searchParams
   const vista: Vista =
     vistaParam === 'tabla' || vistaParam === 'historico' ? vistaParam : 'tablero'
@@ -43,10 +41,8 @@ export default async function PipelinePage({
       <p className="mb-5 mt-1 text-sm text-muted-foreground">
         Pipeline de ofertas, encargos y contactos: de la primera toma de contacto al cierre.
       </p>
-      {/* En Suspense: la consulta trae TODAS las oportunidades (las métricas
-          miran el histórico completo), así que el título y el subtítulo salen
-          antes en vez de esperarla. La `key` es la vista para que al cambiar de
-          pestaña salga el esqueleto en vez de congelarse la anterior. */}
+      {/* En Suspense: la consulta trae todas las oportunidades y el título sale antes.
+          La key es la vista para que al cambiar salga el esqueleto. */}
       <Suspense key={vista} fallback={<EsqueletoTablero />}>
         <Tablero vista={vista} abrir={abrir} nueva={nueva !== undefined} />
       </Suspense>

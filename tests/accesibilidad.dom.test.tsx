@@ -1,23 +1,6 @@
 // @vitest-environment jsdom
-// Auditoría de accesibilidad (axe-core) de las piezas COMPARTIDAS por todo lo
-// nuevo: el modal común (que usan la paleta ⌘K, el diálogo de confirmación y
-// todos los formularios), los campos de `fields.tsx` y las sub-pestañas.
-//
-// Se auditan los cimientos y no cada pantalla a propósito: un fallo de nombre
-// accesible o de rol está casi siempre en la pieza reutilizada, y probarla una
-// vez cubre las veinte pantallas que la montan.
-//
-// Por qué en jsdom y no en un navegador: las tres cuartas partes de estas
-// pantallas viven detrás de la sesión de Google, así que un axe por Playwright
-// solo alcanzaría la landing — justo lo que NO es nuevo. Aquí se monta el
-// componente y se le pasa axe al DOM real que produce.
-//
-// ⚠ `color-contrast` se DESACTIVA: jsdom no calcula estilos ni layout, así que
-// esa regla no puede evaluarse (devolvería "incomplete", no un aprobado). El
-// contraste de lo nuevo se midió a mano en el navegador —y ahí salió un fallo
-// real, el blanco sobre `--danger` (2,77:1), que se corrigió a texto oscuro—.
-// Lo que sí comprueba axe aquí es lo estructural: roles, nombres accesibles,
-// etiquetas de los campos, orden de encabezados y atributos ARIA válidos.
+// Auditoría axe de las piezas compartidas (modal, campos, sub-pestañas). En jsdom
+// porque el dashboard vive tras sesión; `color-contrast` se desactiva (sin layout).
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { auditar } from './axe'
@@ -113,10 +96,8 @@ describe('axe: campos sueltos', () => {
   })
 })
 
-// El calendario es la rejilla más densa del dashboard: 35 botones con nombre
-// accesible propio, una cabecera de siete días y un panel de detalle. Un axe
-// aquí es lo que habría cazado antes el `aria-label` en un `div` sin rol —que
-// no existe para un lector— y el h3 saltándose el h2.
+// El calendario es la rejilla más densa: 35 botones con nombre, cabecera de siete
+// días y panel de detalle.
 describe('axe: calendario', () => {
   const props = {
     hoy: '2026-09-05',

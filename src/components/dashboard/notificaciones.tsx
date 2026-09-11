@@ -1,20 +1,7 @@
 'use client'
 
-// Centro de notificaciones de la barra superior: los mismos avisos accionables
-// que la franja "Requiere tu atención" del inicio (seguimientos vencidos,
-// mantenimiento, meses de ahorro sin rellenar), pero visibles desde CUALQUIER
-// página del dashboard.
-//
-// Por qué existe: el cron ya avisa por correo, pero el correo se lee fuera de
-// la app y a las 8:00; si entras a media tarde no hay nada que te lo recuerde.
-// Los avisos se calculan en el servidor (`avisosPendientes`) y llegan como
-// prop: no hay tabla de notificaciones porque no hay nada que guardar — un
-// aviso es una CONSULTA sobre el estado actual, no un registro. Si la tarea se
-// hace, el aviso desaparece solo.
-//
-// Lo "leído" sí es del dispositivo (localStorage): se recuerda la HUELLA del
-// aviso (clave + texto), así que si el aviso cambia —de 2 seguimientos a 3—
-// vuelve a contar como nuevo, que es lo que uno querría.
+// Campana de la barra superior: los mismos avisos de la franja del inicio, en toda
+// página. Son una consulta, no un registro; lo "leído" va en localStorage por huella.
 import { useState } from 'react'
 import Link from 'next/link'
 import { Bell, Check, TriangleAlert } from 'lucide-react'
@@ -37,12 +24,8 @@ export function Notificaciones({ avisos }: { avisos: Aviso[] }) {
   const marcarTodos = () => setVistos(avisos.map(huella))
 
   return (
-    // `max-sm:static`: en móvil el contenedor DEJA de ser el bloque de
-    // referencia, así que el panel se posiciona respecto a la barra superior
-    // (que es sticky) y puede ocupar el ancho de la pantalla. Anclado a la
-    // campana se salía 117px por la izquierda: la campana no está en el borde
-    // derecho —detrás van buscar, "+" y la hamburguesa— y un panel de 320px
-    // colgado de ella no cabe en 375.
+    // `max-sm:static`: en móvil el panel se posiciona respecto a la barra superior y
+    // ocupa el ancho; anclado a la campana se salía 117 px por la izquierda.
     <div className="relative max-sm:static">
       <button
         type="button"

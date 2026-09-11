@@ -1,9 +1,5 @@
-// Presentación de las categorías con grupos (`lib/categorias.ts`): la lista que
-// se ofrece al apuntar un movimiento y la etiqueta con la que se lee.
-//
-// Es un solo sitio y lo comparten TRES desplegables (alta y edición de la
-// tabla de gastos, acciones rápidas y recurrentes) más la lista de Ajustes y
-// el correo de los topes, así que lo que se afirme aquí vale para todos.
+// Presentación de las categorías con grupos (`lib/categorias.ts`): lo que se ofrece
+// al apuntar y la etiqueta. Lo comparten tres desplegables, Ajustes y el correo.
 import { describe, expect, it } from 'vitest'
 import { arbolDeCategoria, esGrupo, etiquetaCategoria, opcionesDeCategoria } from '@/lib/categorias'
 

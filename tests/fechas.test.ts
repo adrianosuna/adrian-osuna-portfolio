@@ -1,6 +1,4 @@
-// Nombres de meses y días: una sola fuente (antes había diez copias con cinco
-// nombres distintos y dos capitalizaciones). Las abreviaturas se DERIVAN de la
-// lista larga, así que no pueden desincronizarse.
+// Nombres de meses y días: una sola fuente; las abreviaturas se derivan.
 import { describe, expect, it } from 'vitest'
 import { DIAS, MESES, diaCorto, mesCorto, mesInicial, nombreMes } from '@/lib/fechas'
 

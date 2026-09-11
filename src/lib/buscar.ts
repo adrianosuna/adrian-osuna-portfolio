@@ -1,9 +1,5 @@
-// Forma de los resultados de la búsqueda global (la de la paleta ⌘K).
-//
-// Vive aparte de `app/app/buscar-actions.ts` porque ese fichero es `'use server'`
-// y un módulo de server actions **solo puede exportar funciones async**: un tipo
-// o una constante ahí dejan al módulo sin exports para el cliente (y el build
-// falla al importarlos). Sin `server-only`: lo usan la action y la paleta.
+// Tipos de la búsqueda global. Aparte de `buscar-actions.ts` porque un módulo
+// 'use server' solo puede exportar funciones async. Sin `server-only`.
 
 /** Menos de esto no se consulta: con una letra sobran coincidencias. */
 export const MINIMO_BUSQUEDA = 2

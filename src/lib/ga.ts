@@ -1,14 +1,5 @@
-// Visitas del sitio vía Google Analytics Data API (GA4), para la pestaña
-// "Visitas" del Panel de control. Autenticación de service account con JWT
-// firmado a mano (node:crypto) — sin SDK de Google, en línea con el proyecto.
-// Los informes van agrupados con batchRunReports (máx. 5 por lote): la API
-// limita a 10 peticiones concurrentes por propiedad.
-//
-// Requiere tres variables de entorno (ver .env.production.example):
-//   GA_PROPERTY_ID      id numérico de la propiedad GA4 (no el G-XXXX)
-//   GA_SA_CLIENT_EMAIL  correo de la service account
-//   GA_SA_PRIVATE_KEY   clave privada del JSON, con \n escapados
-// La service account debe tener acceso de Lector en la propiedad GA4.
+// Visitas vía GA4 Data API con service account (JWT firmado con node:crypto, sin
+// SDK). Informes en batchRunReports. Requiere GA_PROPERTY_ID, GA_SA_CLIENT_EMAIL y GA_SA_PRIVATE_KEY.
 import 'server-only'
 import crypto from 'node:crypto'
 import { log } from '@/lib/log'
@@ -19,13 +10,8 @@ export interface Fila {
   valor: number
 }
 
-/**
- * Fila de ranking que además trae su valor del periodo anterior.
- *
- * La usa el ranking de páginas: el total de visitas ya se compara arriba, pero
- * lo que dice qué está funcionando es qué PÁGINA ha subido — un total plano
- * puede esconder que la home baja y un caso de estudio sube.
- */
+/** Fila de ranking con su valor del periodo anterior: lo que dice qué funciona es
+ *  qué página ha subido, no el total. */
 export interface FilaComparada extends Fila {
   /** Mismo dato en el periodo anterior del mismo tamaño (0 si no aparecía). */
   previo: number
@@ -213,15 +199,8 @@ const filas = (rows: FilaInforme[], mapa?: Record<string, string>): Fila[] =>
     return { etiqueta: mapa?.[bruto] ?? bruto, valor: num(f, 0) }
   })
 
-/**
- * Agrupa las filas de un informe con DOS rangos de fechas en una fila por
- * etiqueta, con su valor actual y el del periodo anterior.
- *
- * Con dos `dateRanges`, la API añade una dimensión implícita al final
- * (`date_range_0` = actual, `date_range_1` = previo), así que cada etiqueta
- * llega repartida en dos filas. Se ordena por lo ACTUAL y se recorta aquí:
- * ordenar en la API mezclaría los dos periodos.
- */
+/** Agrupa un informe con dos rangos de fechas en una fila por etiqueta. La API añade
+ *  la dimensión implícita date_range_N; se ordena por lo actual y se recorta aquí. */
 const filasComparadas = (
   rows: FilaInforme[],
   tope: number,
@@ -256,9 +235,8 @@ export async function visitantesAhora(): Promise<number | null> {
   }
 }
 
-/** Pulso de visitas para el inicio del dashboard: usuarios de los últimos 7
- *  días y de los 7 anteriores, en UN solo informe (el snapshot completo del
- *  panel lanza doce: aquí solo hace falta la cifra y su tendencia). */
+/** Pulso de visitas para el inicio: usuarios de los últimos 7 días y los 7
+ *  anteriores, en un solo informe. */
 let cachePulso: { ts: number; datos: { usuarios: number; previos: number } | null } | null = null
 
 export async function pulsoVisitas(): Promise<{ usuarios: number; previos: number } | null> {
@@ -307,9 +285,8 @@ export async function snapshotVisitas(dias: RangoDias = 30): Promise<VisitasSnap
   try {
     const token = await tokenAcceso(cfg.email, cfg.key)
     const rango = [{ startDate: `${dias - 1}daysAgo`, endDate: 'today' }]
-    // Dos rangos en la misma petición: la API añade la dimensión implícita
-    // dateRange (date_range_0 = actual, date_range_1 = el periodo previo del
-    // mismo tamaño, para la tendencia).
+    // Dos rangos en la misma petición: la API añade la dimensión implícita dateRange
+    // (date_range_0 actual, date_range_1 previo).
     const rangos = [...rango, { startDate: `${2 * dias - 1}daysAgo`, endDate: `${dias}daysAgo` }]
     const porValor = (metrica: string) => [{ metric: { metricName: metrica }, desc: true }]
 
@@ -355,16 +332,13 @@ export async function snapshotVisitas(dias: RangoDias = 30): Promise<VisitasSnap
       ]),
       lote(cfg.propertyId, token, [
         {
-          // DOS rangos: cada página vuelve con su cifra actual y la del periodo
-          // anterior (la API añade la dimensión implícita dateRange, así que
-          // cada ruta sale dos veces). El límite se sube en consecuencia y el
-          // orden y el recorte a 8 se hacen ya en casa, sobre lo actual.
+          // Dos rangos: cada página vuelve dos veces (dimensión dateRange). El límite se sube
+          // y el orden y el recorte a 8 se hacen aquí, sobre lo actual.
           dateRanges: rangos,
           dimensions: [{ name: 'pagePath' }],
           metrics: [{ name: 'screenPageViews' }],
-          // Fuera las rutas internas: la navegación SPA landing → dashboard
-          // mantiene vivo el script de GA y la medición mejorada registraba
-          // /app/* y /login (visitas propias, además ya filtradas por IP).
+          // Fuera las rutas internas: la navegación SPA mantiene vivo GA y registraba /app/*
+          // y /login.
           dimensionFilter: {
             notExpression: {
               orGroup: {

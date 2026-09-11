@@ -1,13 +1,5 @@
-// Saneado del HTML de las notas (solo servidor). Las notas se editan en un
-// editor visual (contentEditable) y se guardan como HTML; este saneador es el
-// punto donde ese HTML pasa a ser de fiar, ANTES de guardarlo. Se hace en el
-// servidor (no en el cliente, que se puede saltar) con `sanitize-html`, no a
-// mano: escribir un saneador de HTML propio es justo lo que no se debe hacer.
-//
-// Sin esto, guardar HTML crudo y pintarlo con dangerouslySetInnerHTML sería el
-// agujero de XSS que la auditoría del 28/08 señaló. Con la allowlist, lo que se
-// guarda ya no puede traer <script>, manejadores on*, ni `javascript:` en un
-// enlace. (El módulo es solo del admin, pero el saneado no depende de eso.)
+// Saneado del HTML de las notas en el servidor con `sanitize-html`: es el punto
+// donde el HTML pasa a ser de fiar antes de guardarse.
 import 'server-only'
 import sanitizeHtml from 'sanitize-html'
 
@@ -25,10 +17,8 @@ const OPCIONES: sanitizeHtml.IOptions = {
   ],
   allowedAttributes: {
     a: ['href', 'target', 'rel'],
-    // Checklists: la lista se marca con class="tareas" y cada ítem lleva su
-    // estado en data-check. Se permiten SOLO esos dos, y `allowedClasses`
-    // (abajo) limita la clase a ese único valor: nada de `class` libre, que
-    // sería un vector para colarse en los estilos de la aplicación.
+    // Checklists: `class="tareas"` en la lista y `data-check` en el ítem. Solo esos
+    // dos; `allowedClasses` limita la clase a ese valor.
     ul: ['class'],
     li: ['data-check'],
   },
@@ -56,11 +46,8 @@ export function sanitizarNota(html: string): string {
   return sanitizeHtml(html, OPCIONES)
 }
 
-// ─────────── checklists ───────────
-// Un ítem marcable es un `<li data-check="0|1">` dentro de un `<ul class="tareas">`.
-// Se manipulan por su POSICIÓN en el documento (el índice que ve el cliente),
-// no por id: el editor no genera ids y añadir unos solo para esto obligaría a
-// mantenerlos únicos al copiar y pegar.
+// Checklists: `<li data-check="0|1">` dentro de `<ul class="tareas">`. Se manipulan
+// por posición, no por id: el editor no genera ids.
 
 /** Los `data-check` de una nota, en orden de documento. */
 export function tareasDe(html: string): boolean[] {
@@ -73,14 +60,8 @@ export function progresoTareas(html: string): { hechas: number; total: number } 
   return { hechas: t.filter(Boolean).length, total: t.length }
 }
 
-/**
- * Alterna el ítem `indice` de una checklist y devuelve el HTML resultante
- * (null si ese índice no existe: la nota cambió entre pintar y pulsar).
- *
- * Reescribe SOLO el atributo, sin volver a parsear el documento: el HTML
- * guardado ya está saneado, y una reescritura completa podría alterar formato
- * que no tiene nada que ver con la tarea que se marca.
- */
+/** Alterna el ítem `indice` de una checklist (null si no existe). Reescribe solo el
+ *  atributo, sin volver a parsear el documento ya saneado. */
 export function alternarTarea(html: string, indice: number): string | null {
   if (!Number.isInteger(indice) || indice < 0) return null
   let visto = -1

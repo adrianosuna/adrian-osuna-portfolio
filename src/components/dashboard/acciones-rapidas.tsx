@@ -1,17 +1,7 @@
 'use client'
 
-// Acciones rápidas GLOBALES del dashboard, disponibles desde cualquier página:
-//
-//   · Paleta de comandos (⌘K / Ctrl+K): navegar, lanzar acciones y BUSCAR en
-//     todo (movimientos, oportunidades y notas) sin salir del teclado.
-//   · Alta rápida de movimiento: apuntar un gasto/ingreso sin ir a Finanzas —
-//     la fricción de registrarlo es lo que hace que se deje de registrar.
-//   · Atajos globales: `g` + letra para saltar de módulo, `n` para apuntar un
-//     movimiento, `/` para la paleta y `?` para ver la lista.
-//
-// Todo cuelga del layout (envuelve top-nav y contenido) y se dispara desde los
-// botones de la barra superior (`useAcciones`) o el teclado. Personales del
-// admin: a un invitado la paleta solo le ofrece Inicio y el portfolio.
+// Acciones rápidas globales: paleta ⌘K (navegar, buscar), alta rápida de
+// movimiento y atajos (`g`+letra, `n`, `/`, `?`). Personales del admin.
 import {
   createContext, useCallback, useContext, useEffect, useRef, useState, useTransition,
 } from 'react'
@@ -201,10 +191,8 @@ interface Comando {
   run: () => void
 }
 
-/**
- * Interpreta un mes escrito a mano: '2026-03', 'marzo', 'marzo 2026', 'mar'.
- * Devuelve 'YYYY-MM' o null. Sin año, el del "hoy" que se le pase.
- */
+/** Interpreta un mes escrito a mano ('2026-03', 'marzo', 'marzo 2026', 'mar').
+ *  Devuelve 'YYYY-MM' o null; sin año, el del `hoy` que se le pase. */
 export function mesEscrito(texto: string, hoyIso: string): string | null {
   const t = sinAcentos(texto.trim())
   if (!t) return null
@@ -236,9 +224,8 @@ function PaletaComandos({
   const router = useRouter()
   const iniciar = useCarga()
   const [q, setQ] = useState('')
-  // Resultados de la búsqueda global, con la consulta a la que corresponden
-  // (así "buscando" se DERIVA en vez de vivir en otro estado, que obligaría a
-  // un setState síncrono dentro del efecto).
+  // Resultados con la consulta a la que corresponden: "buscando" se deriva en vez de
+  // vivir en otro estado.
   const [resultados, setResultados] = useState<{ q: string; datos: ResultadoGlobal } | null>(null)
   const listaRef = useRef<HTMLDivElement>(null)
 
@@ -358,9 +345,8 @@ function PaletaComandos({
       ?.scrollIntoView({ block: 'nearest' })
   }, [idx])
 
-  // Escape a nivel de documento: el `onKeyDown` del campo solo cierra mientras
-  // el foco siga ahí, y en cuanto se pulsa un resultado con el ratón deja de
-  // estar. En captura, para adelantarse a cualquier otro manejador.
+  // Escape a nivel de documento, en captura: el onKeyDown del campo deja de valer en
+  // cuanto el foco sale al pulsar un resultado.
   useEffect(() => {
     const onEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {

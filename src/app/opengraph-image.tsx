@@ -1,6 +1,4 @@
-// Tarjeta OpenGraph (1200×630) al compartir el portfolio. Minimalista: la
-// marca, el nombre con su punto teal, el rol y la URL discreta al pie,
-// centrado sobre el fondo oscuro de la paleta pública.
+// Tarjeta OpenGraph (1200×630): marca, nombre, rol y URL sobre el fondo oscuro.
 import { ImageResponse } from 'next/og'
 import { MARCA_ALTO, MARCA_ANCHO, MARCA_D, MARCA_TINTA } from '@/lib/marca'
 
@@ -8,9 +6,8 @@ export const alt = 'Adrián Osuna — Desarrollador Web Full-Stack'
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
 
-// La fuente por defecto de next/og solo trae el peso regular (los fontWeight
-// se ignoran): se carga Inter en el build. Si no hay red, se degrada a la
-// fuente por defecto en vez de romper el build.
+// La fuente por defecto de next/og solo trae el peso regular: se carga Inter en el
+// build, y sin red se degrada en vez de romper.
 async function fuente(peso: 400 | 500 | 800): Promise<ArrayBuffer | null> {
   try {
     const res = await fetch(`https://unpkg.com/@fontsource/inter@5.1.0/files/inter-latin-${peso}-normal.woff`)

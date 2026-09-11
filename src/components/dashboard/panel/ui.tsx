@@ -100,9 +100,8 @@ export function CheckCard({
   )
 }
 
-// Barra superior común: hora de la instantánea + refresco del server component
-// (router.refresh vuelve a ejecutar las comprobaciones de la pestaña activa).
-// `children` se pinta a la izquierda (controles extra de la pestaña).
+// Barra superior común: hora de la instantánea y refresco del server component.
+// `children` se pinta a la izquierda.
 export function Refrescar({ generadoEn, children }: { generadoEn: string; children?: React.ReactNode }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()

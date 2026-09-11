@@ -1,7 +1,5 @@
-// Parsers de la capa de GA (src/lib/ga.ts) contra una Data API simulada:
-// andamiaje de la serie (la API omite los días a cero), comparativa por
-// dateRange, transposición del mapa horario (GA empieza en domingo; aquí,
-// lunes), traducciones y tolerancia a fallos del tiempo real.
+// Parsers de GA contra una Data API simulada: andamiaje de la serie, comparativa por
+// dateRange, transposición del mapa horario y traducciones.
 import crypto from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,10 +14,8 @@ const fila = (dims: string[], mets: number[]) => ({
   metricValues: mets.map((v) => ({ value: String(v) })),
 })
 
-// Día de la serie en el formato de GA (YYYYMMDD), RELATIVO a hoy y en el mismo
-// horario que usa ga.ts. Con fechas fijas el test caducaba: la serie son los
-// `dias` últimos días HASTA HOY, así que un día escrito a mano se sale de la
-// ventana en cuanto pasa el tiempo (y el andamiaje lo rellenaba a cero).
+// Día en formato GA (YYYYMMDD) relativo a hoy: con fechas fijas el test caducaba al
+// salirse de la ventana.
 const diaGA = (atras: number) =>
   new Date(Date.now() - atras * 86_400_000)
     .toLocaleDateString('en-CA', { timeZone: 'Europe/Madrid' })
@@ -42,9 +38,8 @@ function respuestaLote(cuerpo: { requests: Array<{ dimensions?: Array<{ name: st
     }
   }
   if (primera === 'pagePath') {
-    // Lote 2: páginas, países, ciudades, dispositivos, navegadores.
-    // Las páginas piden DOS rangos, así que cada ruta vuelve dos veces con la
-    // dimensión implícita del rango: actual (date_range_0) y previo (_1).
+    // Lote 2: páginas, países, ciudades, dispositivos, navegadores. Las páginas piden dos
+    // rangos: cada ruta vuelve dos veces (date_range_0 actual, _1 previo).
     return {
       reports: [
         {

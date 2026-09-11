@@ -1,28 +1,7 @@
 'use client'
 
-// Tooltip propio para sustituir al `title` nativo del navegador, que sale gris,
-// tarde y con la tipografía del sistema — y en el dashboard había decenas:
-// los iconos de acción de cada fila, los puntos de color de categoría, las
-// fechas de vencimiento, los textos recortados...
-//
-// Mismo aspecto que el tooltip de las gráficas (`ui/charts/tooltip.ts`): son
-// dos piezas distintas a propósito —aquel construye HTML con filas y colores y
-// lo inyecta; este es React puro con un texto—, pero se tienen que ver igual.
-//
-// Cómo se usa: envuelve UN elemento y le engancha los eventos con
-// `cloneElement`, así el DOM no cambia (nada de spans extra que rompan un
-// `truncate` o una fila flex). El hijo tiene que ser un elemento del DOM o un
-// componente que reenvíe `onMouseEnter`/`onMouseLeave`/`onFocus`/`onBlur`.
-//
-// ⚠ Un botón `disabled` NO recibe eventos de ratón (Chrome se los traga, y el
-// padre tampoco los ve). Para esos, `envuelto`: el tooltip pone un `span`
-// alrededor que sí los recibe y deja al hijo con `pointer-events-none`. Es lo
-// que usa `MenuAcciones` para explicar POR QUÉ una acción está apagada.
-//
-// Accesibilidad: se abre también con el foco (teclado), se cierra con Escape y
-// mientras está visible el hijo lo referencia con `aria-describedby`. El
-// nombre accesible sigue siendo el `aria-label` del hijo: el tooltip describe,
-// no nombra.
+// Tooltip propio en lugar del `title` nativo. Envuelve un elemento con `cloneElement`
+// (el DOM no cambia); `envuelto` para botones disabled, que no reciben el ratón.
 import {
   Children, cloneElement, isValidElement, useCallback, useEffect, useId, useLayoutEffect, useRef,
   useState, type ReactElement, type ReactNode,
@@ -33,13 +12,8 @@ import { cn } from '@/lib/utils'
 /** Espera antes de abrir al pasar el ratón: al enfocar con el teclado, ninguna. */
 const RETARDO_MS = 350
 
-/**
- * Solo UN tooltip visible a la vez, con un registro de módulo.
- *
- * ⚠ Sin esto salen dos globos a la vez en un caso muy real: el ratón sobre un
- * icono y Tab al siguiente. El primero no recibe `mouseleave` —el ratón no se
- * ha movido— así que se queda abierto mientras el foco abre el otro.
- */
+/** Solo un tooltip visible a la vez: con ratón sobre un icono y Tab al siguiente,
+ *  el primero no recibe mouseleave y se quedaba abierto. */
 let cerrarActivo: (() => void) | null = null
 const registrar = (cerrar: () => void) => {
   if (cerrarActivo && cerrarActivo !== cerrar) cerrarActivo()
@@ -128,13 +102,8 @@ export function Tooltip({
     onMouseLeave: cerrar,
     onFocus: (e) => abrir(e.currentTarget as HTMLElement, true),
     onBlur: cerrar,
-    // ⚠ Al PULSAR se cierra. Si no, el botón se queda con el foco tras el
-    // clic y el globo permanece colgado en pantalla aunque el ratón ya se
-    // haya ido — que es exactamente lo que parece un fallo.
-    //
-    // Salvo `envuelto`: ahí el hijo está APAGADO, el clic no hace nada y el
-    // tooltip es justo la explicación de por qué. Quitarla al pulsarlo sería
-    // esconder la respuesta a la pregunta que se acaba de hacer.
+    // Al pulsar se cierra: el botón conserva el foco tras el clic y el globo quedaba
+    // colgado. Salvo `envuelto`: el hijo está apagado y el tooltip es la explicación.
     ...(envuelto ? {} : { onPointerDown: cerrar }),
   }
 
@@ -180,9 +149,7 @@ export function Tooltip({
       cerrar()
     },
   }
-  // `react-hooks/refs` marca este cloneElement como "leer un ref en el render"
-  // porque el hijo es un elemento arbitrario que PODRÍA traer uno. Aquí no se
-  // lee ningún `.current`: solo se añaden manejadores y aria-describedby.
+  // Sin lectura de `.current`: solo se añaden manejadores al hijo clonado.
   // eslint-disable-next-line react-hooks/refs
   const clon = cloneElement(hijo, extra)
 
@@ -194,11 +161,8 @@ export function Tooltip({
   )
 }
 
-/**
- * El globo, en un portal con `position: fixed`: nunca lo recorta una tabla
- * con overflow ni el cuerpo de un modal. Centrado sobre el ancla; si arriba
- * no cabe, debajo; y siempre dentro del viewport.
- */
+/** El globo, en un portal con `position: fixed`: no lo recorta ningún overflow.
+ *  Centrado sobre el ancla, debajo si arriba no cabe, siempre en el viewport. */
 function Globo({ id, ancla, texto }: {
   id: string
   ancla: React.RefObject<HTMLElement | null>

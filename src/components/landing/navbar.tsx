@@ -1,8 +1,7 @@
 'use client'
 
-// Barra de navegación de la landing: ancho completo, transparente sobre el
-// hero y con fondo oscuro + blur + borde al hacer scroll (o al abrir el menú).
-// En móvil, el menú se despliega como panel flotante bajo la barra.
+// Barra de navegación de la landing: transparente sobre el hero, con fondo y blur al
+// hacer scroll. En móvil, menú en panel flotante.
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Menu, X } from 'lucide-react'

@@ -1,16 +1,7 @@
 'use client'
 
-// Base compartida de las gráficas de Chart.js — portada de los utilitarios de
-// gráficas del proyecto de Inversiones, con tres cambios obligados aquí:
-//
-//  1. Registro SELECTIVO de Chart.js en vez de `chart.js/auto`: auto registra
-//     todos los controllers y escalas (~200 KB) y aquí solo hacen falta barras,
-//     línea, donut y dos escalas.
-//  2. Los colores salen de los tokens del tema, no de una paleta fija: canvas
-//     no entiende `var(--primary)`, así que se leen del DOM con
-//     getComputedStyle una vez y se pasan resueltos.
-//  3. Tooltip en oscuro (el original es blanco con texto #1a2332) y con las
-//     variables del tema, para que no cante sobre el fondo del dashboard.
+// Base compartida de las gráficas: registro selectivo de Chart.js (auto pesa
+// ~200 KB), colores resueltos desde los tokens (canvas no entiende var()) y tooltip oscuro.
 import { filaTooltip, marcoTooltip, mostrarTooltip, ocultarTooltip } from './tooltip'
 import {
   ArcElement,
@@ -46,13 +37,8 @@ export const token = (nombre: string, respaldo = '#10b981') => {
   return v || respaldo
 }
 
-/**
- * Resuelve un color que puede venir como `var(--token)` al color real.
- *
- * Imprescindible con canvas: los consumidores pasan colores como
- * `var(--primary)` (en SVG funcionaban tal cual) y Chart.js los pintaría en
- * NEGRO. Acepta el respaldo del propio var() — `var(--x, #fff)`.
- */
+/** Resuelve un `var(--token)` al color real: canvas lo pintaría en negro. Acepta
+ *  el respaldo del propio var(). */
 export const resolverColor = (color: string, respaldo = '#94a3b8'): string => {
   const c = color.trim()
   if (!c.startsWith('var(') || !c.endsWith(')')) return color
@@ -92,24 +78,15 @@ export interface FilaExtra {
   color?: string
 }
 
-/**
- * Filas de tooltip que NO son series del gráfico (p. ej. las vistas de página
- * junto a los usuarios).
- *
- * ⚠ Van en un WeakMap y NO dentro de `options`: Chart.js trata cualquier
- * función que encuentre en las opciones como "scriptable option", la invoca
- * para resolver un valor y revienta ("Cannot convert object to primitive").
- * El WeakMap además libera solo cuando el chart se destruye.
- */
+/** Filas de tooltip que no son series. En un WeakMap y no en `options`: Chart.js
+ *  invoca cualquier función de las opciones como "scriptable option" y revienta. */
 const extras = new WeakMap<object, (indice: number) => FilaExtra[]>()
 
 export const registrarFilasExtra = (chart: object, fn: (indice: number) => FilaExtra[]) =>
   extras.set(chart, fn)
 
-/**
- * Tooltip de Chart.js: traduce sus datos a las filas del tooltip COMPARTIDO
- * (ui/charts/tooltip.ts), el mismo que usa el mapa de calor de visitas.
- */
+/** Tooltip de Chart.js traducido a las filas del tooltip compartido
+ *  (ui/charts/tooltip.ts), el mismo del mapa de calor. */
 const tooltipExterno = (ctx: {
   chart: Chart
   tooltip: TooltipModel<'bar' | 'line' | 'doughnut'>

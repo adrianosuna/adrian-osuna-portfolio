@@ -1,9 +1,5 @@
-// Página que sirve el service worker cuando no hay red y se intenta navegar.
-//
-// No intenta ser la app en frío: el dashboard son datos del servidor y sin red
-// no hay datos que enseñar. Lo que evita es el dinosaurio del navegador (o el
-// error en blanco de una PWA instalada, que es peor porque no parece una web),
-// y ofrece el único botón útil: volver a intentarlo.
+// Página que sirve el service worker sin red. No intenta ser la app: evita el
+// error en blanco y ofrece volver a intentarlo.
 import type { Metadata } from 'next'
 import { WifiOff } from 'lucide-react'
 import { ReintentarOffline } from '@/components/dashboard/reintentar-offline'

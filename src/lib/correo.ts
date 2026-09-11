@@ -1,17 +1,5 @@
-// Envío de correo (solo servidor): avisos del sistema de mantenimiento.
-// SMTP genérico por variables de entorno (con Gmail: smtp.gmail.com:465 y una
-// contraseña de aplicación). Sin configurar, todo queda inactivo sin romper.
-// Todos los envíos pasan por la plantilla de la casa: fondo claro (los clientes
-// de correo castigan los fondos oscuros), esmeralda de acento, la marca y
-// footer común — el contenido de cada correo solo aporta su cuerpo.
-//
-// ⚠ La marca va como IMAGEN ALOJADA (`/img/logo-correo.png`) y no en línea: un
-// correo no puede llevar un SVG (la mitad de los clientes lo tiran) ni el
-// trazo de `lib/marca.ts`. Ese PNG lleva el fondo claro de la plantilla
-// COCIDO, no transparencia: el modo oscuro de los clientes de correo no
-// invierte las imágenes, así que una tinta oscura sobre transparente se
-// volvería invisible justo ahí. Y con `alt`, quien tenga las imágenes
-// bloqueadas —que es lo normal en Outlook— lee «Adrián Osuna» en su lugar.
+// Envío de correo (solo servidor) por SMTP; sin configurar, inactivo. Plantilla
+// clara con la marca como PNG alojado (fondo cocido por el modo oscuro) y con `alt`.
 import 'server-only'
 import nodemailer from 'nodemailer'
 import { SITE_URL } from '@/lib/site'
@@ -36,9 +24,8 @@ const C = {
 
 const FUENTE = "-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
 
-/** Envuelve el cuerpo de un correo en la plantilla de la casa (email-safe:
- *  tablas y estilos inline — Gmail elimina los <style>). Exportada para tests
- *  y para previsualizarla. */
+/** Envuelve el cuerpo en la plantilla de la casa (tablas y estilos inline: Gmail
+ *  elimina los <style>). Exportada para tests y previsualización. */
 export function plantilla(titulo: string, contenido: string): string {
   return `<!DOCTYPE html>
 <html lang="es">
@@ -98,9 +85,8 @@ export function botonHtml(texto: string, url: string): string {
   </table>`
 }
 
-/** Envía un correo al ALERT_EMAIL con la plantilla de la casa.
- *  `contenido` es el cuerpo interior (párrafos, tarjetas, botón...).
- *  Lanza si el SMTP falla (el llamador decide). */
+/** Envía un correo al ALERT_EMAIL con la plantilla. `contenido` es el cuerpo
+ *  interior. Lanza si el SMTP falla. */
 export async function enviarCorreo(asunto: string, contenido: string): Promise<void> {
   if (!correoConfigurado()) throw new Error('SMTP sin configurar')
   const puerto = Number(process.env.SMTP_PORT || 465)

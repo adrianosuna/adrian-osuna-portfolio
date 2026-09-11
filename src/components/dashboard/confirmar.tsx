@@ -1,21 +1,7 @@
 'use client'
 
-// Confirmaciones destructivas del dashboard, en un solo sitio y con memoria.
-//
-// Antes cada lista se montaba su propio confirmador de dos pasos (un estado
-// `confirmando` + un botón "Sí" que sustituía al icono), con una copia por
-// componente y aspecto ligeramente distinto en cada uno. Aquí se pide con UNA
-// llamada que devuelve una promesa:
-//
-//   if (!(await confirmar({ clave: 'borrar-categoria', titulo, texto }))) return
-//
-// Y con `clave`, el diálogo ofrece **"No volver a preguntar"**: quien ya sabe lo
-// que hace deja de ver el aviso de esa acción concreta. Se guarda por
-// dispositivo (localStorage), y se puede restablecer desde el menú de perfil —
-// silenciar algo sin forma de recuperarlo es una trampa.
-//
-// Lo que NO usa esto: los borrados con **deshacer** (movimientos, notas y
-// oportunidades), que no preguntan nada porque se pueden devolver.
+// Confirmaciones destructivas en un diálogo con promesa. Con `clave` ofrece "No
+// volver a preguntar" (localStorage, restablecible). Los borrados con deshacer no lo usan.
 import { createContext, useCallback, useContext, useState } from 'react'
 import { Modal } from '@/components/ui/modal'
 import { cn } from '@/lib/utils'
@@ -33,11 +19,8 @@ export interface Peticion {
   etiqueta?: string
   /** Rojo (borrado) o neutro (una acción que solo conviene revisar). */
   peligro?: boolean
-  /**
-   * Identificador de ESTA clase de acción. Con él aparece "No volver a
-   * preguntar"; sin él, el aviso siempre sale (para lo verdaderamente grave,
-   * como borrar un año entero de ahorro).
-   */
+  /** Identificador de esta clase de acción: con él aparece "No volver a preguntar";
+   *  sin él el aviso siempre sale. */
   clave?: string
 }
 

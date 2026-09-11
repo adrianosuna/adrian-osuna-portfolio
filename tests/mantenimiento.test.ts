@@ -1,12 +1,8 @@
-// Sistema de mantenimiento: el encadenado de vencimientos al completar (con
-// recorte a fin de mes), la clasificación vencida/próxima/al día, los textos en
-// lenguaje natural de la lista (periodicidad y relativos) y los ÁMBITOS, que
-// son una tabla editable: su alta/renombrado/borrado y la validación de que la
-// tarea apunta a uno que existe.
+// Mantenimiento: encadenado de vencimientos, clasificación, textos de la lista y
+// ámbitos (tabla editable).
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-// El tope de peticiones vive en memoria y es COMPARTIDO por todo el proceso:
-// sin reiniciarlo, un fichero de tests con muchas actions agotaría la ventana
-// y los siguientes fallarían por algo que no están probando.
+// El tope de peticiones vive en memoria del proceso: sin reiniciarlo, un fichero con
+// muchas actions agotaría la ventana.
 import { reiniciarLimites } from '@/lib/rate-limit'
 import { sumarMeses } from '@/lib/fechas'
 import { cumplida, pendientes } from '@/lib/tareas'
@@ -68,10 +64,8 @@ describe('estadoDe', () => {
   })
 })
 
-// ⚠ El caso que estaba roto en TODAS las superficies (lista, avisos del inicio,
-// calendario y correo del cron): una tarea PUNTUAL marcada como hecha no mueve
-// su `nextDue` a propósito, así que sin este predicado seguía "vencida" para
-// siempre y el cron reavisaba cada semana sin forma de callarlo.
+// Una puntual marcada como hecha no mueve su `nextDue`: sin `cumplida` seguía
+// vencida en todas las superficies y el cron reavisaba cada semana.
 describe('cumplida: la puntual ya hecha no vuelve', () => {
   it('solo está cumplida si es puntual Y tiene lastDone', () => {
     expect(cumplida({ intervalMonths: null, lastDone: '2026-08-01' })).toBe(true)
@@ -269,9 +263,8 @@ describe('createMaintenance y updateMaintenance', () => {
     expect(data.lastNotified).toBeNull()
   })
 
-  // El caso natural: «renovar el dominio» hecho, y al año siguiente le pongo la
-  // fecha nueva en vez de crearlo otra vez. Sin esto se quedaba apagado como
-  // «Hecha» para siempre — fuera del calendario y sin avisar.
+  // «Renovar el dominio» hecho y al año siguiente con fecha nueva: sin esto quedaba
+  // apagado para siempre.
   it('cambiarle la FECHA a una puntual cumplida la vuelve a poner pendiente', async () => {
     prismaMock.maintenanceTask.findUnique.mockResolvedValue({
       uuid: 't1', intervalMonths: null, lastDone: new Date('2026-03-02T00:00:00Z'),
@@ -304,9 +297,8 @@ describe('createMaintenance y updateMaintenance', () => {
   })
 })
 
-// «Hecha» es un clic sin confirmación, y en una PUNTUAL era una puerta de una
-// sola dirección: la tarea se apagaba en la lista, salía del calendario y del
-// correo, y la única salida era borrarla y volver a escribirla.
+// «Hecha» en una puntual era una puerta de una sola dirección: la única salida era
+// borrarla y volver a escribirla.
 describe('reopenMaintenance: deshacer el «hecha» de una puntual', () => {
   beforeEach(() => {
     vi.clearAllMocks()

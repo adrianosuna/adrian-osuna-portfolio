@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
-// Contador animado de la franja de cifras: el servidor pinta el valor final
-// (SEO/sin-JS), la animación arranca al entrar en pantalla y termina en el
-// valor exacto, y con prefers-reduced-motion no se anima.
+// Contador animado: el servidor pinta el valor final, la animación termina en el
+// valor exacto y con prefers-reduced-motion no se anima.
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { Contador } from '@/components/landing/contador'

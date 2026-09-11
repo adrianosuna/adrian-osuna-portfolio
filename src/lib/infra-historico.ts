@@ -1,16 +1,5 @@
-// Histórico del monitor de infraestructura (solo servidor).
-//
-// `infra.ts` MIDE: dice cómo está el servidor en el instante de la petición.
-// Este módulo GUARDA una muestra al día (la apunta el cron de las 8:00) y la
-// lee de vuelta como serie, que es lo que contesta las preguntas que un dato
-// puntual no puede: ¿el disco se está llenando o lleva meses igual? ¿la BD
-// crece más rápido desde que hay recurrentes? ¿el certificado se renovó solo?
-//
-// Una muestra al día a propósito: el valor está en la tendencia de meses. Un
-// muestreo por minuto sería una base de datos de series temporales, y eso es
-// otro problema (y otra herramienta).
-// El TIPO de la muestra y los cálculos puros viven en `infra-series.ts` (sin
-// `server-only`): los comparten este módulo y las tarjetas del cliente.
+// Histórico del monitor (solo servidor): una muestra al día, apuntada por el cron,
+// leída como serie. El tipo y los cálculos puros viven en `infra-series.ts`.
 import 'server-only'
 import { prisma } from '@/lib/prisma'
 import { snapshotInfra, snapshotServidor } from '@/lib/infra'
@@ -27,13 +16,8 @@ export const DIAS_HISTORICO = 90
 const ent = (v: number | null | undefined) =>
   v === null || v === undefined || !Number.isFinite(v) ? null : Math.round(v)
 
-/**
- * Mide y guarda la muestra de hoy (una fila por día: si el cron repite, la
- * reescribe). No lanza nunca: es trabajo de fondo y una muestra perdida no
- * puede tumbar la pasada del cron.
- *
- * Devuelve `true` si la guardó.
- */
+/** Mide y guarda la muestra de hoy (una fila por día). No lanza nunca: una muestra
+ *  perdida no puede tumbar el cron. Devuelve `true` si la guardó. */
 export async function guardarMuestraInfra(hoyIso = hoyMadrid()): Promise<boolean> {
   try {
     const [infra, maquina] = await Promise.all([snapshotInfra(), snapshotServidor()])

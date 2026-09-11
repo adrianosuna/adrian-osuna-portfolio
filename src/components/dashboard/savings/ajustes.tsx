@@ -1,14 +1,7 @@
 'use client'
 
-// Sección "Ajustes" de Finanzas (`?s=ajustes`): TODA la configuración del
-// módulo, un bloque por cosa — CATEGORÍAS (con su tope), RECURRENTES y AÑOS de
-// ahorro.
-//
-// Antes cada una vivía en un modal dentro de su vista, con scroll y sin sitio:
-// con 19 categorías había que buscar a ojo. Ahora las LISTAS son una sección de
-// verdad (buscador, filtros, fusión, usos) y lo que sí va en modal son los
-// FORMULARIOS —alta y edición, los mismos campos— porque son cinco o seis
-// campos que en una fila no se leen.
+// Sección "Ajustes" de Finanzas: categorías (con tope), recurrentes y años. Las
+// listas son la sección (buscador, filtros, fusión); los formularios van en modal.
 import { useState, useTransition } from 'react'
 import {
   CalendarRange, Check, ChevronDown, Copy, FileDown, FolderMinus, FolderTree, Merge, Pause, Pencil,
@@ -77,9 +70,8 @@ function Cabecera({ icono, titulo, resumen, busqueda, onBuscar, children }: {
         {titulo}
       </h2>
       <p className="text-[12.5px] text-muted-foreground">{resumen}</p>
-      {/* En móvil las tres piezas se APILAN (columna), no se reparten por
-          wrapping: buscador, filtros y botón de alta, cada uno en su fila y a
-          lo ancho. Compartiendo fila se pisaban entre ellas. */}
+      {/* En móvil las tres piezas se apilan en columna, a lo ancho: compartiendo fila
+          se pisaban. */}
       <div className="ml-auto flex items-center gap-2 max-sm:w-full max-sm:flex-col max-sm:items-stretch">
         {/* Sin icono de lupa dentro del campo: se montaba encima del
             placeholder, y "Buscar..." ya dice lo que hace. */}
@@ -130,11 +122,8 @@ function Filtros<T extends string>({ valor, onCambio, opciones, etiqueta }: {
 
 // ─────────── categorías ───────────
 
-// Gasto e ingreso son DOS listas independientes (un movimiento es de un tipo o
-// del otro, nunca de los dos), así que se enseñan como dos pestañas y no como
-// una lista con cabeceras de bloque: hubo dos versiones de esas cabeceras el
-// 05/09/2026 y ninguna separaba de verdad. La pestaña, además, es funcional:
-// fija el tipo al crear y decide qué filtros tienen sentido.
+// Gasto e ingreso son dos listas independientes, así que van en dos pestañas y no
+// con cabeceras. La pestaña fija el tipo al crear y decide los filtros.
 const TABS_CAT: Array<{ id: TipoMovimiento; label: string }> = [
   { id: 'GASTO', label: 'Gasto' },
   { id: 'INGRESO', label: 'Ingreso' },
@@ -174,12 +163,8 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
   const [abierto, setAbierto] = useState(false)
   const [editando, setEditando] = useState<CategoriaRow | null>(null)
   const [borrador, setBorrador] = useState<BorradorCat>(CAT_VACIA)
-  /**
-   * Grupos a los que se puede asignar lo que se está editando: los de su
-   * mismo tipo, y nada más. Sin filtros por uso, porque asignar una categoría
-   * con historial a un grupo no tiene ningún problema — se mueve la
-   * categoría, sus movimientos siguen colgando de ella.
-   */
+  /** Grupos a los que se puede asignar lo que se edita: los de su tipo. Asignar una
+   *  categoría con historial es seguro: se mueve ella, no sus movimientos. */
   const gruposPosibles = (b: BorradorCat) =>
     categorias.filter((c) => c.type === b.type && esGrupo(c))
 
@@ -220,9 +205,8 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
           </p>
         )}
         {grupo.map((c) => (
-          // Las categorías de un grupo van sangradas: la lista llega ya en
-          // orden de árbol (cada grupo seguido de las suyas, ver
-          // `listCategorias`).
+          // Las categorías de un grupo van sangradas: la lista llega en orden de árbol
+          // (`listCategorias`).
           <div
             key={c.uuid}
             className={cn('border-b border-border/60 py-2', c.parentUuid && 'pl-4 sm:pl-6')}>
@@ -246,10 +230,8 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
                 }
               />
             ) : (
-              // En móvil, DOS líneas fijas (nombre y tope arriba; usos y
-              // acciones abajo) en vez de dejar que el wrapping reparta cinco
-              // piezas: con `sm:contents` los envoltorios desaparecen en
-              // escritorio y todo vuelve a una sola fila.
+              // En móvil, dos líneas fijas (nombre y tope; usos y acciones). Con `sm:contents`
+              // los envoltorios desaparecen en escritorio y vuelve a una fila.
               <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
                 <div className="flex min-w-0 items-center gap-2 sm:contents">
                   {/* Un grupo lleva icono de carpeta en vez del punto de
@@ -259,9 +241,8 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
                   ) : (
                     <span className="inline-block size-3 shrink-0 rounded" style={{ background: c.color }} />
                   )}
-                  {/* Con el buscador puesto puede salir una categoría sin su
-                      grupo al lado, así que la ruta completa va en el tooltip
-                      (solo si tiene grupo: repetir el nombre no aporta). */}
+                  {/* Con el buscador puede salir una categoría sin su grupo al lado: la ruta va en
+                      el tooltip, solo si tiene grupo. */}
                   <Tooltip texto={c.parentName ? etiquetaCategoria(c) : undefined}>
                     <span className="min-w-0 flex-1 truncate text-sm font-semibold">{c.name}</span>
                   </Tooltip>
@@ -303,9 +284,8 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
                         },
                       },
                       {
-                        // Sacar de un grupo en un clic. Meter en uno se hace
-                        // desde el formulario, donde hay que ELEGIR cuál; esto
-                        // no tiene nada que elegir, así que no merece un modal.
+                        // Sacar de un grupo en un clic: no hay nada que elegir. Meter en uno va por el
+                        // formulario, donde sí se elige cuál.
                         id: 'desagrupar',
                         label: 'Sacar del grupo',
                         icon: <FolderMinus className="size-3.5" />,
@@ -332,9 +312,8 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
                         },
                       },
                       {
-                        // Una categoría en uso NO se borra: perder la
-                        // clasificación de todo su historial en un clic no es
-                        // una opción. Para quitarla de en medio está fusionar.
+                        // Una categoría en uso no se borra: perdería la clasificación de su historial.
+                        // Para quitarla de en medio está fusionar.
                         id: 'eliminar',
                         label: 'Eliminar',
                         icon: <Trash2 className="size-3.5" />,
@@ -375,9 +354,8 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
     )
   }
 
-  /** Alta de una categoría, o de un GRUPO si se pide (`isGroup`). Nace del
-   *  tipo de la pestaña activa: si estás en Ingreso, lo que creas es de
-   *  ingreso (el campo sigue ahí para cambiarlo). */
+  /** Alta de una categoría, o de un grupo si se pide (`isGroup`). Nace del tipo de
+   *  la pestaña activa; el campo sigue ahí para cambiarlo. */
   const abrirAlta = (isGroup = false) => {
     setBorrador({ ...CAT_VACIA, type: tipoActivo, isGroup })
     setEditando(null)
@@ -430,9 +408,8 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
         {tipoActivo === 'GASTO' && (
           <Filtros valor={filtro} onCambio={setFiltro} opciones={FILTROS_TOPE} etiqueta="Filtrar categorías de gasto" />
         )}
-        {/* Dos altas y no un desplegable con el tipo dentro: crear un grupo y
-            crear una categoría son dos gestos distintos, y el grupo es lo que
-            se crea PRIMERO cuando se va a ordenar la lista. */}
+        {/* Dos altas y no un desplegable con el tipo: crear un grupo y crear una categoría
+            son gestos distintos, y el grupo se crea primero. */}
         <button
           type="button"
           className={cn(btnOutline, 'px-2.5 py-1 text-[12.5px] max-sm:py-2')}
@@ -448,9 +425,8 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
       </Cabecera>
 
       <div className="px-5 pb-3 pt-4">
-        {/* Misma píldora que las secciones de Finanzas y el Panel de control
-            (clases de `sub-tabs`), pero con estado local: aquí no hay ruta que
-            navegar. Los grupos no cuentan en la cifra: son contenedores. */}
+        {/* Misma píldora que las secciones (`sub-tabs`), con estado local: no hay ruta
+            que navegar. Los grupos no cuentan en la cifra. */}
         <div className={cn(barraTabs, 'mb-3')} role="tablist" aria-label="Tipo de categoría">
           {TABS_CAT.map((t) => (
             <button
@@ -523,12 +499,8 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
                 />
               </Field>
             )}
-            {/* Toda categoría ofrece su grupo: es donde se elige y donde se
-                cambia. El campo NO se esconde cuando aún no hay ningún grupo
-                —sale apagado con su aviso—, porque escondiéndolo la opción no
-                se descubre: al editar parecía que agrupar no era posible.
-                Solo desaparece si lo que se edita ES un grupo, que no puede
-                entrar en otro. */}
+            {/* El campo de grupo se pinta siempre en una categoría, apagado con aviso si no
+                hay grupos: escondido, la opción no se descubría. Solo falta en un grupo. */}
             {!borrador.isGroup && !(editando && esGrupo(editando)) && (
               <div className="flex flex-col gap-1">
                 <Field label="Grupo">
@@ -573,9 +545,8 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
                     onChange={(v) => setBorrador((b) => ({ ...b, budget: v }))}
                   />
                 </Field>
-                {/* El tope de un grupo cuenta la suma de sus categorías, y eso
-                    hay que decirlo donde se pone. Fuera del <label> del campo
-                    para no alargar su nombre accesible. */}
+                {/* El tope de un grupo cuenta la suma de sus categorías. Fuera del <label> para
+                    no alargar el nombre accesible. */}
                 {(borrador.isGroup || (editando && esGrupo(editando))) && (
                   <p className="text-[12.5px] text-muted-foreground">
                     Cuenta la suma de las categorías del grupo.
@@ -680,11 +651,8 @@ const FILTROS_REC: Array<{ value: FiltroRec; label: string }> = [
   { value: 'pausados', label: 'En pausa' },
 ]
 
-/**
- * Campos de un recurrente, los mismos para el alta y la edición: seis campos
- * son demasiados para mantener dos copias, que es la forma segura de que
- * acaben distintas. Los botones los pone el pie del modal.
- */
+/** Campos de un recurrente, los mismos para alta y edición: seis campos son
+ *  demasiados para mantener dos copias. Los botones los pone el pie del modal. */
 function FormRecurrente({ valor, onChange, categorias, onGuardar }: {
   valor: BorradorRec
   onChange: (v: BorradorRec) => void
@@ -696,12 +664,8 @@ function FormRecurrente({ valor, onChange, categorias, onGuardar }: {
   // recurrente apunta un movimiento, así que necesita una hoja.
   const opcionesCat = arbolDeCategoria(categorias, valor.type)
 
-  // Periodicidad: si el intervalo es una de las comunes, el select la muestra;
-  // si no, se editan número + unidad. Que el panel esté abierto es estado
-  // PROPIO —sembrado del valor inicial al montar (el modal remonta este
-  // formulario en cada apertura)—, no derivado del intervalo: derivarlo hacía
-  // que teclear "18" colapsara el panel al pasar por "1" (un valor común).
-  // Solo el select lo cierra, al elegir una periodicidad común.
+  // Que el panel de periodicidad personalizada esté abierto es estado propio, no
+  // derivado del intervalo: derivarlo colapsaba el panel al teclear "18" pasando por "1".
   const [personalizado, setPersonalizado] = useState(!MESES_FIJOS.includes(valor.intervalMonths))
   // Los múltiplos de 12 se leen en años; el resto, en meses.
   const enAnios = valor.intervalMonths % 12 === 0
@@ -934,10 +898,8 @@ function PanelRecurrentes({ filas, categorias, hoy }: {
           const esGasto = r.type === 'GASTO'
           return (
             <div key={r.uuid} className="border-b border-border/60 py-2.5">
-              {/* Mismas dos líneas que en categorías: concepto e importe
-                  arriba, periodicidad y acciones abajo. En escritorio los
-                  envoltorios desaparecen (`sm:contents`) y el orden original
-                  lo recupera `sm:order-*`. */}
+              {/* Mismas dos líneas que en categorías: concepto e importe arriba, periodicidad y
+                  acciones abajo. En escritorio `sm:contents` y `sm:order-*` recuperan la fila. */}
               <div
                 className={cn(
                   'flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2',
@@ -981,9 +943,8 @@ function PanelRecurrentes({ filas, categorias, hoy }: {
                       />
                     </button>
                     </Tooltip>
-                    {/* El chevron se queda FUERA del menú: no es una acción,
-                        es un despliegue — y meter un "ver más" dentro de otro
-                        "ver más" son dos toques para lo mismo. */}
+                    {/* El chevron se queda fuera del menú: es un despliegue, no una acción, y un "ver
+                        más" dentro de otro son dos toques para lo mismo. */}
                     <MenuAcciones
                       etiqueta={r.concept}
                       acciones={[
@@ -1159,14 +1120,8 @@ interface BorradorAnio {
   goal: number | null
 }
 
-/**
- * Años del sistema de ahorro: crear, renombrar, cambiar el objetivo, exportar
- * a Excel y eliminar.
- *
- * Estaba en el modal «Gestionar años» de las pestañas de Ahorro. Se trajo aquí
- * el 28/08/2026 para que toda la configuración de Finanzas viva en un sitio;
- * las pestañas de Ahorro se quedan solo para navegar entre años.
- */
+/** Años del ahorro: crear, renombrar, objetivo, exportar a Excel y eliminar. Toda
+ *  la configuración de Finanzas vive aquí; las pestañas de Ahorro solo navegan. */
 function PanelAnios({ years }: { years: YearSummary[] }) {
   const [pending, startTransition] = useTransition()
   const confirmar = useConfirmar()
@@ -1223,15 +1178,11 @@ function PanelAnios({ years }: { years: YearSummary[] }) {
         icono={<CalendarRange className="size-4 text-primary" />}
         titulo="Años de ahorro"
         resumen={resumen}>
-        {/* Exportación GLOBAL, aparte de la de cada año que hay en su fila:
-            todo el módulo en un libro —resumen histórico, un año por hoja,
-            todos los movimientos, categorías y recurrentes—. Es el dato fuera
-            de la aplicación, en un formato que se abre sin ella; el backup de
-            la BD sirve para restaurar, esto para leer. */}
+        {/* Exportación global: todo el módulo en un libro, para leer el dato fuera de la
+            aplicación. El backup de la BD sirve para restaurar; esto, para leer. */}
         <Tooltip texto="Todo Finanzas en un Excel: resumen, cada año, movimientos, categorías y recurrentes">
-          {/* `<a download>` y no `<Link>`: esto es un route handler que
-              devuelve un fichero, no una página — igual que el enlace de cada
-              año. Con `Link` habría navegación de cliente y no descarga. */}
+          {/* `<a download>` y no `<Link>`: es un route handler que devuelve un fichero.
+              Con Link habría navegación de cliente y no descarga. */}
           <a
             href={`/app/finance/exportar?todo=${1}`}
             download
@@ -1269,9 +1220,8 @@ function PanelAnios({ years }: { years: YearSummary[] }) {
                   {mesesRellenos(y)}
                 </span>
                 <span className="flex shrink-0 items-center gap-0.5">
-                  {/* Descarga del Excel del año (route handler con guarda propia).
-                      `download`: es una descarga, no una navegación — así la barra
-                      de carga global no se dispara con este enlace. */}
+                  {/* Descarga del Excel del año (route handler con guarda propia). `download`: es
+                      una descarga y la barra de carga global no debe dispararse. */}
                   <Tooltip texto="Descargar Excel">
                     <a
                       className={btnIcon}

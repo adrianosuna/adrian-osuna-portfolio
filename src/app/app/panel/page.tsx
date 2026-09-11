@@ -1,8 +1,5 @@
-// Panel de control (solo administrador): todo lo del servidor en un sitio.
-// Tres pestañas por URL (?tab=): "Monitor" (salud del despliegue), "Servidor"
-// (estado en vivo de la máquina) y "Visitas" (GA4, con rango ?dias=). Cada
-// pestaña ejecuta solo sus mediciones, dentro de un Suspense: el cambio de
-// pestaña pinta al instante y los datos llegan en streaming.
+// Panel de control (solo admin), pestañas por URL (?tab=). Cada una ejecuta solo
+// sus mediciones dentro de un Suspense: el cambio pinta al instante.
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import Link from 'next/link'
@@ -59,10 +56,8 @@ async function Servidor() {
   return <ServidorTab infra={infra} maquina={maquina} historico={historico} />
 }
 
-// Purga oportunista de las sesiones que ya han pasado el tope absoluto, y
-// lectura de las vivas. El plazo NO se repite aquí: sale de
-// `sesion-caducidad.ts`, el mismo que aplica `auth.ts`.
-// Fuera del componente: trabajo impuro (reloj + BD).
+// Purga oportunista de sesiones caducadas y lectura de las vivas. El plazo sale de
+// `sesion-caducidad.ts`, el mismo de `auth.ts`. Fuera del componente: impuro.
 async function cargarSesiones() {
   await prisma.userSession.deleteMany({ where: { createTs: { lt: limiteAbsoluto() } } })
   const sesiones = await prisma.userSession.findMany({ orderBy: { lastSeen: 'desc' } })
@@ -92,9 +87,8 @@ async function Usuarios({
   meSessionUuid?: string
   sub: SubUsuarios
 }) {
-  // Se consulta SOLO lo de la sub-pestaña abierta (y las cuentas, que hacen
-  // falta en las tres para cruzar el usuario de cada fila). Antes se traían las
-  // tres cosas siempre para pintarlas juntas.
+  // Se consulta solo lo de la sub-pestaña abierta (y las cuentas, que hacen falta
+  // en las tres para cruzar el usuario de cada fila).
   const [users, sesionesData, accesosData, tokens] = await Promise.all([
     prisma.user.findMany({ orderBy: { id: 'asc' } }),
     sub === 'sesiones' ? cargarSesiones() : null,
@@ -172,9 +166,8 @@ async function Usuarios({
 }
 
 async function Mantenimiento({ vista }: { vista: VistaMant }) {
-  // El calendario reúne las TRES fuentes con fecha, así que los recurrentes y
-  // los seguimientos solo se piden en esa vista: en la lista no se usan y
-  // serían dos consultas de más en cada carga.
+  // Recurrentes y seguimientos solo se piden en la vista Calendario, que es la única
+  // que los usa.
   const conCalendario = vista === 'calendario'
   const [tareas, ambitos, recurrentes, seguimientos] = await Promise.all([
     prisma.maintenanceTask.findMany({ orderBy: { nextDue: 'asc' }, include: { scope: true } }),
@@ -310,9 +303,8 @@ export default async function PanelPage({
         Panel de control
       </h1>
 
-      {/* Móvil: las cinco pestañas no caben en 375px (ni compactas), y el scroll
-          o las dos filas no quedaban bien, así que va un desplegable. Desde sm,
-          las pestañas normales con su línea inferior. */}
+      {/* Móvil: las cinco pestañas no caben en 375 px, así que van en un desplegable.
+          Desde sm, pestañas normales. */}
       <div className="mb-5 sm:hidden">
         <PanelTabsMovil tabs={TABS} activa={activa} />
       </div>

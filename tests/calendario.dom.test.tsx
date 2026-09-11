@@ -1,8 +1,5 @@
 // @vitest-environment jsdom
-// Calendario de días: lo que hay que probar es la INTERACCIÓN, porque la
-// aritmética ya está cubierta en calendario.test.ts — pulsar un día vacío
-// crea con esa fecha, pulsar una tarea la edita, un recurrente enlaza a su
-// módulo, y los filtros nunca se apagan los tres.
+// Calendario de días: la interacción (la aritmética está en calendario.test.ts).
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { Calendario } from '@/components/dashboard/panel/calendario'
@@ -46,13 +43,8 @@ function montar(extra: Partial<Parameters<typeof Calendario>[0]> = {}) {
 const dia = (n: number) =>
   screen.getByRole('button', { name: new RegExp(`, ${n} de septiembre de 2026`) })
 
-/**
- * El panel de detalle del día.
- *
- * ⚠ Las consultas van acotadas AQUÍ y no a `screen`: el título de un evento
- * está también en su celda de la rejilla, y jsdom no aplica el `hidden` de
- * Tailwind — así que buscar por texto suelto encuentra dos.
- */
+/** El panel de detalle del día. Consultas acotadas aquí y no a `screen`: el título
+ *  está también en la celda y jsdom no aplica el `hidden` de Tailwind. */
 const detalle = () => within(screen.getByRole('list'))
 
 describe('Calendario', () => {
@@ -66,9 +58,8 @@ describe('Calendario', () => {
 
   it('la cabecera lleva el nombre completo del día y su abreviatura', () => {
     montar()
-    // Las dos versiones se pintan y el CSS decide cuál se VE según el ancho.
-    // ⚠ El nombre largo va en el DOM (con `sr-only` en móvil) y no en un
-    // `aria-label` del div: en un div sin rol, ese atributo no existe.
+    // Las dos versiones se pintan y el CSS decide. El nombre largo va en el DOM con
+    // `sr-only`, no en un `aria-label` del div, que en un div sin rol no existe.
     for (const d of ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']) {
       expect(screen.getByText(d)).toBeTruthy()
     }
@@ -146,9 +137,8 @@ describe('Calendario', () => {
   })
 })
 
-// ⚠ Las 35 celdas son botones: sin tabindex rotatorio, cruzar el calendario con
-// el tabulador eran 35 paradas. Solo una entra en el orden y desde ella se
-// navega con las flechas, como en cualquier rejilla de fechas.
+// Las 35 celdas son botones: con tabindex rotatorio solo una entra en el orden y
+// desde ella se navega con flechas.
 describe('Calendario: teclado', () => {
   const celda = (fecha: string) =>
     document.querySelector<HTMLButtonElement>(`[data-fecha="${fecha}"]`)!

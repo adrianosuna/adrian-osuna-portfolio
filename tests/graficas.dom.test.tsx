@@ -1,10 +1,6 @@
 // @vitest-environment jsdom
-// Las gráficas ahora son Chart.js sobre <canvas>, y jsdom no tiene contexto 2D:
-// no se puede medir el dibujo. Lo que sí se puede —y es lo que importa— es
-// comprobar el CONTRATO que cada gráfica le pasa a Chart.js: series, colores
-// del tema, unidad del tooltip, apilado y los callbacks de los ejes.
-//
-// Antes estos tests medían el `viewBox` del SVG a mano; con canvas no existe.
+// Gráficas Chart.js sobre canvas: jsdom no tiene contexto 2D, así que se comprueba
+// el contrato que cada gráfica pasa a Chart.js (series, colores, tooltip, ejes).
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 
@@ -126,9 +122,8 @@ describe('MovimientosPorMes (ingresos y gastos por mes)', () => {
 })
 
 describe('escape del tooltip (se inyecta con innerHTML)', () => {
-  // El tooltip es el único sitio que construye HTML a mano: un nombre de
-  // categoría con `<` no puede convertirse en marcado. El color NO se escapa
-  // (viene del código, va en un atributo style).
+  // El tooltip construye HTML a mano: un nombre con `<` no puede convertirse en
+  // marcado. El color no se escapa (viene del código).
   it('escapa el nombre y el valor de una fila', () => {
     const html = filaTooltip({ nombre: '<img src=x onerror=alert(1)>', valor: '3 & 4' })
     expect(html).not.toContain('<img')
@@ -218,9 +213,8 @@ describe('GraficaDonut', () => {
 
   it('la leyenda lleva importe y porcentaje por fila', () => {
     render(<GraficaDonut partes={partes} />)
-    // El importe y el porcentaje van en spans distintos de la misma fila:
-    // se comprueba sobre el texto de la fila completa (4.900 de 8.804 → 56 %,
-    // con el espacio irrompible que pone Intl).
+    // Importe y porcentaje van en spans distintos: se comprueba el texto de la fila
+    // completa, con el espacio irrompible de Intl.
     const fila = screen.getByText('Ahorro mensual').parentElement
     expect(fila?.textContent).toContain('4.900')
     expect(fila?.textContent).toContain(`56${String.fromCharCode(0x00a0)}%`)
@@ -233,10 +227,8 @@ describe('GraficaDonut', () => {
     expect(screen.getByText('Vacía')).toBeTruthy()
   })
 
-  // El desglose de un grupo se abre desde la LEYENDA y no solo desde el arco:
-  // el canvas dibuja su texto, así que un clic en el arco no existe para el
-  // teclado ni para un lector de pantalla (y en el móvil apuntar a un arco de
-  // 20 px con el pulgar no es una interfaz).
+  // El desglose se abre desde la leyenda, no solo desde el arco: el canvas dibuja su
+  // texto y el arco no existe para teclado ni lector.
   describe('porciones pulsables (desglose de un grupo)', () => {
     const conGrupo = [
       { id: 'coche', label: 'Coche', valor: 200, color: '#ef4444', pulsable: true },

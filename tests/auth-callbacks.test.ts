@@ -1,7 +1,5 @@
-// Callbacks de autenticación (la lógica de seguridad del sitio): allowlist con
-// correo verificado, reverificación del usuario en cada petición, registro de
-// sesiones (alta en login, cierre remoto al borrar la fila, freno de last_seen)
-// e invalidación de JWT antiguos sin registro.
+// Callbacks de autenticación: allowlist con correo verificado, reverificación por
+// petición, registro de sesiones e invalidación de JWT sin registro.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { prismaMock, headersMock } = vi.hoisted(() => ({
@@ -114,9 +112,8 @@ describe('callback jwt (reverificación + registro de sesiones)', () => {
   })
 
   it('cierra la sesión que se ha pasado de inactividad, y BORRA la fila', async () => {
-    // El segundo plazo (48 h por defecto): una sesión olvidada en un navegador
-    // ajeno se cierra sola aunque el JWT siga en plazo. La fila se borra, no
-    // solo se rechaza el token: si no, seguiría figurando como activa.
+    // Plazo de inactividad (48 h): la fila se borra, no solo se rechaza el token, o
+    // seguiría figurando como activa.
     const { HORAS_INACTIVIDAD } = await import('@/lib/sesion-caducidad')
     const pasada = new Date(Date.now() - (HORAS_INACTIVIDAD + 1) * 3_600_000)
     prismaMock.userSession.findUnique.mockResolvedValue({ uuid: 's-vieja', lastSeen: pasada })

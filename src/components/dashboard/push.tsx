@@ -1,16 +1,7 @@
 'use client'
 
-// Notificaciones push: registro del service worker y el interruptor para
-// activarlas en ESTE dispositivo.
-//
-// El service worker (`/public/sw.js`) hace dos cosas: servir la pantalla de
-// "sin conexión" cuando falla una navegación, y recibir las notificaciones. Se
-// registra siempre que se entra al dashboard, porque lo primero vale aunque no
-// se activen los avisos.
-//
-// ⚠ En iPhone, el push SOLO funciona con la app INSTALADA en la pantalla de
-// inicio (iOS 16.4+). En Safari a pelo el navegador ni ofrece el permiso, así
-// que el interruptor lo dice en vez de fallar sin explicación.
+// Push: registro del service worker (sirve la página sin conexión y recibe avisos) e
+// interruptor por dispositivo. En iPhone solo funciona con la app instalada (iOS 16.4+).
 import { useEffect, useState } from 'react'
 import { Bell, BellOff, BellRing, Send } from 'lucide-react'
 import { toast } from 'sonner'
@@ -31,13 +22,8 @@ export function RegistrarServiceWorker() {
   return null
 }
 
-/**
- * La clave VAPID viaja en base64url y `subscribe` la quiere en bytes.
- *
- * El buffer se crea explícitamente (`new ArrayBuffer`) para que el tipo sea
- * `Uint8Array<ArrayBuffer>`: `new Uint8Array(n)` da `ArrayBufferLike`, que
- * incluye `SharedArrayBuffer` y no encaja donde se espera un `BufferSource`.
- */
+/** Clave VAPID de base64url a bytes. `new ArrayBuffer` explícito para que el tipo
+ *  sea `Uint8Array<ArrayBuffer>` y encaje donde se espera un `BufferSource`. */
 function claveABytes(base64url: string): Uint8Array<ArrayBuffer> {
   const relleno = '='.repeat((4 - (base64url.length % 4)) % 4)
   const base64 = (base64url + relleno).replace(/-/g, '+').replace(/_/g, '/')

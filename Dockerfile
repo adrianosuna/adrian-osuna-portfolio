@@ -1,8 +1,6 @@
 # syntax=docker/dockerfile:1
-# Imagen de producción del portfolio (Next.js standalone).
-# Build:   docker compose --env-file .env.production build
-# Detalle: NEXT_PUBLIC_SITE_URL se hornea en el BUILD (landing, robots y
-#          sitemap son estáticos); el resto de variables son de runtime.
+# Imagen de producción (Next.js standalone). NEXT_PUBLIC_SITE_URL se hornea en el
+# build; el resto son variables de runtime.
 
 FROM node:24-alpine AS base
 RUN npm install -g pnpm@11.24.0

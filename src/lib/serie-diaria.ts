@@ -1,17 +1,5 @@
-// Serie temporal para las gráficas por día — portado del helper `dailyTrend`
-// del proyecto de Inversiones, con tres cambios:
-//
-//  · SIN dayjs: este proyecto no lo usa y no merece una dependencia más solo
-//    para sumar días; con Date en UTC no hay desfases de zona.
-//  · Devuelve las etiquetas ya formateadas (día corto para el eje, texto largo
-//    para el tooltip) y las marcas de mes, que es lo que consume la gráfica.
-//  · Devuelve los GRUPOS de índices de cada columna en vez de los valores: así
-//    quien la usa suma lo que quiera (usuarios, vistas…) sin que esta función
-//    sepa nada de la forma de sus datos.
-//
-// Lo que se conserva, que es lo valioso: el RELLENO DE HUECOS (los días sin
-// datos aparecen a cero en vez de saltarse), el eje de meses y la agrupación
-// por semana ISO (lunes) del original.
+// Serie temporal para las gráficas por día: rellena huecos, marca los meses y agrupa
+// por semana ISO en rangos largos. Devuelve grupos de índices, no valores.
 
 import { DIAS, MESES } from '@/lib/fechas'
 
@@ -46,10 +34,8 @@ export interface SerieDiaria {
   porSemana: boolean
 }
 
-/**
- * Construye la serie continua entre el primer y el último día con dato,
- * rellenando los huecos y agrupando por semana cuando el rango es largo.
- */
+/** Serie continua entre el primer y el último día con dato, con huecos rellenos y
+ *  agrupada por semana en rangos largos. */
 export function serieDiaria(
   puntos: Array<{ fecha: string }>,
   opciones: { agrupar?: 'auto' | 'dia' | 'semana' } = {},
@@ -110,15 +96,8 @@ export function serieDiaria(
   return { columnas, ejeX, largas, marcasMes: marcasDeMes(columnas), grupos, porSemana }
 }
 
-/**
- * Marca de mes en la primera columna de cada mes, con el año en la primera
- * visible y en cada cambio de año.
- *
- * El primer mes suele entrar PARCIAL (una serie que empieza el 30 de mayo
- * aporta 2 días de mayo), y entonces su marca cae pegada a la del mes siguiente
- * y se solapan. Si aporta menos de MIN_COLUMNAS, no se marca: el eje de fechas
- * ya dice el día, y el año pasa a la primera marca que sí se pinta.
- */
+/** Marca de mes en su primera columna, con el año en la primera y en cada cambio.
+ *  Un mes parcial con menos de MIN_COLUMNAS no se marca: se solaparía. */
 function marcasDeMes(columnas: string[]): Record<number, string> {
   const MIN_COLUMNAS = 3
 

@@ -1,16 +1,7 @@
 'use client'
 
-// Barra de sub-pestañas del dashboard: la píldora de fondo con los tabs dentro
-// que estrenó el módulo de finanzas (secciones Panel · Ahorro · Gastos ·
-// Ajustes) y ahora comparte la pestaña Usuarios del Panel de control.
-//
-// Vive aquí y no en `savings/finanzas-tabs.tsx` porque ya la usan dos módulos:
-// las clases estaban duplicadas en cuanto el segundo la copió, y es justo cómo
-// se separan dos barras que deberían verse igual.
-//
-// Solo NAVEGA (query param), como las de finanzas: son botones con
-// `router.push` en vez de `<a>`, así que disparan a mano la barra de carga
-// global (`useCarga`) — el feedback lo da esa barra, no un spinner por pestaña.
+// Barra de sub-pestañas compartida (Finanzas, Usuarios). Solo navega por query
+// param: botones con `router.push` que disparan la barra de carga (`useCarga`).
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useCarga } from '@/components/dashboard/barra-carga'

@@ -1,11 +1,7 @@
 'use client'
 
-// Vista "Gastos" de Finanzas, réplica del Excel "Control de gastos": cada
-// movimiento es un ingreso o un gasto. Dos sub-vistas — el MES (resumen,
-// lista con alta rápida, topes, recurrentes y los dos desgloses) y el AÑO (mes
-// a mes con balance y desgloses del año). Es una vista de CONSULTA y alta
-// rápida de MOVIMIENTOS: gestionar categorías, topes y recurrentes es cosa de
-// la sección Ajustes (`?s=ajustes`, ajustes.tsx), sin atajos desde aquí.
+// Vista "Gastos": movimientos del mes (resumen, alta rápida, topes, recurrentes,
+// desgloses) o del año. Consulta y alta; la gestión es cosa de Ajustes.
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { useCarga } from '@/components/dashboard/barra-carga'
@@ -51,13 +47,8 @@ import {
   type Columna,
 } from '@/components/ui/tabla'
 
-/**
- * Columnas de la lista de movimientos en MÓVIL y su plantilla de rejilla.
- *
- * Son cuatro y no cinco: la categoría no tiene columna propia porque en 375 px
- no cabe — su punto de color viaja pegado al concepto. La plantilla se comparte
- * entre la cabecera y las filas (ver `CabeceraMovil` en `ui/tabla.tsx`).
- */
+/** Columnas de la lista en móvil y su plantilla de rejilla, compartida con la
+ *  cabecera. Cuatro y no cinco: la categoría no cabe en 375 px, va como punto. */
 const PLANTILLA_MOV = 'grid-cols-[2.6rem_minmax(0,1fr)_auto_2.25rem]'
 const COLUMNAS_MOV_MOVIL: Columna[] = [
   { label: 'Fecha' },
@@ -136,15 +127,8 @@ function Comparativa({ actual, previo, gastoEsMalo }: {
   )
 }
 
-/**
- * Topes del mes: una barra por categoría con tope, de la más apurada a la que
- * más margen le queda.
- *
- * Va aquí y no arriba a propósito: el alta rápida de movimientos tiene que
- * quedar a mano en móvil, y esto se consulta, no se teclea. Cuando no hay
- * ningún tope la tarjeta sigue saliendo con la pista de dónde ponerlos — un
- * módulo invisible es un módulo que no se usa.
- */
+/** Topes del mes, de la más apurada a la que más margen tiene. Va aquí y no arriba:
+ *  el alta rápida debe quedar a mano en móvil. Sin topes sigue saliendo, con pista. */
 function Topes({ topes, mes }: { topes: TopeRow[]; mes: string }) {
   const resumen = resumenTopes(topes)
   const pctTotal = resumen.total > 0 ? (resumen.gastado / resumen.total) * 100 : 0
@@ -218,9 +202,8 @@ function BarraTope({ nombre, color, gastado, budget, pct, destacada }: {
 
   return (
     <div className={cn(destacada && 'border-b border-border/60 pb-3')}>
-      {/* En móvil el nombre solo tenía ~120px y se cortaba ("Transporte /
-          Gasoli…"): ahí ocupa su propia línea y las cifras bajan a la
-          siguiente, como en la lista de movimientos y en el modal. */}
+      {/* En móvil el nombre se cortaba: ahí ocupa su línea y las cifras bajan a la
+          siguiente. */}
       <div className="flex items-center gap-2 text-[13px] max-sm:flex-wrap">
         <span
           className="inline-block size-2.5 shrink-0 rounded-xs"
@@ -246,18 +229,8 @@ function BarraTope({ nombre, color, gastado, budget, pct, destacada }: {
   )
 }
 
-/**
- * Previsión de cierre: en qué va a acabar el mes si sigue así.
- *
- * Va DEBAJO de los KPI y no como un quinto KPI: los cuatro de arriba son
- * hechos ("llevas 1.398 €") y esto es una estimación, así que mezclarlos en la
- * misma rejilla las haría parecer la misma clase de dato. La barra compara lo
- * gastado con lo previsto, que es la lectura de un vistazo.
- *
- * Solo se pinta en el mes EN CURSO: en uno cerrado la previsión es el total
- * (no informa de nada) y en uno futuro solo se sabría lo recurrente, que ya
- * está en su propia tarjeta.
- */
+/** Previsión de cierre del mes. Debajo de los KPI y no como uno más: aquellos son
+ *  hechos y esto una estimación. Solo se pinta en el mes en curso. */
 function PrevisionCierre({ p, mes }: { p: Prevision; mes: string }) {
   if (p.estado !== 'en curso') return null
   const quedan = p.diasDelMes - p.diasTranscurridos
@@ -309,24 +282,8 @@ function PrevisionCierre({ p, mes }: { p: Prevision; mes: string }) {
   )
 }
 
-/**
- * Los recurrentes que CARGAN en el mes que se está viendo.
- *
- * ⚠ Antes salían los activos, todos, en cualquier mes: un seguro anual que se
- * paga en marzo figuraba en la tarjeta de septiembre con un "próximo 12/03"
- * que no dice nada del mes que se está mirando. Aquí solo entran los que
- * tienen cargo en ESE mes, de dos fuentes que se complementan:
- *
- *   · lo YA apuntado — un movimiento del mes con `recurringUuid`, que es la
- *     única verdad para un mes pasado;
- *   · lo PROYECTADO desde `nextDate` (`fechasEnMes`), que cubre el mes en
- *     curso y los futuros.
- *
- * La gestión sigue estando en Ajustes, y allí salen TODOS con su equivalente
- * mensual: son dos preguntas distintas ("qué cae este mes" y "cuánto tengo
- * comprometido al mes"), y por eso la cifra de esta cabecera es la del mes.
- * Los pausados no cuentan en ninguno de los dos sitios.
- */
+/** Recurrentes que cargan en el mes visto: lo ya apuntado (movimientos con
+ *  `recurringUuid`) más lo proyectado desde `nextDate`. Pausados no cuentan. */
 function Recurrentes({ filas, mes, hoy, movimientos, categorias }: {
   filas: RecurrenteRow[]
   mes: string
@@ -351,9 +308,8 @@ function Recurrentes({ filas, mes, hoy, movimientos, categorias }: {
     .filter((x) => x.fecha !== null)
     .sort((a, b) => a.fecha!.localeCompare(b.fecha!))
 
-  // La cifra de la cabecera es la de ESTE mes, no el equivalente mensual: la
-  // lista ya es del mes, y dos cifras que no cuadran en la misma tarjeta se
-  // leen como un error. El equivalente vive en Ajustes, sobre la lista entera.
+  // La cifra es la de este mes, no el equivalente mensual: la lista ya es del mes y
+  // dos cifras que no cuadran se leen como un error. El equivalente vive en Ajustes.
   const suma = (tipo: 'GASTO' | 'INGRESO') =>
     delMes.filter((x) => x.r.type === tipo).reduce((s, x) => s + x.r.amount, 0)
   const gastoMes = suma('GASTO')
@@ -383,9 +339,8 @@ function Recurrentes({ filas, mes, hoy, movimientos, categorias }: {
       </div>
 
       {delMes.length === 0 ? (
-        // Dos vacíos distintos: no tener ninguno es una invitación a crearlos;
-        // tenerlos y que ninguno caiga en este mes es un dato del mes, y decir
-        // "ningún recurrente" ahí sería mentir.
+        // Dos vacíos distintos: no tener ninguno invita a crearlos; tenerlos y que ninguno
+        // caiga este mes es un dato del mes.
         <p className="px-5 py-4 text-[13px] text-muted-foreground">
           {activos.length === 0
             ? 'Ningún recurrente. Da de alta el alquiler, las suscripciones o la nómina y se apuntarán solos el día que toque, sin teclearlos cada mes.'
@@ -439,14 +394,8 @@ function Recurrentes({ filas, mes, hoy, movimientos, categorias }: {
   )
 }
 
-/**
- * Desglose por categoría: donut + leyenda (el "en qué se va" del Excel).
- *
- * Las porciones son GRUPOS (ver `desglose` en `lib/gastos.ts`), y pulsar una
- * baja a sus subcategorías con vuelta atrás. Se hace aquí y no en
- * `GraficaDonut` porque el componente genérico no sabe qué es un grupo: solo
- * avisa de que una porción se ha activado.
- */
+/** Desglose por categoría: donut + leyenda. Las porciones son grupos y pulsar una
+ *  baja a sus subcategorías; `GraficaDonut` no sabe qué es un grupo. */
 function Desglose({ titulo, partes, centro, vacio }: {
   titulo: string
   partes: ParteCategoria[]
@@ -569,12 +518,8 @@ export function GastosTab({
   }
 
   /** Abre la edición en línea de un movimiento (botón o gesto de swipe). */
-  /**
-   * Acciones de una fila (editar, dividir, eliminar).
-   *
-   * Como el formulario: las usan la tabla de escritorio y la rejilla de
-   * móvil, así que se declaran una vez.
-   */
+  /** Acciones de una fila (editar, dividir, eliminar), declaradas una vez para la
+   *  tabla de escritorio y la rejilla de móvil. */
   const accionesDe = (m: MovimientoRow) => (
     <MenuAcciones
       className="shrink-0"
@@ -607,13 +552,8 @@ export function GastosTab({
     />
   )
 
-  /**
-   * Formulario de edición de una fila.
-   *
-   * Lo usan LAS DOS vistas —la tabla de escritorio y las filas con gesto de
-   * móvil—, así que vive aquí y no repetido en cada una: son seis campos y una
-   * segunda copia es la que se queda sin el campo que se añada mañana.
-   */
+  /** Formulario de edición de una fila, compartido por las dos vistas: son seis
+   *  campos y una segunda copia se queda sin el que se añada mañana. */
   const formularioEdicion = (m: MovimientoRow) => (
     <>
       <SelectField
@@ -725,11 +665,8 @@ export function GastosTab({
     )
   }
 
-  // Las categorías se ofrecen SEGÚN el tipo elegido (como el Excel, que tiene
-  // dos listas): a un ingreso no se le ofrece "Supermercado". Los grupos no
-  // entran y las subcategorías salen como "Coche › Taller" (ver
-  // `lib/categorias.ts`, que es de donde sale la misma lista en las tres
-  // pantallas que la ofrecen).
+  // Las categorías se ofrecen según el tipo elegido; los grupos no entran y las
+  // subcategorías salen como "Coche › Taller" (`lib/categorias.ts`).
   const opcionesCat = (tipo: TipoMovimiento) => arbolDeCategoria(categorias, tipo)
   const catDe = (uuid: string | null) => categorias.find((c) => c.uuid === uuid)
 
@@ -839,20 +776,8 @@ export function GastosTab({
             {/* El alta va FUERA de la tabla, entre la cabecera y las filas:
                 es un formulario, no un movimiento. */}
             <div className="pt-3">
-              {/* ALTA, arriba y pensada para el pulgar: en el móvil se apunta
-                  sobre la marcha, y bajar hasta el final de la lista para
-                  encontrar el formulario no vale.
-
-                  Es una REJILLA con etiquetas, no una fila de campos sueltos.
-                  La versión anterior (flex-wrap sin etiquetas, anchos a ojo)
-                  recortaba la fecha ("05/09/20…") y la categoría ("Sin
-                  categor…"), apretaba el importe y dejaba la nota sola en una
-                  línea entera junto a un "+" sin nombre. Con la rejilla cada
-                  columna tiene el ancho de su contenido más largo (una fecha
-                  completa, "Sin categoría"), la nota ocupa las cuatro primeras
-                  columnas y el botón, con su texto, cierra la segunda línea
-                  alineado con la categoría. En móvil, dos columnas: importe y
-                  fecha comparten fila y el resto va a lo ancho. */}
+              {/* Alta arriba y para el pulgar. Es una rejilla con etiquetas: cada columna con
+                  el ancho de su contenido más largo, la nota en cuatro columnas, el botón cierra. */}
               <div className="mb-1 grid grid-cols-2 gap-x-2 gap-y-2.5 border-b border-border px-4 pb-3 sm:grid-cols-[7rem_1fr_8rem_10rem_13rem]">
                 {/* Tipo: en móvil dos botones grandes (es binario, un select
                     sobra); en escritorio, el select con su etiqueta. */}
@@ -915,11 +840,8 @@ export function GastosTab({
                     opciones={opcionesCat(nuevo.type)}
                   />
                 </Field>
-                {/* Segunda línea: la nota ocupa las cuatro primeras columnas
-                    (se escribe en prosa, mismo criterio que la edición) y el
-                    botón la quinta, alineado abajo con el campo y CON su texto
-                    también en escritorio: un "+" suelto no dice qué añade. En
-                    móvil, cada uno a lo ancho. */}
+                {/* Segunda línea: la nota en las cuatro primeras columnas y el botón en la quinta,
+                    con su texto también en escritorio. En móvil, cada uno a lo ancho. */}
                 <Field label="Nota" className="col-span-2 min-w-0 sm:col-span-4">
                   <TextField
                     ariaLabel="Nota del movimiento"
@@ -940,10 +862,8 @@ export function GastosTab({
                 </button>
               </div>
 
-              {/* Las CELDAS se declaran una vez y las usan las dos vistas: la
-                  tabla de escritorio y las filas con gesto de móvil. Así el
-                  contenido no se duplica; lo único distinto es el envoltorio,
-                  porque un `<tr>` no se puede arrastrar con el dedo. */}
+              {/* Las celdas se declaran una vez para la tabla de escritorio y las filas móviles:
+                  solo cambia el envoltorio, porque un <tr> no se arrastra con el dedo. */}
 
               {/* Escritorio: la tabla común (ver `ui/tabla.tsx`). */}
               <div className="hidden sm:block">
@@ -956,9 +876,7 @@ export function GastosTab({
                     datos.movimientos.map((m) => {
                       const cat = catDe(m.categoryUuid)
                       const esGasto = m.type === 'GASTO'
-                      // En edición la fila entera es el formulario: una sola
-                      // celda a todo lo ancho, que es lo que deja respirar a
-                      // los seis campos.
+                      // En edición la fila entera es el formulario: una sola celda a todo lo ancho.
                       if (editando === m.uuid) {
                         return (
                           <Fila key={m.uuid} destacada>
@@ -996,9 +914,8 @@ export function GastosTab({
                                 className="inline-block size-2 shrink-0 rounded-xs"
                                 style={{ background: cat?.color ?? SIN_CATEGORIA }}
                               />
-                              {/* Visible, el nombre de la hoja: "Coche ›
-                                  Taller" no cabe en la celda. El grupo va en
-                                  el tooltip. */}
+                              {/* Visible, el nombre de la hoja: "Coche › Taller" no cabe. El grupo va en el
+                                  tooltip. */}
                               <Tooltip texto={cat?.parentName ? etiquetaCategoria(cat) : undefined}>
                                 <span className="truncate">{cat?.name ?? 'Sin categoría'}</span>
                               </Tooltip>
@@ -1023,9 +940,8 @@ export function GastosTab({
                 </Tabla>
               </div>
 
-              {/* Móvil: filas con gesto (→ editar, ← eliminar). No es una tabla
-                  a propósito: un `<tr>` no se puede arrastrar, y el swipe es lo
-                  que hace usable esta lista con el pulgar. */}
+              {/* Móvil: filas con gesto (→ editar, ← eliminar). No es tabla: un <tr> no se
+                  arrastra y el swipe es lo que hace usable la lista con el pulgar. */}
               <div className="sm:hidden">
                 <CabeceraMovil columnas={COLUMNAS_MOV_MOVIL} plantilla={PLANTILLA_MOV} />
                 {datos.movimientos.length === 0 && (
@@ -1050,10 +966,8 @@ export function GastosTab({
                       <span className="text-[12px] tabular-nums text-muted-foreground">
                         {fmtDia(m.expenseDate)}
                       </span>
-                      {/* El punto de la categoría va PEGADO al concepto y no en
-                          su propia columna: en 375 px una columna más dejaría el
-                          concepto en nada, y el color ya la identifica (el
-                          nombre, en el tooltip). */}
+                      {/* El punto de la categoría va pegado al concepto, sin columna propia: en 375 px
+                          no cabe y el color ya la identifica (nombre en el tooltip). */}
                       <span className="flex min-w-0 items-center gap-1.5">
                         <Tooltip texto={`${esGasto ? 'Gasto' : 'Ingreso'} · ${cat ? etiquetaCategoria(cat) : 'Sin categoría'}`}>
                           <span
@@ -1144,16 +1058,8 @@ export function GastosTab({
 
 // ─────────── división de un movimiento ───────────
 
-/**
- * Reparte un movimiento entre varias categorías (la compra mixta: súper +
- * farmacia en el mismo recibo).
- *
- * La suma tiene que cuadrar con el importe original —lo exige también el
- * servidor—, así que la cabecera va diciendo cuánto queda por asignar y el
- * botón no se activa hasta que cuadra: descuadrarlo dejaría el mes mal en
- * silencio. Arranca con dos partes: la primera con TODO el importe y la segunda
- * a cero, que es como se reparte de verdad (se le quita a la primera).
- */
+/** Reparte un movimiento entre varias categorías. La suma debe cuadrar con el
+ *  original (lo exige el servidor); arranca con dos partes, la primera con todo. */
 function DividirModal({
   movimiento, opciones, pending, onCerrar, onDividir,
 }: {
@@ -1295,10 +1201,8 @@ function DividirModal({
 // ─────────── vista anual ───────────
 
 function VistaAnio({ anio, onMes }: { anio: AnioMovimientos; onMes: (mes: number) => void }) {
-  // Clases comunes de `ui/tabla`: antes esta tabla apretaba el padding y el
-  // texto en móvil para que las cuatro columnas cupieran en 375 px sin
-  // scroll. Se retiró para que TODAS las tablas se vean igual; en móvil
-  // ahora se desplaza, que es lo que ya hacía la del Ahorro.
+  // Clases comunes de `ui/tabla`: se retiró el padding apretado de móvil para que
+  // todas las tablas se vean igual; ahora se desplaza, como la del Ahorro.
 
   return (
     <div>
@@ -1414,10 +1318,7 @@ function VistaAnio({ anio, onMes }: { anio: AnioMovimientos; onMes: (mes: number
   )
 }
 
-/**
- * Barras de ingresos y gastos por mes, sobre Chart.js (componente portado del
- * proyecto de Inversiones). Exportada para los tests.
- */
+/** Barras de ingresos y gastos por mes, sobre Chart.js. Exportada para los tests. */
 export function MovimientosPorMes({
   meses,
   onMes,

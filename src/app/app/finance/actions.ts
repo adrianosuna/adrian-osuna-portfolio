@@ -1,14 +1,7 @@
 'use server'
 
-// Server actions del módulo de finanzas (sistema de ahorro anual). Las
-// finanzas son personales del administrador: todas exigen rol ADMIN (un
-// usuario invitado no debe poder verlas ni tocarlas). Devuelven { ok, message? }
-// como las respuestas del backend original y revalidan la página al terminar.
-//
-// La validación de las entradas NO se escribe aquí: vive en `lib/esquemas.ts`
-// (Zod) y se aplica con `validar`. Antes cada action repetía sus propios
-// `Number.isFinite` y `.trim().slice(255)`, que es como los topes se van
-// separando de las columnas de la BD.
+// Server actions del ahorro anual (solo ADMIN). Devuelven { ok, message? } y
+// revalidan. La validación vive en `lib/esquemas.ts` (Zod), no aquí.
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/auth'
 import { AppError } from '@/lib/errors'
@@ -28,10 +21,8 @@ const refresh = () => revalidatePath('/app/finance')
 async function guarded(fn: () => Promise<Result>): Promise<Result> {
   try {
     const sesionActual = await requireAdmin()
-    // Freno por usuario: 120 escrituras por minuto no las alcanza nadie
-    // pulsando botones, pero sí un bucle en el cliente o un doble envío
-    // desbocado — que es lo único de lo que hay que protegerse aquí, porque
-    // llegar hasta este punto ya exige sesión de admin.
+    // Freno por usuario: 120 escrituras/min solo las alcanza un bucle en el cliente
+    // o un doble envío desbocado.
     const freno = limitar(`accion:${sesionActual.user.uuid}`, LIMITE_ACCIONES)
     if (!freno.ok) {
       avisarFrenado('finanzas', `accion:${sesionActual.user.uuid}`, freno.esperaS)
@@ -138,11 +129,8 @@ export async function saveMonths(
 
 // ─────────── Conceptos: ingresos extra y gastos de viaje ───────────
 
-// Extras y gastos de viaje son la misma forma (`ConceptoImporte`) sobre dos
-// tablas. Lo compartido es el ESQUEMA; las consultas van explícitas porque
-// `prisma[tabla]` con dos delegados distintos no es invocable en TypeScript
-// (sus firmas genéricas no unifican), y forzarlo con un cast solo esconde el
-// problema.
+// Extras y gastos de viaje comparten esquema sobre dos tablas; las consultas van
+// explícitas porque `prisma[tabla]` con dos delegados no es invocable en TS.
 const conceptoDe = (datos: unknown) => validar(ConceptoImporte, datos)
 
 export async function addExtra(

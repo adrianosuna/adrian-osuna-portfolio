@@ -1,14 +1,7 @@
 'use client'
 
-// Histórico de accesos de la pestaña Usuarios: los últimos logins, con su
-// dispositivo y su fecha.
-//
-// Es lo que `SessionsList` no puede contar: ahí solo están las sesiones VIVAS
-// (se purgan a los 7 días y el logout retira la suya), así que un acceso raro
-// de hace dos semanas no dejaba rastro. Estas filas no se borran nunca
-// (`login_event` es append-only), y por eso aquí sí se muestra la fecha
-// absoluta: en un registro de accesos, "hace 12 días" no sirve para comprobar
-// nada — la hora exacta sí.
+// Histórico de accesos: los últimos logins con dispositivo y fecha absoluta.
+// `login_event` es append-only, al contrario que `user_session`, que solo guarda lo vivo.
 import { History, UserRound } from 'lucide-react'
 import Image from 'next/image'
 import { Celda, Fila, FilaVacia, Tabla, TarjetaTabla, type Columna } from '@/components/ui/tabla'

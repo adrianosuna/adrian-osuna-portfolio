@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
-// Modal común del dashboard: estructura (cabecera, pie, cierre), Escape,
-// clic en el fondo, bloqueo del scroll y la convivencia con los popovers de
-// fields.tsx (portalizados: Escape cierra primero el popover, no el modal).
+// Modal común: estructura, Escape, clic en el fondo, bloqueo del scroll y convivencia
+// con los popovers (Escape cierra primero el popover).
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Modal } from '@/components/ui/modal'
@@ -150,10 +149,8 @@ describe('Modal', () => {
   })
 })
 
-// ⚠ Dos modales se APILAN de verdad: una confirmación se pinta sobre el modal
-// que la pidió (pasa al borrar un ámbito desde el modal de Ámbitos). El
-// listener de Escape es de `document`, así que sin una pila la tecla llegaba a
-// los dos: cancelabas la confirmación y se te iba la pantalla de detrás.
+// Dos modales se apilan (una confirmación sobre el de Ámbitos). Sin pila, Escape
+// llegaba a los dos.
 describe('Modales apilados', () => {
   const dos = () => {
     const cerrarFondo = vi.fn()
@@ -189,10 +186,8 @@ describe('Modales apilados', () => {
   })
 
   it('cerrar el de arriba NO devuelve el scroll a la página', () => {
-    // Con dos apilados, el desmontaje del de arriba restauraba el overflow
-    // guardado ANTES de abrirse (que era el del de abajo, ya "hidden"...) o el
-    // original según el orden: la página de detrás volvía a hacer scroll con
-    // un modal todavía abierto.
+    // Con dos apilados, el desmontaje del de arriba restauraba el overflow "hidden" o el
+    // original según el orden: la página volvía a hacer scroll con un modal abierto.
     const { unmount } = render(
       <Modal title="Abajo" onClose={vi.fn()}>
         <p>a</p>

@@ -1,7 +1,5 @@
-// Saneado del HTML de las notas (src/lib/sanitizar-html.ts): la seguridad de
-// guardar HTML depende de que aquí caiga TODO lo peligroso y sobreviva solo la
-// allowlist. `server-only` se alias-ea a un stub en vitest; sanitize-html corre
-// de verdad.
+// Saneado del HTML de las notas: todo lo peligroso cae y sobrevive solo la allowlist.
+// sanitize-html corre de verdad.
 import { describe, expect, it } from 'vitest'
 import { sanitizarNota, textoDe } from '@/lib/sanitizar-html'
 

@@ -1,9 +1,5 @@
-// Tope de peticiones por ventana.
-//
-// Lo que importa probar aquí es que la ventana es **deslizante**: con ventanas
-// por bloques fijos se pueden colar `2 × max` peticiones a caballo entre dos
-// —todas al final de una y todas al principio de la siguiente—, que es el
-// fallo clásico de esta técnica y no se ve a simple vista.
+// Tope de peticiones: la ventana es deslizante. Con bloques fijos se cuelan 2 × max
+// a caballo entre dos.
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   claveIp,

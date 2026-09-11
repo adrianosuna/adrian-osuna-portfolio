@@ -1,20 +1,7 @@
 'use client'
 
-// Preferencias de INTERFAZ, guardadas en el navegador (localStorage).
-//
-// ⚠ Esto NO resucita el "modo privado" ni los ajustes por usuario en BD que se
-// retiraron de raíz el 31/08/2026 (columna `user.prefs` incluida). La
-// diferencia es deliberada: aquí solo viven comodidades de la vista —accesos
-// fijados del inicio, confirmaciones silenciadas, la versión ya vista—, que son
-// de ESTE dispositivo, no del usuario. Nada de esto
-// cambia datos ni permisos, así que no tiene por qué viajar al servidor ni
-// ocupar una columna.
-//
-// Se lee con `useSyncExternalStore` y no con un efecto a propósito: leer
-// localStorage en un `useEffect` obliga a un `setState` síncrono dentro del
-// efecto, que es justo lo que prohíbe el React Compiler (`set-state-in-effect`).
-// Además así el valor se comparte entre todos los componentes que lo usan y se
-// sincroniza entre pestañas (evento `storage`).
+// Preferencias de interfaz en localStorage: cosas de este dispositivo, no del usuario
+// (no es el modo privado retirado). Con `useSyncExternalStore`, no un efecto.
 import { useCallback, useSyncExternalStore } from 'react'
 
 const PREFIJO = 'ao:'
@@ -33,8 +20,7 @@ function suscribir(cb: () => void) {
 }
 
 // Caché por clave: `useSyncExternalStore` exige que el snapshot mantenga la
-// IDENTIDAD mientras el valor no cambie (si no, React entra en bucle con los
-// objetos y arrays). Se guarda el crudo leído para saber si sigue vigente.
+// identidad mientras el valor no cambie, o React entra en bucle.
 const cache = new Map<string, { crudo: string | null; valor: unknown }>()
 
 function leer<T>(clave: string, inicial: T): T {
@@ -76,14 +62,8 @@ export function leerPreferencia<T>(clave: string, inicial: T): T {
   return leer(clave, inicial)
 }
 
-/**
- * Preferencia de interfaz reactiva: `[valor, cambiar]`.
- *
- * En el servidor (y en el primer render del cliente) devuelve `inicial`, así
- * que la hidratación cuadra; el valor guardado entra en el render siguiente.
- * Por eso lo que dependa de esto no debe ser el contenido principal de la
- * página, solo su presentación.
- */
+/** Preferencia de interfaz reactiva: `[valor, cambiar]`. En el servidor y el primer
+ *  render devuelve `inicial` para que la hidratación cuadre. */
 export function usePreferencia<T>(clave: string, inicial: T): [T, (v: T) => void] {
   const valor = useSyncExternalStore(
     suscribir,

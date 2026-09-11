@@ -1,7 +1,4 @@
-// Previsión de cierre de mes. La trampa que decide si la cifra vale algo: el
-// ritmo se extrapola SOLO sobre el gasto no recurrente. Extrapolando el total,
-// el alquiler del día 3 se multiplicaría por los días del mes y a día 5 la
-// previsión diría que vas a gastar cuatro alquileres.
+// Previsión de cierre: el ritmo se extrapola solo sobre el gasto no recurrente.
 import { describe, expect, it } from 'vitest'
 import { previsionCierre, type MovimientoPrevision, type RecurrentePrevision } from '@/lib/prevision'
 
@@ -30,9 +27,7 @@ describe('previsionCierre: el ritmo', () => {
   })
 
   it('⚠ un recurrente YA cargado NO entra en el ritmo', () => {
-    // Es el fallo que haría la cifra absurda. 200 € variables + un alquiler de
-    // 720 ya cargado: el ritmo son 20 €/día (no 92), así que la previsión es
-    // 920 + 400 y no 920 + 1.840.
+    // 200 € variables + un alquiler de 720 ya cargado: el ritmo son 20 €/día (no 92).
     const movimientos = [
       mov({ amount: 200 }),
       mov({ amount: 720, recurringUuid: 'r1', expenseDate: '2026-09-03' }),

@@ -1,10 +1,7 @@
 'use server'
 
-// Server actions del Panel de control: los refrescos automáticos del cliente
-// (usuarios en tiempo real de Visitas y recursos de la máquina de Servidor) y
-// la gestión de usuarios de la pestaña Usuarios — invitar por correo
-// (allowlist), cambiar rol, activar/deshabilitar y eliminar, mismas reglas
-// que el user.controller del Portfolio original.
+// Server actions del Panel de control: refrescos del cliente (Visitas, Servidor) y
+// gestión de usuarios (invitar, rol, activar/deshabilitar, eliminar).
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/auth'
 import { AppError } from '@/lib/errors'
@@ -55,19 +52,16 @@ const ok: Result = { ok: true }
 const fail = (message: string): Result => ({ ok: false, message })
 const refresh = () => revalidatePath('/app/panel')
 
-// Ejecuta una acción exigiendo rol admin (recibe la sesión del propio admin).
-// Solo los mensajes de AppError son aptos para el cliente; el resto (Prisma...)
-// se registra y no se filtra.
+// Ejecuta una acción exigiendo rol admin. Solo los mensajes de AppError llegan al
+// cliente; el resto se registra y no se filtra.
 type SesionAdmin = Awaited<ReturnType<typeof requireAdmin>>
 async function guarded<T extends Result>(
   fn: (session: SesionAdmin) => Promise<T>,
 ): Promise<T | Result> {
   try {
     const sesionActual = await requireAdmin()
-    // Freno por usuario: 120 escrituras por minuto no las alcanza nadie
-    // pulsando botones, pero sí un bucle en el cliente o un doble envío
-    // desbocado — que es lo único de lo que hay que protegerse aquí, porque
-    // llegar hasta este punto ya exige sesión de admin.
+    // Freno por usuario: 120 escrituras/min solo las alcanza un bucle en el cliente
+    // o un doble envío desbocado.
     const freno = limitar(`accion:${sesionActual.user.uuid}`, LIMITE_ACCIONES)
     if (!freno.ok) {
       avisarFrenado('usuarios', `accion:${sesionActual.user.uuid}`, freno.esperaS)
@@ -149,17 +143,8 @@ export async function closeSession(uuid: string): Promise<Result> {
   })
 }
 
-/**
- * Cierra TODAS las sesiones menos la propia.
- *
- * Es el botón de pánico: un portátil perdido, un navegador ajeno, o la duda
- * de "¿me dejé la sesión abierta en algún sitio?". Cerrarlas una a una
- * funciona, pero cuando hace falta esto hace falta en un clic.
- *
- * La propia se excluye a propósito: cerrarla también dejaría al admin fuera
- * de la pantalla desde la que acaba de pulsar, sin poder comprobar el
- * resultado. Para la suya está "Cerrar sesión" del menú.
- */
+/** Cierra todas las sesiones menos la propia: es el botón de pánico. La propia se
+ *  excluye para no dejar al admin fuera de la pantalla desde la que pulsa. */
 export async function closeAllSessions(): Promise<Result & { cerradas?: number }> {
   return guarded(async (session) => {
     const { count } = await prisma.userSession.deleteMany({
@@ -172,10 +157,8 @@ export async function closeAllSessions(): Promise<Result & { cerradas?: number }
 
 // ─────────── Tokens de la API (sub-pestaña API) ───────────
 
-/**
- * Crea un token y devuelve su valor EN CLARO: es la única vez que existe
- * (en la BD solo queda su SHA-256). Quien llama tiene que enseñarlo ya.
- */
+/** Crea un token y devuelve su valor en claro: es la única vez que existe (en la
+ *  BD solo queda su SHA-256). */
 export async function createApiToken(datos: {
   name?: string
 }): Promise<Result & { token?: string }> {
@@ -230,13 +213,8 @@ export async function updateAmbito(uuid: string, datos: { name?: string }): Prom
   })
 }
 
-/**
- * Borra un ámbito, PERO solo si no lo usa ninguna tarea.
- *
- * El FK es SET NULL, así que borrarlo dejaría tareas sin ámbito en silencio.
- * Con pocas tareas, reasignarlas a mano es trivial; perder la clasificación sin
- * enterarse, no.
- */
+/** Borra un ámbito solo si ninguna tarea lo usa: el FK es SET NULL y dejaría
+ *  tareas sin ámbito en silencio. */
 export async function deleteAmbito(uuid: string): Promise<Result> {
   return guarded(async () => {
     const tareas = await prisma.maintenanceTask.count({ where: { scopeUuid: uuid } })
@@ -251,17 +229,8 @@ export async function deleteAmbito(uuid: string): Promise<Result> {
   })
 }
 
-/**
- * Deshace el "hecha" de un recordatorio PUNTUAL: le quita `lastDone` y vuelve a
- * estar pendiente para su fecha.
- *
- * ⚠ Existe porque "Hecha" es un clic sin confirmación, y en una puntual ese
- * clic era una puerta de una sola dirección: la tarea se apagaba en la lista,
- * salía del calendario y del correo, y la única salida era borrarla y
- * escribirla otra vez. En una tarea que se REPITE no hace falta —su `nextDue`
- * ya avanzó y volverá a vencer—, así que solo se admite en las puntuales: para
- * las otras habría que saber a qué fecha volver, y eso es editar.
- */
+/** Reabre un recordatorio puntual marcado como hecho (quita `lastDone`). Solo en
+ *  puntuales: en una que se repite habría que saber a qué fecha volver. */
 export async function reopenMaintenance(uuid: string): Promise<Result> {
   return guarded(async () => {
     const tarea = await prisma.maintenanceTask.findUnique({ where: { uuid } })
@@ -354,11 +323,8 @@ export async function updateMaintenance(
     if (parsed.error !== undefined) return fail(parsed.error)
     const previa = await prisma.maintenanceTask.findUnique({ where: { uuid } })
     if (!previa) return fail('Esa tarea no existe')
-    // ⚠ Cambiarle la FECHA a un recordatorio puntual ya cumplido lo vuelve a
-    // poner pendiente. Si no, el caso natural —«renovar el dominio», hecho, y
-    // al año siguiente le pongo la fecha nueva en vez de crearlo otra vez— lo
-    // dejaba apagado como «Hecha» para siempre: fuera del calendario y sin
-    // avisar. Solo con la fecha: corregir el título no resucita nada.
+    // Cambiar la fecha de una puntual ya cumplida la vuelve a poner pendiente (caso
+    // «renovar el dominio» al año siguiente). Solo la fecha, no el título.
     const eraCumplida = previa.intervalMonths === null && previa.lastDone !== null
     const cambiaFecha = previa.nextDue.toISOString().slice(0, 10) !== datos.nextDue
     await prisma.maintenanceTask.update({
@@ -371,14 +337,8 @@ export async function updateMaintenance(
   })
 }
 
-/**
- * Marca la tarea como hecha hoy.
- *
- * Una tarea RECURRENTE encadena su siguiente vencimiento. Un recordatorio
- * PUNTUAL (sin periodicidad) se queda hecho: su fecha no se mueve y, con
- * `lastDone` puesto, la lista ya lo da por cumplido. No se borra a propósito
- * — queda el rastro de cuándo se hizo.
- */
+/** Marca la tarea como hecha hoy. Una recurrente encadena su siguiente
+ *  vencimiento; una puntual se queda hecha, con `lastDone` y sin borrarse. */
 export async function completeMaintenance(uuid: string): Promise<Result> {
   return guarded(async () => {
     const tarea = await prisma.maintenanceTask.findUnique({ where: { uuid } })
@@ -413,9 +373,8 @@ export async function deleteMaintenance(uuid: string): Promise<Result> {
 
 // ─────────── Notas (pestaña Notas) ───────────
 
-// Las reglas de la nota (título, tope del HTML y su saneado) viven en
-// `@/lib/alta-nota`, porque las comparte la API de los Atajos: el saneado del
-// HTML es justo lo que no puede tener dos definiciones.
+// Las reglas de la nota (título, tope y saneado del HTML) viven en `@/lib/alta-nota`,
+// compartidas con la API de los Atajos.
 const limpiarNota = limpiarNotaHtml
 
 export async function createNote(datos: { title?: string; content?: string }): Promise<Result> {
@@ -452,13 +411,8 @@ export async function pinNote(uuid: string, pinned: boolean): Promise<Result> {
   })
 }
 
-/**
- * Marca o desmarca el ítem `indice` de la checklist de una nota.
- *
- * El toggle se aplica en el SERVIDOR sobre el HTML guardado (que ya está
- * saneado) en lugar de reenviar el documento entero desde el cliente: así
- * marcar una tarea no puede convertirse en una vía para reescribir la nota.
- */
+/** Marca o desmarca el ítem `indice` de la checklist. Se aplica en el servidor
+ *  sobre el HTML ya saneado: así marcar no es una vía para reescribir la nota. */
 export async function toggleNotaTarea(uuid: string, indice: number): Promise<Result> {
   return guarded(async () => {
     const i = validar(indiceTarea, indice)

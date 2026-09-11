@@ -1,11 +1,7 @@
 'use server'
 
-// Suscripción del navegador a las notificaciones push.
-//
-// El flujo es: el cliente registra el service worker, pide permiso, obtiene una
-// suscripción del navegador y la manda aquí; a partir de ese momento el cron
-// puede empujarle los avisos. Cada NAVEGADOR es una fila (el iPhone y el
-// portátil son dos), y el endpoint es su identificador único.
+// Suscripción del navegador a las push: el cliente registra el SW, pide permiso y
+// manda la suscripción. Cada navegador es una fila; el endpoint la identifica.
 import { headers } from 'next/headers'
 import { requireAdmin } from '@/auth'
 import { AppError } from '@/lib/errors'
@@ -15,11 +11,8 @@ import { log } from '@/lib/log'
 
 type Result = { ok: boolean; message?: string }
 
-/**
- * Lo que la UI necesita saber antes de ofrecer el botón: si el servidor tiene
- * claves y cuál es la pública. Sin claves no se ofrece nada (un botón que
- * siempre falla es peor que no tenerlo).
- */
+/** Lo que la UI necesita antes de ofrecer el botón: si hay claves y cuál es la
+ *  pública. Sin claves no se ofrece nada. */
 export async function estadoPush(): Promise<{ configurado: boolean; clave: string | null }> {
   try {
     await requireAdmin()

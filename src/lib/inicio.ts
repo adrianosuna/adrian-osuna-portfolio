@@ -1,7 +1,5 @@
-// Datos del inicio del dashboard (solo servidor): lo que requiere atención
-// hoy, los KPIs con dato real y la actividad reciente. Todo en una pasada
-// paralela de consultas acotadas — el inicio no debe pagar el precio de
-// traerse módulos enteros para pintar cuatro cifras.
+// Datos del inicio (solo servidor): avisos, KPIs y actividad reciente en una pasada
+// paralela de consultas acotadas, sin traer módulos enteros.
 import 'server-only'
 import { prisma } from '@/lib/prisma'
 import { mesesSinRellenar } from '@/lib/finance'
@@ -117,11 +115,8 @@ export async function resumenInicio(hoyIso = hoyMadrid()): Promise<ResumenInicio
   }
 }
 
-// ─────────── avisos ───────────
-// La construcción de los avisos es PURA y vive aparte porque la comparten dos
-// consumidores: el inicio (que ya tiene los datos a mano de sus propios KPIs) y
-// el centro de notificaciones de la barra superior (que consulta solo esto).
-// Duplicar los criterios es justo cómo se desincronizan las dos campanas.
+// La construcción de los avisos es pura y vive aparte: la comparten el inicio y el
+// centro de notificaciones de la barra superior.
 
 interface DatosAvisos {
   oportunidades: Array<{
@@ -214,13 +209,8 @@ function construirAvisos({
   return avisos.sort((a, b) => Number(b.gravedad === 'urgente') - Number(a.gravedad === 'urgente'))
 }
 
-/**
- * Solo los avisos, con sus propias consultas acotadas.
- *
- * Lo usa el centro de notificaciones de la barra superior, que está en TODAS
- * las páginas del dashboard: por eso consulta lo mínimo (tres selects con los
- * campos justos) y no el resumen completo del inicio.
- */
+/** Solo los avisos, con consultas acotadas. Lo usa el centro de notificaciones, que
+ *  está en todas las páginas: por eso consulta lo mínimo. */
 export async function avisosPendientes(hoyIso = hoyMadrid()): Promise<Aviso[]> {
   const year = Number(hoyIso.slice(0, 4))
   const mesActual = Number(hoyIso.slice(5, 7))

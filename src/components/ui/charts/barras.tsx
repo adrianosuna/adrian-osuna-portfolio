@@ -1,15 +1,7 @@
 'use client'
 
-// Gráfica de barras sobre Chart.js — portada del componente equivalente del
-// proyecto de Inversiones, a TypeScript y al tema oscuro de este proyecto.
-//
-// Se conserva lo que allí ya estaba resuelto: `animation: false`, deps
-// serializadas para no reinstanciar el canvas cuando el padre pasa objetos
-// literales, `destroy()` en el cleanup y el click por índice con cursor.
-//
-// Cambios propios de TypeScript: el chart va tipado como `Chart<'bar'>` y la
-// unidad del tooltip viaja en el dataset como prop extra (`_unidad`), que es
-// lo que lee el tooltip externo de `comun.ts`.
+// Gráfica de barras sobre Chart.js: `animation: false`, deps serializadas para no
+// reinstanciar el canvas, `destroy()` en el cleanup. La unidad viaja en `_unidad`.
 import { useEffect, useRef } from 'react'
 import type { ChartDataset, ChartOptions } from 'chart.js'
 import { Chart, coloresTema, registrarFilasExtra, resolverColor, tooltipPlugin } from './comun'

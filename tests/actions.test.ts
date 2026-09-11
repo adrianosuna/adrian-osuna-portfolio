@@ -1,10 +1,8 @@
-// Validaciones y guardas de las server actions (con auth, Prisma y caché
-// mockeados): saneado de entradas, autoprotecciones del admin (no puede
-// revocarse, eliminarse ni cerrar su propia sesión) y contrato { ok, message? }.
+// Validaciones y guardas de las server actions (auth, Prisma y caché mockeados):
+// saneado, autoprotecciones del admin y contrato { ok, message? }.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-// El tope de peticiones vive en memoria y es COMPARTIDO por todo el proceso:
-// sin reiniciarlo, un fichero de tests con muchas actions agotaría la ventana
-// y los siguientes fallarían por algo que no están probando.
+// El tope de peticiones vive en memoria del proceso: sin reiniciarlo, un fichero con
+// muchas actions agotaría la ventana.
 import { reiniciarLimites } from '@/lib/rate-limit'
 import { AppError } from '@/lib/errors'
 

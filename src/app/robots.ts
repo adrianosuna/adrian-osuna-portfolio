@@ -1,8 +1,5 @@
-// robots.txt: la landing es pública; el dashboard, el login y la API no se
-// indexan. Los crawlers de IA (buscadores generativos y entrenamiento) están
-// permitidos EXPLÍCITAMENTE: interesa aparecer en las respuestas de ChatGPT,
-// Perplexity, Claude, Gemini... — la misma política que el resto de agentes,
-// declarada agente a agente para que ninguno se retraiga por ambigüedad.
+// robots.txt: la landing es pública; dashboard, login y API no se indexan. Los
+// crawlers de IA se permiten explícitamente, agente a agente.
 import type { MetadataRoute } from 'next'
 import { SITE_URL } from '@/lib/site'
 

@@ -1,70 +1,22 @@
-// Esquemas de validación (Zod) de todo lo que entra por una server action o
-// por la API. UN solo sitio.
-//
-// Qué resuelve. Cada action traía su propia tanda de comprobaciones a mano
-// (`Number.isFinite`, `.trim().slice(255)`, un regex de fecha, un `includes`
-// para el enum...), repetidas de fichero en fichero con variaciones. Eso tiene
-// dos problemas: los topes se desincronizan del esquema de la BD —y entonces
-// el fallo llega como el "Error inesperado" genérico en vez de un mensaje
-// legible— y cada validación nueva se escribe otra vez.
-//
-// Aquí los límites son los de las columnas y se declaran una vez. Los mensajes
-// van en **español y en primera persona del formulario** porque viajan tal cual
-// al cliente en `{ ok: false, message }`: son lo que lee quien se ha equivocado.
-//
-// ⚠ Sin `server-only`: los comparten las server actions, la API v1 y los tests
-// (mismo criterio que `fechas.ts`). Y **no se importa desde componentes de
-// cliente**: el navegador no necesita revalidar nada, y así Zod no entra en el
-// bundle.
+// Esquemas Zod de todo lo que entra por server action o API, en un solo sitio y con
+// los límites de las columnas. Sin `server-only`; no se importa desde el cliente.
 import { z } from 'zod'
 
-// ⚠ DOS TRAMPAS de Zod que ya costaron un fallo aquí y explican por qué los
-// campos opcionales se escriben como se escriben:
-//
-//  1. **`z.coerce.number()` dentro de un `union` con `z.null()`** no hace lo
-//     que parece: la unión prueba las opciones EN ORDEN, y `Number(null)` es
-//     `0`, así que un `null` se convertía en un 0 antes de llegar a
-//     `z.null()`. En el control mensual del ahorro eso significa escribir un
-//     cero donde el mes estaba SIN RELLENAR — que es justo lo que el módulo
-//     distingue para avisar por correo. Por eso aquí no se usa `coerce` en
-//     uniones: el `null` se atiende primero, a mano, dentro del transform.
-//  2. Un campo con `.transform()` **sigue siendo obligatorio**: si la clave
-//     no viene, Zod falla con "expected nonoptional". Para que se pueda
-//     omitir hay que marcarlo `.nullish()` ANTES del transform.
+// Dos trampas de Zod: `z.coerce.number()` en unión con `z.null()` convierte null en
+// 0 (el null se atiende a mano), y un campo con `.transform()` sigue siendo obligatorio.
 
 // ─────────── Piezas comunes ───────────
 
-/**
- * Identificador de negocio (columna `VarChar(36)`).
- *
- * ⚠ NO comprueba el formato de un uuid, y es deliberado. Prisma parametriza
- * las consultas, así que un identificador con mala pinta no inyecta nada: en
- * el peor caso no encuentra fila. Lo que sí hace falta es descartar el vacío,
- * el null y las cadenas absurdas —que son los que llegan de un cliente
- * manipulado o de un bug— para contestar con un mensaje claro en vez de dejar
- * que Prisma reviente y salga el "Error inesperado" genérico.
- *
- * Exigir el formato canónico tampoco valdría de mucho: la BD viene heredada
- * del Portfolio antiguo y conviven uuids de versión 1 (los que sembró MySQL)
- * con los v4 de Prisma. Y donde el identificador viene de fuera de verdad
- * —la API— lo que se comprueba es que la fila EXISTA, que es la garantía que
- * de verdad importa (ver `resolverCategoria` y `altaMovimiento`).
- */
+/** Identificador de negocio (`VarChar(36)`). No valida el formato uuid: Prisma
+ *  parametriza y la BD mezcla v1 y v4. Sí rechaza vacío, null y cadenas absurdas. */
 export const Uuid = z
   .string({ error: 'Falta el identificador' })
   .trim()
   .min(1, { error: 'Falta el identificador' })
   .max(36, { error: 'Identificador no válido' })
 
-/**
- * Identificador que llega de un desplegable donde "ninguno" es una opción: la
- * cadena vacía y el null significan lo mismo (sin grupo, sin ámbito).
- *
- * ⚠ El `.nullish()` va ANTES del `.transform()` a propósito (trampa de Zod:
- * un campo con transform sigue siendo obligatorio si no se marca nullish).
- * Y ojo al usarlo en un esquema de EDICIÓN: omitir la clave no deja el valor
- * como está, lo pone a null.
- */
+/** Identificador de un desplegable con "ninguno": cadena vacía y null son lo mismo.
+ *  `.nullish()` antes del transform. En edición, omitir la clave pone null. */
 export const uuidOpcional = z
   .union([Uuid, z.literal('')])
   .nullish()
@@ -77,12 +29,8 @@ export const textoObligatorio = (max: number, nombre: string) =>
     .transform((s) => s.trim().slice(0, max))
     .refine((s) => s.length > 0, { error: `${nombre} es obligatorio` })
 
-/**
- * Texto opcional: se recorta, se limita, y **vacío se guarda como null**.
- *
- * Distinguir "" de null en la BD no aporta nada y sí obliga a comprobar las dos
- * cosas en cada lectura.
- */
+/** Texto opcional: recortado, limitado y vacío → null. Distinguir "" de null no
+ *  aporta y obliga a comprobar las dos cosas. */
 export const textoOpcional = (max: number) =>
   z
     .string()
@@ -92,14 +40,8 @@ export const textoOpcional = (max: number) =>
       return t === '' ? null : t
     })
 
-/**
- * Importe en euros: `Decimal(12,2)` en la BD.
- *
- * El tope es el de la columna (no el de JavaScript): sin él, una cifra absurda
- * de un cliente manipulado revienta contra MySQL y al usuario le llega el
- * "Error inesperado" genérico. Se acepta texto porque los Atajos de iOS mandan
- * el importe como cadena.
- */
+/** Importe en euros (`Decimal(12,2)`). El tope es el de la columna: sin él una
+ *  cifra absurda revienta contra MySQL. Acepta texto porque los Atajos mandan cadena. */
 /** Texto o número → número. Acepta la coma decimal («12,50»), que es lo que
  *  manda un Atajo de iOS: así la regla vale igual por las dos puertas. */
 const aNumero = (v: string | number) =>
@@ -136,11 +78,7 @@ export const mesIso = z
 
 // ─────────── Ahorro anual (finance/actions) ───────────
 
-/**
- * Año del sistema de ahorro. La horquilla 2000-2100 no es arbitraria: fuera de
- * ella solo hay dedazos, y un año de cuatro cifras raro descuadraría las
- * pestañas y los informes.
- */
+/** Año del ahorro, 2000-2100: fuera de la horquilla solo hay dedazos. */
 const anio = z
   .number({ error: 'Indica un año válido' })
   .int({ error: 'Indica un año válido' })
@@ -173,10 +111,8 @@ export const ConceptoImporte = z.object({
 })
 
 /** Una fila del control mensual. */
-// `z.unknown()` y no una unión de tipos: aquí lo que no vale se SANEA a null
-// en vez de tumbar la fila. Es una tabla de doce meses que se envía completa,
-// y un NaN suelto en una celda no puede costar el guardado de las otras once
-// (`z.number()` además rechaza NaN, así que la unión fallaba de golpe).
+// `z.unknown()` y no una unión: lo que no vale se sanea a null en vez de tumbar la
+// fila. Son doce meses enviados a la vez y un NaN no puede costar los otros once.
 const cifraMes = z.unknown().transform((v) => {
   // El null va PRIMERO y a mano: ver la trampa 1 de arriba. Un mes sin
   // rellenar tiene que seguir siendo null, no un 0.
@@ -194,13 +130,8 @@ export const MesAhorro = z.object({
   savingTravel: cifraMes,
 })
 
-/**
- * El guardado del control mensual llega en bloque.
- *
- * Las filas con un mes imposible se **descartan** en vez de tumbar el guardado
- * entero: es una tabla de doce filas que se envía completa, y perder el trabajo
- * de las once buenas por una mala sería el peor de los dos comportamientos.
- */
+/** El control mensual llega en bloque. Las filas con mes imposible se descartan en
+ *  vez de tumbar el guardado: perder once buenas por una mala sería peor. */
 export const MesesAhorro = z
   .array(z.unknown())
   .min(1, { error: 'Nada que guardar' })
@@ -252,10 +183,7 @@ export const PartesDivision = z
   .min(2, { error: 'Indica al menos dos partes' })
   .max(MAX_PARTES, { error: `Como mucho ${MAX_PARTES} partes` })
 
-/**
- * Tope mensual de una categoría: null es "sin tope", y un 0 es la misma
- * intención (quitarlo), así que los dos guardan null.
- */
+/** Tope mensual de una categoría: null es "sin tope" y 0 la misma intención. */
 export const tope = z
   .union([z.number(), z.string()])
   .nullish()
@@ -291,11 +219,8 @@ export const CategoriaEdicion = z.object({
   budget: tope.optional(),
 })
 
-/**
- * Periodicidad en meses: de 1 a 120 (hasta cada 10 años). El tope no protege de
- * nada —`cargosPendientes` frena la generación con `MAX_CARGOS`— y es solo una
- * cota de sensatez, alineada con la ventana de fecha del cargo.
- */
+/** Periodicidad en meses, de 1 a 120. Solo una cota de sensatez: quien frena la
+ *  generación es `MAX_CARGOS`. */
 export const periodicidadMeses = z
   .number({ error: 'Periodicidad no válida' })
   .int({ error: 'La periodicidad va en meses enteros' })
@@ -382,9 +307,8 @@ export const TareaEdicion = z.object({
 // ─────────── Notas (panel/actions) ───────────
 
 export const NOTA_TITULO_MAX = 255
-// El contenido es HTML del editor, así que el tope va más alto que el texto que
-// representa (etiquetas de por medio). Cabe un apunte largo lejos del límite de
-// TEXT (64 KB) y evita que un cliente manipulado llene la columna.
+// El contenido es HTML del editor: el tope va más alto que el texto, lejos del
+// límite de TEXT (64 KB) y sin dejar llenar la columna.
 export const NOTA_CONTENIDO_MAX = 50_000
 
 export const Nota = z.object({
@@ -414,16 +338,8 @@ export const EstadoOportunidad = z.enum(
 /** El título es el único campo obligatorio de una oportunidad. */
 export const TituloOportunidad = textoObligatorio(255, 'El título')
 
-/**
- * Los campos "de relleno" de una oportunidad, TODOS opcionales y sin el
- * estado ni el título.
- *
- * Van aparte porque los tres se tratan distinto y mezclarlos rompía el
- * comportamiento: el título es obligatorio, y un **estado inventado degrada
- * al inicial** en vez de fallar (un cliente manipulado no debe poder tumbar
- * el alta, solo quedarse en CONTACTO). Con el estado dentro de este esquema,
- * validarlo aquí hacía fallar el alta entera.
- */
+/** Campos de relleno de una oportunidad, todos opcionales, sin estado ni título:
+ *  un estado inventado degrada al inicial en vez de fallar el alta. */
 export const CamposOportunidad = z.object({
   company: textoOpcional(255),
   contact: textoOpcional(255),
@@ -431,10 +347,8 @@ export const CamposOportunidad = z.object({
   amount: importeOpcional(),
   notes: textoOpcional(5000),
   nextAction: textoOpcional(255),
-  // Una fecha malformada se trata como "sin seguimiento" y no como error: los
-  // campos de fecha del proyecto solo emiten ISO válido, así que aquí solo
-  // llega basura de un cliente manipulado — y descartarla es más útil que
-  // impedir guardar la oportunidad.
+  // Una fecha malformada es "sin seguimiento", no error: los campos del proyecto
+  // emiten ISO válido y aquí solo llega basura de un cliente manipulado.
   nextActionDate: z
     .string()
     .nullish()
@@ -458,14 +372,8 @@ export const EventoOportunidad = z.object({
 
 export type Validado<T> = { ok: true; datos: T } | { ok: false; message: string }
 
-/**
- * Valida y devuelve el contrato del proyecto.
- *
- * Solo se devuelve **el primer mensaje**: las actions contestan
- * `{ ok, message? }` con UN texto, que es lo que el toast puede mostrar. Una
- * lista de cinco errores no cabe en un aviso y tampoco hace falta — los
- * formularios son cortos y se corrige de uno en uno.
- */
+/** Valida y devuelve el contrato del proyecto. Solo el primer mensaje: las actions
+ *  contestan con un texto, que es lo que cabe en un toast. */
 export function validar<T>(esquema: z.ZodType<T>, datos: unknown): Validado<T> {
   const res = esquema.safeParse(datos)
   if (res.success) return { ok: true, datos: res.data }

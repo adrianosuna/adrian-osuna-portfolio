@@ -1,8 +1,5 @@
-// Pantallas de arranque de iOS. Se prueban porque es una tabla de datos que
-// falla EN SILENCIO: si una media query no cuadra con ningún dispositivo, iOS
-// simplemente no pinta la imagen y vuelve el fogonazo blanco — no hay error que
-// lo delate. Y si un tamaño no está en la allowlist de la ruta, su `<link>`
-// apunta a un 404.
+// Splash de iOS: una tabla que falla en silencio. Si una media query no cuadra, iOS
+// no pinta nada; si un tamaño no está en la allowlist, el link da 404.
 import { describe, expect, it } from 'vitest'
 import { DIMENSIONES_SPLASH, LINKS_SPLASH, SPLASHES } from '@/lib/splash'
 

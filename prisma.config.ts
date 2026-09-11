@@ -13,10 +13,8 @@ export default defineConfig({
   datasource: {
     url: process.env["DATABASE_URL"],
   },
-  // La tabla `migrations` es una huérfana de db-migrate (del Portfolio
-  // antiguo, ya retirado) que sigue en la BD local: Prisma no debe
-  // gestionarla ni incluirla en diffs. Si algún día se hace DROP TABLE,
-  // retirar esta declaración (y `experimental.externalTables`).
+  // La tabla `migrations` es una huérfana de db-migrate en la BD local: Prisma no debe
+  // gestionarla. Si se hace DROP TABLE, retirar esto y `experimental.externalTables`.
   tables: {
     external: ["migrations"],
   },

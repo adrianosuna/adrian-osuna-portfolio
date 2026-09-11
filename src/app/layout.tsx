@@ -24,30 +24,21 @@ export const metadata: Metadata = {
   description:
     "Portfolio de Adrián Osuna, desarrollador web full-stack especializado en React y Node.js. Aplicaciones web eficientes y escalables, de la base de datos a la interfaz.",
   keywords: ["Adrián Osuna", "desarrollador web", "full stack", "React", "Node.js", "Next.js", "portfolio"],
-  // Instalable en iPhone/iPad ("Añadir a pantalla de inicio"): se abre a
-  // pantalla completa (sin la barra de Safari) y directo al dashboard. La barra
-  // de estado en negro combina con el tema oscuro sin solaparse con el contenido.
+  // Instalable en iPhone/iPad: pantalla completa y directo al dashboard. Barra de
+  // estado en negro, a tono con el tema oscuro.
   appleWebApp: {
     capable: true,
     title: "AO",
     statusBarStyle: "black",
   },
-  // Next emite el estándar moderno `mobile-web-app-capable`; el `apple-`
-  // (deprecado, pero aún leído por iOS antiguos) lo añadimos a mano para que
-  // "Añadir a pantalla de inicio" abra a pantalla completa también ahí.
+  // Next emite `mobile-web-app-capable`; el `apple-` (deprecado, aún leído por iOS
+  // antiguos) se añade a mano.
   other: { "apple-mobile-web-app-capable": "yes" },
-  // ⚠ Al declarar `icons`, Next DEJA DE inyectar los iconos por convención de
-  // fichero (`app/icon.svg` y `app/apple-icon.tsx`) — y el favicon de la
-  // pestaña desaparece sin más aviso. Por eso van los tres explícitos:
-  //   · `icon`  — el de la pestaña del navegador (app/icon.svg).
-  //   · `apple` — el del icono en la pantalla de inicio (app/apple-icon.tsx).
-  //   · `other` — las pantallas de arranque de iOS: sin ellas, abrir la app
-  //     instalada enseña un fogonazo blanco. Una por familia de pantalla (ver
-  //     `lib/splash.ts`); las imágenes las genera `/splash/[dim]` en runtime.
+  // Al declarar `icons`, Next deja de inyectar los iconos por convención de fichero:
+  // por eso van los tres explícitos (icon, apple y las splash de `lib/splash.ts`).
   icons: {
-    // Dos formatos para `icon`: el SVG (lo prefieren los navegadores
-    // modernos, y escala sin pixelarse) y el .ico de respaldo para quien no
-    // lo admita. Los dos llevan la misma marca con el mismo encuadre.
+    // Dos formatos para `icon`: el SVG (escala y lo prefieren los navegadores
+    // modernos) y el .ico de respaldo.
     icon: [
       { url: "/icon.svg", type: "image/svg+xml" },
       { url: "/favicon.ico", sizes: "16x16 32x32 48x48" },
@@ -92,17 +83,13 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   // Tiñe la interfaz del navegador móvil con el fondo (el sitio es siempre oscuro).
   themeColor: "#0a1512",
-  // `cover`: la página llega hasta los bordes físicos de la pantalla, que es lo
-  // que se espera de una app instalada. A cambio, todo lo que se pega a un
-  // borde tiene que respetar `env(safe-area-inset-*)` para no quedar debajo del
-  // notch, de la isla dinámica o de la barra de gestos — eso lo hacen las
-  // reglas `.safe-*` de globals.css.
+  // `cover`: la página llega a los bordes físicos, como una app instalada. Lo pegado
+  // a un borde respeta `env(safe-area-inset-*)` con las reglas `.safe-*`.
   viewportFit: "cover",
 };
 
-// Datos estructurados (JSON-LD): resultado enriquecido en buscadores y
-// contexto entendible para los motores de IA. Nodos enlazados por @id:
-// la web es la ProfilePage de la Person, con sus proyectos como obras.
+// Datos estructurados (JSON-LD): la web es la ProfilePage de la Person, con sus
+// proyectos como obras enlazadas por @id.
 const personId = `${SITE_URL}/#persona`;
 const jsonLd = {
   "@context": "https://schema.org",
@@ -163,11 +150,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    // Tema oscuro permanente: los tokens de globals.css ya son los oscuros.
-    // suppressHydrationWarning: extensiones y herramientas de automatización
-    // inyectan atributos en <html> antes de hidratar (mismatch espurio).
-    // data-scroll-behavior: le declara a Next el scroll suave para que pueda
-    // desactivarlo durante las transiciones de ruta.
+    // Tema oscuro permanente. suppressHydrationWarning por los atributos que inyectan
+    // las extensiones; data-scroll-behavior declara a Next el scroll suave.
     <html
       lang="es"
       suppressHydrationWarning

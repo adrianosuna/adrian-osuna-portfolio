@@ -1,14 +1,5 @@
-// Topes de gasto por categoría: el límite MENSUAL opcional de cada categoría
-// de gasto y su estado en un mes.
-//
-// Por qué existen: los donuts del control de gastos cuentan lo que ya pasó, y
-// un gasto ya hecho no se puede deshacer. El tope es la misma información
-// llegando A TIEMPO — mientras el mes corre y todavía se puede decidir.
-//
-// Sin `server-only` ni dependencias a propósito: los umbrales y el cálculo del
-// estado los necesitan el aviso por correo (servidor) y las barras de la vista
-// del mes (cliente), y duplicar los umbrales en los dos lados es justo cómo se
-// desincronizan.
+// Topes de gasto: límite mensual opcional por categoría y su estado en un mes. Sin
+// `server-only`: los umbrales los comparten el correo y las barras del mes.
 
 export interface TopeRow {
   uuid: string
@@ -45,25 +36,16 @@ interface Movimiento {
 interface Categoria {
   uuid: string
   name: string
-  /** Grupo al que pertenece (null = primer nivel). Obligatorio a propósito:
-   *  quien llame tiene que pasar TODAS las categorías del tipo, no solo las
-   *  que tienen tope — si no, el gasto de una subcategoría sin tope no se
-   *  podría sumar al tope de su grupo y este saldría siempre a cero. */
+  /** Grupo al que pertenece (null = primer nivel). Obligatorio: hay que pasar todas las
+   *  categorías del tipo, o el gasto de una hija sin tope no sumaría a su grupo. */
   parentUuid: string | null
   color: string
   type: 'INGRESO' | 'GASTO'
   budget: number | null
 }
 
-/**
- * Estado de todos los topes de un mes, del más apurado al que más margen le
- * queda: lo primero que hay que ver es lo que está a punto de pasarse.
- *
- * Solo entran las categorías de GASTO con tope: un tope de 0 (o negativo) no
- * dice nada y se trata como "sin tope". Las que tienen tope y ningún gasto
- * salen igual, a 0 %, porque saber que aún no has tocado un sobre es la mitad
- * de la información.
- */
+/** Estado de los topes de un mes, del más apurado al que más margen tiene. Solo
+ *  gasto con tope > 0; las sin gasto salen a 0 %. */
 export function topesDelMes(categorias: Categoria[], movimientos: Movimiento[]): TopeRow[] {
   const gastoPorCat = new Map<string, number>()
   for (const m of movimientos) {
@@ -114,17 +96,8 @@ export interface ResumenTopes {
   alLimite: number
 }
 
-/**
- * Cifras de cabecera de los topes de un mes.
- *
- * ⚠ Los topes ANIDADOS no se suman dos veces: si "Coche" tiene tope y su
- * subcategoría "Gasolina" también, el techo del conjunto es el del grupo (la
- * gasolina ya va dentro), así que solo cuenta el del grupo. Sumar los dos
- * daría un presupuesto que no existe y un "restante" inflado.
- *
- * Los CONTADORES, en cambio, cuentan todos los topes: que la gasolina se haya
- * pasado importa aunque el coche en conjunto siga bajo su límite.
- */
+/** Cifras de cabecera. Los topes anidados no se suman dos veces: el techo es el del
+ *  grupo. Los contadores sí cuentan todos. */
 export function resumenTopes(topes: TopeRow[]): ResumenTopes {
   const conTope = new Set(topes.map((t) => t.uuid))
   const raiz = topes.filter((t) => !(t.parentUuid && conTope.has(t.parentUuid)))

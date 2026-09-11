@@ -1,7 +1,5 @@
-// Parser del mes escrito a mano en la paleta ⌘K: "marzo", "mar", "2026-03".
-// Es lo que convierte la caja de búsqueda en un "ir al mes", y el sitio donde
-// una entrada rara (un mes 13, una palabra que no es un mes) tiene que decir
-// que no en vez de navegar a un mes inventado.
+// Parser del mes en la paleta ⌘K: "marzo", "mar", "2026-03". Una entrada rara debe
+// decir que no, no navegar a un mes inventado.
 import { describe, expect, it, vi } from 'vitest'
 
 // El componente arrastra sus server actions (Prisma, correo): aquí solo

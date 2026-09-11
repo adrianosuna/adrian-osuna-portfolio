@@ -1,17 +1,5 @@
-// GET /api/ready — ¿puede atender peticiones de verdad? (readiness)
-//
-// Hace un `SELECT 1` con tope de tiempo: 200 si la BD contesta, **503 si no**.
-// Es lo que mira un balanceador para dejar de mandarle tráfico a un contenedor
-// que está arriba pero no puede servir nada.
-//
-// ⚠ Por qué NO es el healthcheck de Docker: un healthcheck que falla reinicia
-// el contenedor, y reiniciar `web` porque la BD tarda en arrancar es exactamente
-// el bucle que no se quiere. Vivo (`/api/health`) y listo (`/api/ready`) son dos
-// preguntas distintas, y mezclarlas convierte un problema de la BD en una caída
-// del web.
-//
-// PÚBLICO, y por eso solo dice sí o no: ni el error de la BD, ni su versión, ni
-// cuánto tardó. El detalle está en la pestaña Servidor del Panel, con sesión.
+// GET /api/ready: readiness. SELECT 1 con tope; 503 si la BD no contesta. No es el
+// healthcheck de Docker: reiniciar web porque la BD tarda es el bucle a evitar.
 import { prisma } from '@/lib/prisma'
 import { log } from '@/lib/log'
 

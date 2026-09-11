@@ -1,16 +1,5 @@
-// POST /api/v1/movimientos — apunta un gasto o un ingreso.
-//
-// Es el endpoint para el que se hizo la API: un Atajo del iPhone ("Oye Siri,
-// apunta un gasto") manda concepto e importe y ya está en el control de gastos.
-//
-// Cuerpo (JSON):
-//   { "concepto": "Mercadona", "importe": "12,50", "tipo": "gasto",
-//     "fecha": "2026-09-02", "categoria": "Compra", "nota": "..." }
-//
-// `categoria` admite el nombre o el uuid (ver `/api/v1/categorias`).
-//
-// Solo `concepto` e `importe` son obligatorios: `tipo` cae a "gasto" (es lo que
-// se apunta el 90 % de las veces) y `fecha` a hoy en horario de Madrid.
+// POST /api/v1/movimientos: apunta un gasto o ingreso desde un Atajo. Solo concepto
+// e importe son obligatorios; tipo cae a "gasto" y fecha a hoy (Madrid).
 import { revalidatePath } from 'next/cache'
 import { altaMovimiento } from '@/lib/alta-movimiento'
 import { hoyMadrid } from '@/lib/mantenimiento'

@@ -1,17 +1,6 @@
 // @vitest-environment jsdom
-// Auditoría de accesibilidad de las piezas del DASHBOARD.
-//
-// Por qué aquí y no con Playwright: el dashboard vive detrás de la sesión de
-// Google, así que un axe por navegador solo alcanzaría la landing y el login
-// —que ya se auditan aparte—. Aquí se montan los componentes de verdad, con
-// datos representativos, y se le pasa axe al DOM que producen: eso cubre lo
-// estructural (roles, nombres accesibles, etiquetas, orden de encabezados,
-// ARIA válido), que es el grueso.
-//
-// ⚠ Lo que esto NO puede ver, y se comprueba en el navegador:
-//   · `color-contrast` — jsdom no calcula estilos. Los 13 pares de tokens del
-//     tema se midieron a mano: el peor sale a 6,03:1, sobre el 4,5 de AA.
-//   · Tamaño de los objetivos táctiles — hace falta layout real.
+// Auditoría axe de las piezas del dashboard, montadas con datos representativos.
+// No ve `color-contrast` ni tamaños táctiles: eso se mide en el navegador.
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import axe from 'axe-core'

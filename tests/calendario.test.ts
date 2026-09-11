@@ -1,6 +1,5 @@
-// Calendario unificado: la aritmética de proyectar tres fuentes con reglas
-// distintas a un mes. Es puro a propósito, porque los meses cortos, el cruce
-// de año y el atraso son donde esto se rompe.
+// Calendario unificado: la aritmética de proyectar tres fuentes a un mes. Puro:
+// meses cortos, cruce de año y atraso son donde se rompe.
 import { describe, expect, it } from 'vitest'
 import {
   eventosDelMes, porDia, semanasDelMes,
@@ -75,9 +74,8 @@ describe('eventosDelMes', () => {
   })
 
   it('una tarea vencida DENTRO del mes se queda en su día, pero marcada', () => {
-    // El caso que se pasaba: vencida el día 3 estando hoy a 5, no hay nada que
-    // arrastrar porque su día se está viendo — pero pintarla como una
-    // cualquiera era perder de vista justo lo urgente.
+    // Vencida el día 3 estando hoy a 5: no se arrastra (su día se ve) pero sigue
+    // vencida.
     const t = tarea({ intervalMonths: null, nextDue: '2026-09-03' })
     const e = eventosDelMes('2026-09', '2026-09-05', { tareas: [t] })
     expect(e).toHaveLength(1)

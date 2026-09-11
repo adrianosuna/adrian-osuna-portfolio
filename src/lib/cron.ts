@@ -1,9 +1,5 @@
-// Planificador interno de la app (node-cron): la arranca instrumentation.ts
-// una sola vez por proceso. Hoy hace cuatro cosas al día: APUNTAR los
-// movimientos recurrentes que han vencido, AVISAR por correo (mantenimiento
-// vencido, seguimientos del pipeline, meses de ahorro sin rellenar y topes de
-// gasto alcanzados), EMPUJAR esos mismos avisos al móvil por push y MUESTREAR
-// el estado del servidor para su histórico. El trabajo periódico futuro va aquí.
+// Planificador interno (node-cron), arrancado por instrumentation.ts: apunta
+// recurrentes, avisa por correo y push, y muestrea el servidor. Diario.
 import 'server-only'
 import cron from 'node-cron'
 import { correoConfigurado } from '@/lib/correo'
@@ -24,10 +20,8 @@ export function iniciarCron() {
   if (marca.__cronIniciado) return
   marca.__cronIniciado = true
 
-  // El cron solo se programa en producción: con SMTP configurado en local,
-  // arrancar el dev server enviaba correos reales (la pasada de arranque salta
-  // al minuto) y apuntaría recurrentes en la BD de desarrollo.
-  // CRON_EN_DEV=1 lo fuerza para poder probarlo a mano.
+  // El cron solo se programa en producción: en local con SMTP enviaba correos reales
+  // y apuntaría recurrentes en la BD de desarrollo. CRON_EN_DEV=1 lo fuerza.
   if (process.env.NODE_ENV !== 'production' && process.env.CRON_EN_DEV !== '1') {
     log.info('cron', 'desarrollo: sin programar (CRON_EN_DEV=1 para forzarlo)')
     return
@@ -38,9 +32,8 @@ export function iniciarCron() {
     log.info('cron', 'SMTP sin configurar: los avisos por correo quedan inactivos')
   }
 
-  // Notificación push con los avisos pendientes (al móvil, en el momento).
-  // Va aparte del correo a propósito: son dos canales y no dependen uno del
-  // otro — sin SMTP el push sigue saliendo, y sin claves VAPID el correo también.
+  // Push aparte del correo: dos canales independientes. Sin SMTP el push sigue, y
+  // sin claves VAPID el correo también.
   const empujar = () => {
     avisosPendientes()
       .then((avisos) => avisarPush(avisos))
@@ -76,9 +69,8 @@ export function iniciarCron() {
       .catch((e) => log.error('cron', 'aviso de topes fallido', { error: e }))
   }
 
-  // Los recurrentes van PRIMERO y los avisos esperan a que terminen: si hoy es
-  // día 1, el aviso de topes tiene que contar ya con el alquiler recién
-  // apuntado. Si la generación falla, los avisos salen igual.
+  // Los recurrentes van primero: el aviso de topes del día 1 debe contar ya con el
+  // alquiler apuntado. Si la generación falla, los avisos salen igual.
   const ejecutar = () => {
     generarRecurrentes()
       .then((n) => {
@@ -104,9 +96,8 @@ export function iniciarCron() {
       .catch((e) => log.error('cron', 'purga del registro fallida', { error: e }))
   }
 
-  // Diario a las 8:00 (hora española), y una pasada de arranque al minuto de
-  // levantar el proceso: si un despliegue pilla el servidor apagado a las
-  // 8:00, el aviso no se pierde (el reaviso semanal evita duplicados).
+  // Diario a las 8:00 (hora española) y una pasada al minuto de arrancar: si un
+  // despliegue pilla las 8:00 apagado, el aviso no se pierde.
   cron.schedule('0 8 * * *', ejecutar, { timezone: 'Europe/Madrid' })
   setTimeout(ejecutar, 60_000)
   log.info('cron', 'programado (diario, 8:00 Europe/Madrid)')

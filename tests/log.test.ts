@@ -1,9 +1,5 @@
-// Registro por niveles: el suelo configurable, el formato JSON de producción y
-// la normalización de un Error (que `JSON.stringify` deja en `{}`).
-//
-// Interesa porque es la pieza por la que pasan TODOS los avisos del servidor:
-// un suelo mal leído silencia el log entero, y un Error serializado a `{}`
-// convierte un fallo depurable en una línea inútil.
+// Registro por niveles: suelo configurable, JSON de producción y normalización de un
+// Error. Un suelo mal leído silencia el log entero.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const original = { LOG_LEVEL: process.env.LOG_LEVEL, NODE_ENV: process.env.NODE_ENV }

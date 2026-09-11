@@ -1,17 +1,5 @@
-// Esqueletos de carga del dashboard, en un solo sitio.
-//
-// Para qué: las páginas pesadas del dashboard (finanzas, pipeline, panel)
-// consultan varias tablas antes de pintar. Sin Suspense, el navegador se queda
-// en blanco hasta que la última consulta termina — y eso se nota justo al
-// cambiar de sección, que es cuando más se usa. Con Suspense, el título y la
-// navegación aparecen al instante y solo el bloque de datos espera.
-//
-// Todos llevan `aria-hidden`: son un hueco visual, no información. Quien navega
-// con lector de pantalla no gana nada oyendo "cargando" seis veces; se le
-// anuncia el contenido cuando llega.
-//
-// Vive aquí y no en cada página porque el `Esqueleto` del Panel de control ya
-// estaba copiado, y el segundo que se copia es el que se queda desactualizado.
+// Esqueletos de carga del dashboard, comunes. Todos con `aria-hidden`: son un hueco
+// visual, no información.
 
 /** Rejilla de tarjetas: el hueco de una pestaña del Panel o de Ajustes. */
 export function EsqueletoTarjetas({ n = 6, conBoton = true }: { n?: number; conBoton?: boolean }) {
@@ -62,13 +50,8 @@ export function EsqueletoLista({ filas = 8 }: { filas?: number }) {
   )
 }
 
-/**
- * Kanban: la franja de métricas y las cinco columnas.
- *
- * Las columnas se ocultan por debajo de `md` porque ahí el tablero no existe
- * (se trabaja desde la vista Tabla): un esqueleto de algo que no se va a pintar
- * sería un salto de maquetación garantizado.
- */
+/** Kanban: métricas y cinco columnas. Las columnas se ocultan bajo `md`, donde el
+ *  tablero no existe. */
 export function EsqueletoTablero() {
   return (
     <div aria-hidden="true">

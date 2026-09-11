@@ -1,9 +1,7 @@
 'use client'
 
-// Barra superior del dashboard: navegación por módulos + perfil con cierre de
-// sesión. Las entradas de administración solo aparecen para admins. En móvil
-// los enlaces van en un panel desplegable sólido (hamburguesa), como el menú
-// de la landing: la fila horizontal con scroll no daba la talla con 5 módulos.
+// Barra superior del dashboard: módulos y perfil. Las entradas de administración
+// solo para admins; en móvil los enlaces van en un panel desplegable.
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -96,7 +94,8 @@ export function TopNav({ user, avisos, onSignOut }: TopNavProps) {
         {/* Campana de avisos: en las dos anchuras (es la señal, no un extra) */}
         {acc.isAdmin && <Notificaciones avisos={avisos} />}
 
-        {/* Acciones rápidas en escritorio: paleta ⌘K y alta de movimiento */}
+        {/* Entre md y lg la barra no cabe: se compacta lo secundario (este botón en icono,
+            el perfil en avatar). Texto con sr-only, no hidden: el botón conserva su nombre. */}
         {acc.isAdmin && (
           <div className="hidden items-center gap-1.5 md:flex">
             <button
@@ -104,8 +103,8 @@ export function TopNav({ user, avisos, onSignOut }: TopNavProps) {
               className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
               onClick={acc.abrirPaleta}>
               <Search className="size-4" />
-              <span>Buscar</span>
-              <kbd className="rounded border border-border px-1 text-[11px] leading-relaxed">Ctrl&nbsp;K</kbd>
+              <span className="sr-only lg:not-sr-only">Buscar</span>
+              <kbd className="hidden rounded border border-border px-1 text-[11px] leading-relaxed lg:inline">Ctrl&nbsp;K</kbd>
             </button>
             <Tooltip texto="Nuevo movimiento">
               <button
@@ -123,7 +122,9 @@ export function TopNav({ user, avisos, onSignOut }: TopNavProps) {
         <div className="relative hidden md:block" ref={profileRef}>
           <button
             type="button"
-            className="flex items-center gap-2 rounded-full border border-border p-0.5 pr-2 transition-colors hover:border-primary/50"
+            // `pr-2` solo cuando se ve el nombre: con el avatar solo, ese
+            // relleno lo descentraba dentro del círculo.
+            className="flex items-center gap-2 rounded-full border border-border p-0.5 transition-colors hover:border-primary/50 lg:pr-2"
             onClick={() => setProfileOpen((o) => !o)}
             aria-haspopup="menu"
             aria-expanded={profileOpen}>
@@ -134,7 +135,9 @@ export function TopNav({ user, avisos, onSignOut }: TopNavProps) {
                 <UserRound className="size-4" />
               </span>
             )}
-            <span className="hidden max-w-32 truncate text-sm font-medium sm:block">
+            {/* El nombre es el único nombre accesible del botón (la imagen lleva alt vacío):
+                bajo lg se oculta con sr-only, no con hidden. */}
+            <span className="sr-only max-w-32 truncate text-sm font-medium lg:not-sr-only">
               {(user.name ?? user.email ?? '').split(' ')[0]}
             </span>
           </button>

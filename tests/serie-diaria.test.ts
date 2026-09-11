@@ -1,8 +1,5 @@
-// serieDiaria: la parte con lógica del port de `dailyTrend` (proyecto de
-// Inversiones). Tres cosas importan aquí:
-//   · RELLENAR LOS HUECOS — un día sin visitas aparece a cero, no se salta.
-//   · Las marcas de mes, sin solaparse cuando el primer mes entra parcial.
-//   · La agrupación por SEMANA cuando el rango es largo (más de 45 días).
+// serieDiaria: relleno de huecos, marcas de mes sin solaparse y agrupación por
+// semana en rangos largos.
 import { describe, expect, it } from 'vitest'
 import { serieDiaria } from '@/lib/serie-diaria'
 

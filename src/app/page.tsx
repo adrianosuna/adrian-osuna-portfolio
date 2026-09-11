@@ -1,9 +1,8 @@
 import type { Metadata } from 'next'
 import { Landing } from '@/components/landing/landing'
 
-// Canonical y og:url solo aquí (no en el layout raíz, donde se heredarían en
-// /login y /app). Nota: `openGraph` no se fusiona en profundidad con el del
-// layout, así que se redeclara completo.
+// Canonical y og:url solo aquí (en el layout raíz se heredarían en /login y
+// /app). `openGraph` no se fusiona en profundidad: se redeclara completo.
 export const metadata: Metadata = {
   alternates: { canonical: '/' },
   openGraph: {

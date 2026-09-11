@@ -1,10 +1,7 @@
 'use client'
 
-// Selector de pestaña del Panel en MÓVIL: las cinco pestañas no caben en una
-// fila en 375px, y ni el scroll horizontal ni las dos filas quedaban bien; un
-// desplegable (con el estilo del tema) lo resuelve en una línea. En escritorio
-// se usan las pestañas normales (ver panel/page.tsx). El feedback de carga lo da
-// la barra global (`useCarga`), no un spinner aquí.
+// Selector de pestaña del Panel en móvil: cinco pestañas no caben en 375 px, así
+// que van en un desplegable. El feedback de carga lo da la barra global.
 import { useRouter } from 'next/navigation'
 import { SelectField } from '@/components/ui/fields'
 import { useCarga } from '@/components/dashboard/barra-carga'

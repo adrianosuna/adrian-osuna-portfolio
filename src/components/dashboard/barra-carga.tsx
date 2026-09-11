@@ -1,14 +1,7 @@
 'use client'
 
-// Barra de carga lineal, justo debajo de la barra superior. Da feedback de
-// navegación de forma GLOBAL (sin spinners por pestaña): aparece al iniciar una
-// navegación y desaparece cuando la ruta se asienta.
-//
-// Por qué así: cambiar de sección/pestaña navega por query param, sin prefetch,
-// y `loading.tsx` no se dispara en cambios de query param. Se detecta el inicio
-// de dos formas —un clic en cualquier `<a>` interno (Link, barra superior) y la
-// llamada `iniciar()` de los tabs que usan `router.push` (botones, no enlaces)—
-// y el fin, cuando cambian `pathname` o `searchParams`.
+// Barra de carga global bajo la barra superior. Los cambios por query param no
+// disparan loading.tsx: se detecta el clic en <a> interno o `iniciar()` de los tabs.
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 
@@ -25,16 +18,14 @@ export function BarraCargaProvider({ children }: { children: React.ReactNode }) 
 
   const iniciar = () => {
     setActiva(true)
-    // Red de seguridad: si por lo que sea la ruta no cambiara, la barra no se
-    // queda encendida para siempre. `iniciar` limpia el timeout anterior, así
-    // que solo hay uno vivo (el de la última navegación).
+    // Red de seguridad: si la ruta no cambiara, la barra no se queda encendida.
+    // `iniciar` limpia el timeout anterior.
     if (timeout.current) clearTimeout(timeout.current)
     timeout.current = setTimeout(() => setActiva(false), 8000)
   }
 
-  // Ruta asentada (cambió pathname o los search params) → apagar. Se hace en
-  // render (patrón de ajuste de estado), no en un efecto: el React Compiler no
-  // permite `setState` síncrono dentro de un useEffect.
+  // Ruta asentada → apagar. En render y no en un efecto: el React Compiler no
+  // permite setState síncrono dentro de useEffect.
   const ruta = pathname + '?' + searchParams.toString()
   const [prevRuta, setPrevRuta] = useState(ruta)
   if (prevRuta !== ruta) {

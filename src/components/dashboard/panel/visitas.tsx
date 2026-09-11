@@ -1,9 +1,7 @@
 'use client'
 
-// Pestaña "Visitas" del Panel de control: métricas de GA4 de los últimos 30
-// días (Data API con service account) con comparativa frente a los 30 previos,
-// conversiones de la landing (eventos clic_*), geografía, tecnología y mapa
-// horario. Gráficas SVG a mano, como las del módulo de ahorro.
+// Pestaña "Visitas": métricas de GA4 de 30 días con comparativa, conversiones de la
+// landing (clic_*), geografía, tecnología y mapa horario.
 import { useEffect, useState } from 'react'
 import { GraficaBarras } from '@/components/ui/charts/barras'
 import { filaTooltip, marcoTooltip, mostrarTooltip, ocultarTooltip } from '@/components/ui/charts/tooltip'
@@ -106,10 +104,8 @@ function Tarjeta({ titulo, children, accion }: {
   )
 }
 
-// Barras diarias de usuarios activos, sobre Chart.js (componente portado del
-// proyecto de Inversiones). `paso` ya no hace falta: Chart.js reparte las
-// etiquetas con autoSkip, y el eje de meses de `serieDiaria` marca dónde
-// empieza cada mes para leer 90 días de un vistazo.
+// Barras diarias de usuarios activos sobre Chart.js. Las etiquetas las reparte
+// autoSkip; el eje de meses de `serieDiaria` marca dónde empieza cada mes.
 function VisitasPorDia({ serie }: { serie: VisitasSnapshot['serie'] }) {
   // Agrupación automática: con más de 45 días pasa a semanas (13 barras en vez
   // de 90, que a esa anchura no se leen).
@@ -197,12 +193,8 @@ function Ranking({ filas, vacio }: { filas: Array<Fila | FilaComparada>; vacio?:
   )
 }
 
-/**
- * Variación de una fila frente al periodo anterior, en compacto.
- *
- * Sin dato previo se marca "nueva" en vez de un +100 % engañoso: una página
- * que antes no existía no ha "subido", ha aparecido.
- */
+/** Variación de una fila frente al periodo anterior, en compacto. Sin dato previo
+ *  se marca "nueva" en vez de un +100 % engañoso. */
 function Variacion({ actual, previo }: { actual: number; previo: number }) {
   if (previo === 0) {
     return actual === 0 ? null : (
@@ -231,9 +223,8 @@ function Subtitulo({ children, primero }: { children: React.ReactNode; primero?:
   )
 }
 
-// Rejilla día × hora con intensidad de color según usuarios activos.
-// Escritorio: días como filas y 24 horas en horizontal. Móvil: transpuesta
-// (horas en vertical, 7 columnas de días) — cabe sin scroll ni celdas mínimas.
+// Rejilla día × hora con intensidad según usuarios activos. Escritorio: días en
+// filas; móvil: transpuesta (horas en vertical) para caber sin scroll.
 const DIAS_MAPA = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
 
 const colorCelda = (v: number, max: number) =>
@@ -243,24 +234,13 @@ const colorCelda = (v: number, max: number) =>
 
 const DIAS_LARGOS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 
-/**
- * Texto accesible de la celda (`aria-label`): el tooltip visual lo compone
- * aparte.
- *
- * ⚠ La celda lleva `role="img"`. Sin rol, `aria-label` en un `div` está
- * PROHIBIDO por la especificación —un div genérico no admite nombre
- * accesible— y el lector de pantalla se lo salta: las 168 etiquetas no las
- * leía nadie. Con `role="img"` la celda es un gráfico con descripción, que es
- * lo que es.
- */
+/** Texto accesible de la celda (`aria-label`). La celda lleva `role="img"`: en un
+ *  div sin rol el aria-label no existe y el lector se lo salta. */
 const tituloCelda = (d: number, h: number, v: number) =>
   `${DIAS_LARGOS[d]} a las ${String(h).padStart(2, '0')}:00 — ${v} ${v === 1 ? 'usuario' : 'usuarios'}`
 
-/**
- * Tooltip de una celda con el MISMO aspecto que el de las gráficas. Se usa
- * delegación en el contenedor (un handler, no 169) leyendo los data-* de la
- * celda que está debajo del puntero.
- */
+/** Tooltip de una celda con el mismo aspecto que el de las gráficas. Delegación en
+ *  el contenedor (un handler, no 169) leyendo los data-* de la celda. */
 const tooltipCelda = (el: HTMLElement, x: number, y: number) => {
   const dia = Number(el.dataset.dia)
   const hora = Number(el.dataset.hora)
@@ -525,9 +505,8 @@ export function VisitasTab({ snapshot }: { snapshot: VisitasSnapshot }) {
         <Tarjeta
           titulo="Geografía"
           accion={
-            // Botón y no la tarjeta entera pulsable: aquí dentro hay barras y
-            // texto, y una tarjeta-botón se come clics que iban a otra cosa
-            // (lo que ya pasó con las tarjetas de notas).
+            // Botón y no la tarjeta entera pulsable: aquí dentro hay barras y texto, y una
+            // tarjeta-botón se come clics que iban a otra cosa.
             (snapshot.paises.length > 0 || snapshot.ciudades.length > 0) && (
               <button
                 type="button"

@@ -1,7 +1,5 @@
-// Checklists de las notas: allowlist del saneador para `ul.tareas` /
-// `li[data-check]`, y el alternado por índice que usa la acción del servidor.
-// Es la pieza donde un ítem marcado desde la tarjeta puede tocar el HTML
-// guardado, así que interesa que ni se cuele nada ni se marque el ítem de al lado.
+// Checklists de las notas: allowlist del saneador y alternado por índice. Ni se
+// cuela nada ni se marca el ítem de al lado.
 import { describe, expect, it } from 'vitest'
 import {
   alternarTarea, progresoTareas, sanitizarNota, tareasDe,

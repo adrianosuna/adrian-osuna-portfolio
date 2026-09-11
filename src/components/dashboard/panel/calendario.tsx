@@ -1,20 +1,7 @@
 'use client'
 
-// Calendario del dashboard: la rejilla de un mes con TODO lo que tiene fecha
-// —tareas de mantenimiento, cargos recurrentes y seguimientos del pipeline—,
-// navegable mes a mes.
-//
-// Qué se puede hacer aquí y qué no, y por qué: las tareas de mantenimiento se
-// CREAN y EDITAN desde el calendario (pulsando un día o un evento), porque son
-// lo que de verdad se planifica por fecha. Un cargo recurrente o un
-// seguimiento solo se consultan y enlazan a su módulo: sus formularios tienen
-// reglas propias (periodicidad e importe, oportunidad y estado) y una segunda
-// copia aquí es exactamente como se desincronizan.
-//
-// La rejilla es de DÍAS y no de meses porque es lo que se espera de un
-// calendario y lo que permite pulsar una fecha para crear algo en ella. Hubo
-// una vista de 12 meses en Mantenimiento, retirada el 05/09/2026: "lo del año
-// no me gusta nada, prefiero solo meses".
+// Calendario mensual con todo lo que tiene fecha: tareas (se crean y editan aquí),
+// cargos recurrentes y seguimientos (solo enlazan a su módulo).
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { CalendarClock, ChevronLeft, ChevronRight, Plus, Repeat, Wrench } from 'lucide-react'
 import { cn, cuenta } from '@/lib/utils'
@@ -25,12 +12,8 @@ import {
   type Evento, type RecurrenteCal, type SeguimientoCal, type TareaCal, type TipoEvento,
 } from '@/lib/calendario'
 
-/**
- * La semana empieza en LUNES. La cabecera lleva el nombre COMPLETO («Lunes»,
- * «Martes»), que es como se lee un calendario; solo en móvil se abrevia a tres
- * letras, porque a 375 px la columna mide 47 px y «Miércoles» no cabe. La
- * inicial suelta, que es como estaba, rotulaba dos columnas con la misma M.
- */
+/** La semana empieza en lunes. Nombre completo en la cabecera; en móvil, tres
+ *  letras (la inicial rotulaba dos columnas con la misma M). */
 const ORDEN = [1, 2, 3, 4, 5, 6, 0] as const
 const CABECERA = ORDEN.map((i) => ({ largo: DIAS[i], corto: diaCorto(i) }))
 
@@ -40,11 +23,8 @@ const ESTILO: Record<TipoEvento, { punto: string; chip: string; Icono: typeof Wr
   recurrente: { punto: 'bg-warning', chip: 'bg-warning/10 text-warning', Icono: Repeat, nombre: 'Recurrente' },
 }
 
-/**
- * Cuántos eventos caben en una celda antes de resumir el resto: TÍTULOS en
- * escritorio y PUNTOS en móvil, así que no es la misma cifra — en 47 px de
- * ancho caben cuatro puntos y ningún título.
- */
+/** Eventos que caben en una celda antes de resumir: títulos en escritorio y puntos
+ *  en móvil, así que no es la misma cifra. */
 const POR_CELDA = 3
 const PUNTOS_MOVIL = 4
 
@@ -74,10 +54,8 @@ function Celda({
   const esHoy = celda.fecha === hoy
   const visibles = eventos.slice(0, POR_CELDA)
   const resto = eventos.length - visibles.length
-  // ⚠ Un día VECINO nunca trae eventos: `eventosDelMes` acota al mes, así que
-  // la celda del 31 de agosto sale vacía aunque ese día tenga algo. Por eso
-  // lleva a SU mes en vez de dar de alta ahí: la celda no puede decir la
-  // verdad sobre ese día, pero sí llevar a donde se ve.
+  // Un día vecino nunca trae eventos (`eventosDelMes` acota al mes): lleva a su mes
+  // en vez de dar de alta ahí.
   const accion = !celda.delMes ? onOtroMes : eventos.length === 0 ? onNueva : onDia
 
   return (
@@ -94,17 +72,12 @@ function Celda({
             ? `, ${cuenta(eventos.length, 'evento', 'eventos')}`
             : ', sin eventos'
       }`}
-      // Solo es un conmutador cuando de verdad abre y cierra el detalle: en una
-      // celda vacía o vecina el clic hace otra cosa y anunciarla como "no
-      // pulsado" sería mentir.
+      // Solo es conmutador cuando abre y cierra el detalle: en una celda vacía o vecina
+      // el clic hace otra cosa.
       aria-pressed={celda.delMes && eventos.length > 0 ? abierto : undefined}
       className={cn(
-        // ⚠ `flex flex-col` para que el NÚMERO quede arriba a la izquierda
-        // SIEMPRE. Un <button> centra su contenido en vertical, así que el
-        // número bailaba entre los 9 px de un día cargado y los 41 px de uno
-        // vacío: en una rejilla de 35 celdas, cada fila a una altura distinta.
-        // Más baja en móvil: sin títulos no hace falta tanto alto, y así entra
-        // el mes entero sin scroll.
+        // `flex flex-col` para que el número quede siempre arriba a la izquierda: un
+        // <button> centra su contenido en vertical. Más baja en móvil, sin títulos.
         'flex min-h-14 flex-col border-r border-border/60 p-1.5 text-left transition-colors last:border-0 hover:bg-muted/40 sm:min-h-24',
         !celda.delMes && 'bg-card/30',
         abierto && 'bg-muted/60',
@@ -118,11 +91,8 @@ function Celda({
         )}>
         {Number(celda.fecha.slice(8, 10))}
       </span>
-      {/* ⚠ En MÓVIL solo los puntos, sin títulos. A 375 px una columna de la
-          rejilla mide 47 px y los títulos quedaban en "Por…", "Tie…", "We…":
-          texto recortado hasta ser inútil. Los puntos dicen que hay algo y de
-          qué tipo, y al tocar el día se lee todo en el panel de detalle — que
-          es como funcionan los calendarios en un móvil. */}
+      {/* En móvil solo puntos: a 375 px la columna mide 47 px y los títulos quedaban
+          recortados. El día se lee entero en el panel de detalle. */}
       <span className="mt-1 flex flex-wrap gap-1 sm:hidden">
         {eventos.slice(0, PUNTOS_MOVIL).map((e) => (
           <span
@@ -195,19 +165,8 @@ export function Calendario({
     setDia(null)
   }
 
-  // ─── Teclado: UNA parada de tabulador y flechas para moverse ───
-  //
-  // ⚠ La rejilla tiene 35 celdas y todas son botones: sin esto, cruzar el
-  // calendario con el tabulador son 35 paradas que además no llevan a ningún
-  // sitio. Con el tabindex rotatorio solo una entra en el orden (el día de hoy,
-  // o el 1 si se está viendo otro mes) y desde ella las flechas mueven día a
-  // día, con Inicio/Fin a los extremos de la semana y RePág/AvPág al mes de al
-  // lado. Es el patrón de cualquier calendario, y lo que se espera al pulsar
-  // una flecha estando dentro de una rejilla de fechas.
-  //
-  // Sin `role="grid"` a propósito: las celdas son BOTONES de verdad (abren o
-  // dan de alta), y cambiarles el rol a `gridcell` les quitaría eso a cambio de
-  // una semántica que aquí no aporta. Las flechas son una comodidad encima.
+  // Teclado: una sola parada de tabulador (hoy o el 1) y flechas para moverse; Inicio/
+  // Fin a los extremos de la semana, RePág/AvPág al mes. Sin role="grid": son botones.
   const rejilla = useRef<HTMLDivElement>(null)
   const detalle = useRef<HTMLDivElement>(null)
   /** Día al que hay que devolver el foco tras cambiar de mes. */
@@ -257,12 +216,8 @@ export function Calendario({
     rejilla.current?.querySelector<HTMLButtonElement>(`[data-fecha="${f}"]`)?.focus()
   }, [mes])
 
-  // ⚠ El detalle a la vista al abrirlo. En MÓVIL la rejilla del mes ocupa más
-  // que la pantalla, así que el panel nacía fuera —medido: y = 935 con una
-  // ventana de 812— y tocar un día parecía no hacer nada. Y es justo donde el
-  // panel es la ÚNICA forma de leer el día: las celdas solo llevan puntos.
-  // `block: 'nearest'` no mueve nada si ya se ve, así que en escritorio no
-  // pasa nada.
+  // El detalle se trae a la vista al abrirlo: en móvil nacía fuera de pantalla y
+  // tocar un día parecía no hacer nada. `nearest` no mueve nada si ya se ve.
   useEffect(() => {
     if (!dia || !detalle.current) return
     const quieto = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -340,17 +295,12 @@ export function Calendario({
         </div>
       </div>
 
-      {/* Rejilla. Cada celda es un BOTÓN: un día vacío da de alta una tarea en
-          esa fecha (lo que se espera al pulsar un día de un calendario) y uno
-          con eventos abre su detalle debajo. */}
+      {/* Cada celda es un botón: un día vacío da de alta una tarea en esa fecha y uno
+          con eventos abre su detalle. */}
       <div ref={rejilla} onKeyDown={teclas} className="overflow-hidden rounded-xl border border-border">
         <div className="grid grid-cols-7 border-b border-border bg-card/50">
-          {/* ⚠ El nombre largo se lee SIEMPRE, también en móvil ("Mié" se lee
-              mal en voz alta), y por eso está en el DOM con `sr-only` en vez de
-              en un `aria-label` del div: un `aria-label` en un div SIN ROL no
-              existe —la especificación lo prohíbe y el lector se lo salta—, que
-              es la trampa que ya documenta CLAUDE.md. Aquí estaba puesta: la
-              cabecera parecía accesible y en móvil solo se anunciaba "MIÉ". */}
+          {/* El nombre largo va en el DOM con sr-only, no en aria-label del div: en un div
+              sin rol ese atributo no existe. */}
           {CABECERA.map((d) => (
             <div
               key={d.largo}
@@ -384,9 +334,7 @@ export function Calendario({
       {dia && (
         <div ref={detalle} className="rounded-xl border border-border bg-card p-4">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-            {/* h2 y no h3: va bajo el h1 de la página y en esta pestaña no hay
-                nada en medio — saltarse un nivel rompe el orden de encabezados
-                (la regla está en CLAUDE.md, y aquí estaba incumplida). */}
+            {/* h2 y no h3: va bajo el h1 de la página sin nada en medio. */}
             <h2 className="text-sm font-semibold">{fechaLarga(dia)}</h2>
             <button
               type="button"

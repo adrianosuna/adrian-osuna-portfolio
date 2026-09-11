@@ -1,14 +1,9 @@
-// Control de gastos e ingresos: validaciones de las server actions (saneado,
-// importes, fechas, tipo del movimiento, nombres de categoría duplicados por
-// tipo, topes y recurrentes) y la capa de datos del mes y del año (rangos con
-// cruce de año, balance, media diaria y los dos desgloses por categoría).
-// El cálculo de los topes está en topes.test.ts y el de los recurrentes en
-// recurrentes.test.ts.
+// Control de gastos: validaciones de las server actions y capa de datos del mes y
+// del año. Topes en topes.test.ts; recurrentes en recurrentes.test.ts.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CategoriaRow } from '@/lib/gastos'
-// El tope de peticiones vive en memoria y es COMPARTIDO por todo el proceso:
-// sin reiniciarlo, un fichero de tests con muchas actions agotaría la ventana
-// y los siguientes fallarían por algo que no están probando.
+// El tope de peticiones vive en memoria del proceso: sin reiniciarlo, un fichero con
+// muchas actions agotaría la ventana.
 import { reiniciarLimites } from '@/lib/rate-limit'
 
 const { requireAdminMock, prismaMock } = vi.hoisted(() => {
@@ -190,11 +185,8 @@ describe('categorías', () => {
   })
 
 
-  // ── Grupos y categorías ──
-  // Un grupo es un CONTENEDOR: se crea vacío, agrupa y nunca recibe
-  // movimientos. De ahí sale todo lo de abajo — y lo que NO hay que probar,
-  // que es lo importante: asignar una categoría con historial a un grupo no
-  // tiene reglas especiales, porque lo que se mueve es la categoría.
+  // Grupos: un grupo es un contenedor, se crea vacío y nunca recibe movimientos.
+  // Asignar una categoría con historial no tiene reglas especiales.
   it('un grupo se crea vacío y nunca cuelga de otro', async () => {
     const { createCategoria } = await import('@/app/app/finance/gastos-actions')
     await createCategoria({ name: 'Coche', type: 'GASTO', isGroup: true, parentUuid: 'otro' })
@@ -297,9 +289,8 @@ describe('categorías', () => {
 
 // ─────────── Capa de datos del mes y del año ───────────
 
-/** Fixture de categoría: cada caso declara solo lo suyo y el resto va por
- *  defecto. Con factoría y no objetos a mano porque un campo nuevo de
- *  `CategoriaRow` rompía cinco casos a la vez — pasó al añadir los grupos. */
+/** Fixture de categoría con factoría: un campo nuevo de `CategoriaRow` rompía cinco
+ *  casos a la vez con objetos a mano. */
 const cat = (p: Partial<CategoriaRow> & { uuid: string; name: string }): CategoriaRow => ({
   isGroup: false,
   parentUuid: null,
@@ -382,9 +373,8 @@ describe('getMesMovimientos', () => {
   })
 })
 
-// El donut enseña GRUPOS y el detalle al pulsar: la porción de "Coche" es la
-// suma del taller y la gasolina, no tres porciones sueltas. Con veinte
-// categorías planas no se leía ninguna, que es de donde salió la jerarquía.
+// El donut enseña grupos con detalle al pulsar: la porción de "Coche" suma taller y
+// gasolina.
 describe('desglose con grupos', () => {
   const arbol = [
     cat({ uuid: 'coche', name: 'Coche', isGroup: true, hijas: 2, color: '#ef4444' }),

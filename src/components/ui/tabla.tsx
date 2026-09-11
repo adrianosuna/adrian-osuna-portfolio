@@ -1,18 +1,5 @@
-// La tabla del dashboard, en UN solo sitio.
-//
-// Antes las clases de `th` y `td` estaban copiadas en cuatro ficheros con TRES
-// variantes distintas (`py-1.5`, `py-2`, `py-2.5` y una responsive), y algunas
-// listas que son tabulares —sesiones, accesos, tokens— se pintaban como `div`
-// apilados: parecidas de lejos, distintas de cerca. Se ve en cuanto se abren
-// dos pestañas seguidas.
-//
-// La referencia es la tabla del **Control mensual** de Ahorro, que es la que
-// está bien estructurada: cabecera en versalitas sobre fondo de tarjeta,
-// separador por fila, celdas compactas y el contenedor con scroll horizontal
-// propio para que en móvil la tabla se desplace sin arrastrar la página.
-//
-// Lo que NO decide este módulo: qué va en cada fila. Solo la estructura y el
-// aspecto, que es lo que tiene que ser igual en todas.
+// La tabla del dashboard, en un solo sitio (las clases estaban copiadas en cuatro
+// ficheros con tres variantes). Referencia: la del Control mensual de Ahorro.
 import { cn } from '@/lib/utils'
 
 /** Celda de cabecera. Versalitas y color apagado: la fila de datos manda. */
@@ -28,14 +15,8 @@ export const filaTotalesClase = 'bg-muted/50 font-semibold'
 export interface Columna {
   /** Texto de la cabecera. */
   label: string
-  /**
-   * La cabecera se lee pero no se ve (`sr-only`).
-   *
-   * Es para la columna de acciones: dejar el `<th>` VACÍO es un fallo de
-   * accesibilidad —lo caza `empty-table-header` de axe— porque el lector de
-   * pantalla anuncia una columna sin nombre. Con esto la columna se llama
-   * "Acciones" para quien la escucha y sigue sin título para quien la ve.
-   */
+  /** Cabecera que se lee pero no se ve (`sr-only`), para la columna de acciones: un
+   *  `<th>` vacío anuncia una columna sin nombre (axe: empty-table-header). */
   oculta?: boolean
   /** Alineación de la columna (la de los importes va a la derecha). */
   alineado?: 'izquierda' | 'derecha' | 'centro'
@@ -52,14 +33,8 @@ const alineacion = {
 /** Clase de alineación para una celda de datos de esa columna. */
 export const alinear = (a: Columna['alineado']) => (a ? alineacion[a] : alineacion.izquierda)
 
-/**
- * Tabla con su contenedor de scroll, su cabecera y su cuerpo.
- *
- * `minAncho` es la anchura por debajo de la cual la tabla se desplaza en vez de
- * apretarse: sin ella, en móvil las columnas se estrujan hasta partir cada
- * palabra en dos líneas. Se pasa como clase de Tailwind (`min-w-140`) porque el
- * valor depende de cuántas columnas tenga cada tabla.
- */
+/** Tabla con contenedor de scroll, cabecera y cuerpo. `minAncho` (clase Tailwind)
+ *  es el ancho bajo el cual se desplaza en vez de estrujar las columnas. */
 export function Tabla({
   columnas,
   minAncho,
@@ -130,13 +105,8 @@ export function Celda({
   )
 }
 
-/**
- * Aviso de "aquí no hay nada", dentro de la propia tabla.
- *
- * Va como fila y no como párrafo al lado para que la cabecera siga visible: así
- * se ve QUÉ columnas tendría la tabla cuando tenga datos, en vez de un hueco
- * suelto que no dice nada.
- */
+/** Aviso de "aquí no hay nada" como fila de la tabla: la cabecera sigue visible y
+ *  enseña qué columnas tendrá cuando haya datos. */
 export function FilaVacia({ columnas, children }: { columnas: number; children: React.ReactNode }) {
   return (
     <tr>
@@ -147,23 +117,8 @@ export function FilaVacia({ columnas, children }: { columnas: number; children: 
   )
 }
 
-// ─────────── La misma tabla, en móvil ───────────
-//
-// Por qué hace falta esto y no basta la tabla de arriba: hay listas donde la
-// fila lleva un **gesto de swipe** (los movimientos del mes), y un `<tr>` no
-// se puede arrastrar con el dedo — el gesto necesita envolver cada fila en su
-// propio contenedor con `transform`, que dentro de un `<table>` no cabe.
-//
-// La solución es una REJILLA con la misma gramática visual: cabecera en
-// versalitas apagadas, separador por fila, mismos paddings y los importes
-// alineados en su columna. Cada fila es su propia rejilla con la MISMA
-// plantilla de columnas, y por eso quedan alineadas entre sí aunque no
-// compartan un `<table>`.
-//
-// ⚠ La plantilla se pasa entera (`grid-cols-[...]`) y tiene que ser la misma
-// en la cabecera y en las filas: son dos llamadas distintas, así que si se
-// cambia una hay que cambiar la otra. Se declara una vez como constante en el
-// componente que las use.
+// La misma tabla en móvil, como rejilla: un <tr> no se puede arrastrar y las filas
+// con swipe lo necesitan. La plantilla de columnas debe ser la misma en cabecera y filas.
 
 /** Cabecera de la rejilla: los nombres de las columnas. */
 export function CabeceraMovil({
@@ -221,12 +176,8 @@ export function FilaMovil({
   )
 }
 
-/**
- * Tarjeta que envuelve una tabla, con su cabecera.
- *
- * La cabecera es la misma en todas: título a la izquierda —con su icono y, si
- * viene, la cifra en una píldora— y las acciones a la derecha.
- */
+/** Tarjeta que envuelve una tabla, con cabecera común: título con icono y cifra a
+ *  la izquierda, acciones a la derecha. */
 export function TarjetaTabla({
   titulo,
   icono,

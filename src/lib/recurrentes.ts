@@ -1,10 +1,5 @@
-// Movimientos recurrentes: alquiler, suscripciones, seguros, la nómina... todo
-// lo que cae siempre y hasta ahora había que teclear cada mes.
-//
-// Aquí vive solo la parte PURA (fechas, periodicidades y cifras): la usan el
-// generador del cron en el servidor y la tarjeta de la vista del mes en el
-// cliente. Sin `server-only`, como `topes.ts`; su única dependencia es la
-// aritmética de meses de `fechas.ts`, compartida con mantenimiento.
+// Movimientos recurrentes: la parte pura (fechas, periodicidades, cifras), compartida
+// por el cron y la tarjeta del mes. Sin `server-only`.
 import { sumarMeses } from '@/lib/fechas'
 
 export type TipoMovimiento = 'INGRESO' | 'GASTO'
@@ -38,9 +33,8 @@ export const PERIODICIDADES = [
   { meses: 12, label: 'Cada año' },
 ] as const
 
-/** Etiqueta de una periodicidad en meses ('Cada trimestre', 'Cada 2 años',
- *  'Cada 4 meses'). Los múltiplos de 12 por encima del año se leen mejor en
- *  años ("Cada 2 años", no "Cada 24 meses"); el resto, en meses. */
+/** Etiqueta de una periodicidad en meses. Los múltiplos de 12 se leen en años
+ *  ("Cada 2 años"); el resto, en meses. */
 export const etiquetaPeriodo = (meses: number) => {
   const fija = PERIODICIDADES.find((p) => p.meses === meses)
   if (fija) return fija.label
@@ -52,13 +46,8 @@ export const etiquetaPeriodo = (meses: number) => {
 export const proximaFecha = (r: Pick<RecurrenteRow, 'nextDate' | 'intervalMonths' | 'dayAnchor'>) =>
   sumarMeses(r.nextDate, r.intervalMonths, r.dayAnchor)
 
-/**
- * Coste equivalente AL MES de un recurrente.
- *
- * Un seguro de 600 € al año no son 600 € al mes ni 0: son 50 €. Sumar solo los
- * mensuales dejaría fuera justo los recibos gordos, que casi nunca son
- * mensuales.
- */
+/** Coste equivalente al mes: un seguro de 600 €/año son 50 €/mes. Sumar solo los
+ *  mensuales dejaría fuera los recibos gordos. */
 export const equivalenteMensual = (r: Pick<RecurrenteRow, 'amount' | 'intervalMonths'>) =>
   r.intervalMonths > 0 ? r.amount / r.intervalMonths : 0
 
@@ -82,16 +71,8 @@ export function resumenRecurrentes(filas: RecurrenteRow[]): ResumenRecurrentes {
   return { gasto, ingreso, neto: ingreso - gasto, activos: activos.length }
 }
 
-/**
- * Fechas que hay que generar de un recurrente hasta `hoy` incluido, y la fecha
- * en la que se queda esperando el siguiente cargo.
- *
- * Normalmente es una sola fecha, pero si el servidor estuvo parado (o el
- * recurrente se dio de alta con la fecha atrasada) hay que recuperar todos los
- * cargos pendientes. `MAX_CARGOS` es el freno: pasados esos, el recurrente
- * salta al primer cargo futuro SIN apuntar el resto — si alguien pone la fecha
- * en 2019, lo que no se quiere es inundar el histórico con 80 movimientos.
- */
+/** Fechas a generar hasta `hoy` y la siguiente pendiente. Recupera los cargos
+ *  atrasados con el freno de `MAX_CARGOS`: pasados esos, salta al primero futuro. */
 export const MAX_CARGOS = 24
 
 export function cargosPendientes(
@@ -114,19 +95,8 @@ export function cargosPendientes(
   return { fechas, siguiente: cursor, truncado }
 }
 
-/**
- * Fechas en las que un recurrente carga dentro de un mes ('YYYY-MM').
- *
- * Proyecta desde `nextDate` hacia delante con el ancla del día, así que sirve
- * para el mes en curso y los futuros: es la PREVISIÓN. Para un mes pasado
- * devuelve vacío a propósito —la serie solo se conoce desde el próximo cargo—,
- * y ahí la verdad son los movimientos ya apuntados (`recurringUuid`), no una
- * proyección hacia atrás que se inventaría cargos que quizá nunca ocurrieron.
- *
- * ⚠ Una sola implementación para las dos pantallas que proyectan recurrentes:
- * la tarjeta de la vista del mes y el calendario del Panel. Tenerla dos veces
- * es justo cómo se desincronizan el ancla del día y los meses cortos.
- */
+/** Fechas en las que un recurrente carga en un mes, proyectadas desde `nextDate`.
+ *  Para un mes pasado devuelve vacío: ahí la verdad son los movimientos apuntados. */
 export function fechasEnMes(
   r: Pick<RecurrenteRow, 'nextDate' | 'intervalMonths' | 'dayAnchor'>,
   mes: string,

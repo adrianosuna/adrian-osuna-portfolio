@@ -1,8 +1,7 @@
 'use server'
 
-// Server actions del control de gastos e ingresos (personal del admin):
-// movimientos, recurrentes y categorías (con sus topes). Mismo contrato:
-// { ok, message? } y revalidación.
+// Server actions del control de gastos e ingresos (solo admin): movimientos,
+// recurrentes y categorías con sus topes. Contrato { ok, message? } y revalidación.
 import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/auth'
 import { AppError } from '@/lib/errors'
@@ -32,16 +31,13 @@ const ok: Result = { ok: true }
 const fail = (message: string): Result => ({ ok: false, message })
 const refresh = () => revalidatePath('/app/finance')
 
-// Genérica para que una acción pueda devolver más que `{ ok, message }` (p. ej.
-// el paquete de restauración de un borrado con deshacer). El catch sigue
-// devolviendo un `Result` pelado, que encaja porque los extras son opcionales.
+// Genérica para devolver más que { ok, message } (p. ej. el paquete de restauración
+// de un borrado). El catch devuelve un Result pelado: los extras son opcionales.
 async function guarded<T extends Result>(fn: () => Promise<T>): Promise<T | Result> {
   try {
     const sesionActual = await requireAdmin()
-    // Freno por usuario: 120 escrituras por minuto no las alcanza nadie
-    // pulsando botones, pero sí un bucle en el cliente o un doble envío
-    // desbocado — que es lo único de lo que hay que protegerse aquí, porque
-    // llegar hasta este punto ya exige sesión de admin.
+    // Freno por usuario: 120 escrituras/min solo las alcanza un bucle en el cliente
+    // o un doble envío desbocado.
     const freno = limitar(`accion:${sesionActual.user.uuid}`, LIMITE_ACCIONES)
     if (!freno.ok) {
       avisarFrenado('gastos', `accion:${sesionActual.user.uuid}`, freno.esperaS)
@@ -55,21 +51,14 @@ async function guarded<T extends Result>(fn: () => Promise<T>): Promise<T | Resu
   }
 }
 
-// Las reglas del movimiento (fecha, concepto/importe, tipo, nota) viven en
-// `@/lib/alta-movimiento`, porque las comparte la API de los Atajos de iOS:
-// aquí solo se les pone el nombre corto con el que se leen estas acciones.
+// Las reglas del movimiento viven en `@/lib/alta-movimiento`, compartidas con la
+// API de los Atajos; aquí solo se les da el nombre corto.
 const fecha = fechaValida
 const limpiar = limpiarConceptoImporte
 const limpiarNota = limpiarNotaMovimiento
 
-/**
- * Tope mensual de una categoría: número positivo, o null para "sin tope".
- * Vaciar el campo y poner un 0 son la misma intención (quitar el tope), así
- * que las dos guardan null. Devuelve `false` si el valor no vale.
- *
- * La regla es la de `tope` en `lib/esquemas.ts`; aquí solo se adapta al
- * `| false` con el que ya se leían estas actions.
- */
+/** Tope mensual de una categoría: positivo, o null para "sin tope" (vacío y 0 son
+ *  la misma intención). Devuelve false si no vale. Regla en `esquemas.ts`. */
 const topeValido = (v: number | null | undefined): number | null | false => {
   const r = tope.safeParse(v)
   return r.success ? r.data : false
@@ -80,12 +69,8 @@ const topeValido = (v: number | null | undefined): number | null | false => {
 // Mismos campos que el alta compartida: la interfaz era una copia literal.
 type DatosGasto = DatosAlta
 
-/**
- * Categorías para la alta rápida global (el "+" de la barra y la paleta ⌘K),
- * que puede abrirse desde cualquier página del dashboard. Se cargan al abrir el
- * modal en vez de en cada render del layout. Sin permisos devuelve lista vacía:
- * el desplegable sale con solo "Sin categoría".
- */
+/** Categorías para el alta rápida global ("+" y paleta ⌘K); se cargan al abrir el
+ *  modal. Sin permisos devuelve vacío y el desplegable queda en "Sin categoría". */
 export async function categoriasParaAlta(): Promise<CategoriaRow[]> {
   try {
     await requireAdmin()
@@ -95,11 +80,8 @@ export async function categoriasParaAlta(): Promise<CategoriaRow[]> {
   }
 }
 
-/**
- * Alta de un movimiento. La validación y la inserción son las de
- * `altaMovimiento`, LAS MISMAS que usa la API de los Atajos: dos puertas al
- * mismo dato con reglas distintas es como se descuadra un mes en silencio.
- */
+/** Alta de un movimiento con la misma validación e inserción que la API de los
+ *  Atajos (`altaMovimiento`): dos puertas con reglas distintas descuadran el mes. */
 export async function createGasto(datos: DatosGasto): Promise<Result> {
   return guarded(async () => {
     const res = await altaMovimiento(datos)
@@ -147,18 +129,8 @@ interface ParteDivision {
  *  dividir un gasto, es teclear la lista de la compra. */
 const MAX_PARTES = 10
 
-/**
- * Divide un movimiento en varias partes, cada una con su categoría.
- *
- * El caso es la compra mixta (supermercado + farmacia en el mismo recibo), que
- * hasta ahora había que borrar y teclear dos veces. Las partes heredan tipo,
- * fecha y nota del original, y **la suma tiene que cuadrar con el importe**: si
- * no, no es una división, es otra cosa — y cuadrarla a medias descuadraría el
- * mes en silencio.
- *
- * Todo en una transacción: se crean las partes y desaparece el original, así
- * que los totales del mes no cambian ni por un instante.
- */
+/** Divide un movimiento en partes con su categoría (compra mixta). Heredan tipo,
+ *  fecha y nota; la suma debe cuadrar con el importe. Todo en una transacción. */
 export async function dividirGasto(uuid: string, partes: ParteDivision[]): Promise<Result> {
   return guarded(async () => {
     const original = await prisma.expense.findUnique({ where: { uuid } })
@@ -208,13 +180,8 @@ export async function dividirGasto(uuid: string, partes: ParteDivision[]): Promi
   })
 }
 
-/**
- * Todo lo que hace falta para devolver un movimiento borrado a su sitio.
- *
- * Se devuelve al cliente al borrar, y el botón "Deshacer" del aviso lo manda de
- * vuelta a `restaurarGasto`. Va con su **uuid original**: así el movimiento
- * vuelve a ser el mismo, y no un duplicado con otra identidad.
- */
+/** Lo necesario para restaurar un movimiento borrado, con su uuid original para
+ *  que vuelva a ser el mismo y no un duplicado. Lo consume `restaurarGasto`. */
 export interface GastoRestaurable {
   uuid: string
   type: string
@@ -226,12 +193,8 @@ export interface GastoRestaurable {
   note: string | null
 }
 
-/**
- * Borra un movimiento y devuelve con qué restaurarlo.
- *
- * No pregunta antes: el aviso de después ofrece deshacerlo, que es mejor que un
- * "¿seguro?" —se puede uno equivocar igual, pero aquí hay marcha atrás—.
- */
+/** Borra un movimiento sin preguntar y devuelve con qué restaurarlo: el aviso
+ *  ofrece deshacer, que es mejor que un "¿seguro?". */
 export async function deleteGasto(
   uuid: string,
 ): Promise<Result & { deshacer?: GastoRestaurable }> {
@@ -306,23 +269,15 @@ interface DatosRecurrente {
   active?: boolean
 }
 
-/**
- * Periodicidad en meses: entre 1 y 120 (hasta cada 10 años). El tope no protege
- * de nada —`cargosPendientes` ya frena la generación con `MAX_CARGOS`— y es solo
- * una cota de sensatez, alineada con la ventana de fecha (`fechaCargo`, ±10
- * años). La UI ofrece las periodicidades comunes y un "Personalizado" con
- * número + unidad (meses/años) para el resto.
- */
+/** Periodicidad en meses, de 1 a 120. Solo una cota de sensatez alineada con
+ *  `fechaCargo`: quien frena la generación es `MAX_CARGOS`. */
 const periodoValido = (v: number | null | undefined): number | false => {
   const n = Number(v)
   return Number.isInteger(n) && n >= 1 && n <= 120 ? n : false
 }
 
-/**
- * Fecha del próximo cargo. Se acepta con hasta un año de retraso —el cron
- * recupera lo pendiente— pero no más: una fecha de 2019 solo puede ser un
- * despiste, y generaría un histórico falso.
- */
+/** Fecha del próximo cargo: hasta un año de retraso (el cron recupera lo
+ *  pendiente), no más; una fecha de 2019 generaría un histórico falso. */
 const fechaCargo = (v: string | null | undefined, hoyIso: string): Date | false => {
   const dia = fecha(v)
   if (!dia) return false
@@ -391,12 +346,8 @@ export async function updateRecurrente(uuid: string, datos: DatosRecurrente): Pr
   })
 }
 
-/**
- * Apunta ya el cargo de un recurrente, sin esperar a la pasada del cron.
- *
- * Hace lo mismo que haría el cron (mismo movimiento, misma fecha, y adelanta
- * `next_date`), así que cuando llegue el día no se duplica.
- */
+/** Apunta ya el cargo de un recurrente sin esperar al cron: mismo movimiento,
+ *  misma fecha y adelanta `next_date`, así no se duplica cuando llegue el día. */
 export async function apuntarRecurrenteAhora(uuid: string): Promise<Result> {
   return guarded(async () => {
     const res = await apuntarRecurrenteYa(uuid)
@@ -454,15 +405,8 @@ const listaUsos = (u: { movimientos: number; recurrentes: number }) =>
     .filter(Boolean)
     .join(' y ')
 
-/**
- * ¿Puede una categoría de tipo `type` entrar en el grupo `parentUuid`?
- * Devuelve el mensaje del problema, o null si se puede.
- *
- * Solo dos reglas, y las dos son de forma: el destino tiene que ser un GRUPO
- * (no otra categoría, que daría un tercer nivel) y del mismo tipo. Nada más:
- * asignar una categoría con dos años de movimientos es seguro porque lo que
- * se mueve es la CATEGORÍA — sus movimientos siguen colgando de ella.
- */
+/** ¿Puede una categoría de tipo `type` entrar en el grupo `parentUuid`? Devuelve
+ *  el mensaje del problema o null. Solo dos reglas: destino grupo y mismo tipo. */
 async function grupoInvalido(parentUuid: string, type: 'INGRESO' | 'GASTO'): Promise<string | null> {
   const padre = await prisma.expenseCategory.findUnique({ where: { uuid: parentUuid } })
   if (!padre) return 'El grupo elegido no existe'
@@ -471,10 +415,8 @@ async function grupoInvalido(parentUuid: string, type: 'INGRESO' | 'GASTO'): Pro
   return null
 }
 
-/**
- * Crea una categoría o un GRUPO (`isGroup`), que en la tabla son lo mismo con
- * la marca cambiada. Un grupo nace vacío y nunca cuelga de otro: dos niveles.
- */
+/** Crea una categoría o un grupo (`isGroup`): misma tabla con la marca cambiada.
+ *  Un grupo nace vacío y nunca cuelga de otro. */
 export async function createCategoria(datos: {
   name?: string
   color?: string
@@ -506,9 +448,8 @@ export async function createCategoria(datos: {
     // El tope solo tiene sentido en las categorías de gasto: en una de ingreso
     // se ignora en vez de fallar (el formulario ya no lo ofrece).
     const limite = v.datos.budget
-    // El color lo pone la aplicación, en el hueco más grande del círculo
-    // cromático: elegirlo a mano no aportaba nada y con ocho colores fijos
-    // había repetidos a partir de la novena categoría.
+    // El color lo elige la aplicación en el hueco más grande del círculo cromático:
+    // con ocho fijos había repetidos desde la novena categoría.
     const usados = await prisma.expenseCategory.findMany({ select: { color: true } })
     await prisma.expenseCategory.create({
       data: {
@@ -536,10 +477,8 @@ export async function updateCategoria(
       budget?: number | null
       notified?: null
     } = {}
-    // El grupo se resuelve primero: de él depende con quién compite el nombre.
-    // Se mira `datos.parentUuid !== undefined` sobre la entrada CRUDA y no a
-    // través del esquema porque `uuidOpcional` convierte la clave ausente en
-    // null, y eso sacaría del grupo a una categoría al renombrarla.
+    // El grupo se resuelve primero: de él depende con quién compite el nombre. Se mira
+    // la entrada cruda porque `uuidOpcional` convierte la clave ausente en null.
     let destino: string | null | undefined
     if (datos.parentUuid !== undefined) {
       const p = validar(uuidOpcional, datos.parentUuid)
@@ -594,14 +533,8 @@ export async function updateCategoria(
   })
 }
 
-/**
- * Fusiona una categoría en otra del MISMO tipo: sus movimientos y sus
- * recurrentes pasan a la de destino y la de origen desaparece.
- *
- * Es la salida limpia a los nombres parecidos que se acumulan con el tiempo
- * ("Comer fuera" y "Restaurantes"), donde hasta ahora solo quedaba borrar una
- * y perder la categoría de su historial.
- */
+/** Fusiona una categoría en otra del mismo tipo: movimientos y recurrentes pasan
+ *  al destino y el origen desaparece. La salida a los nombres parecidos. */
 export async function fusionarCategorias(origenUuid: string, destinoUuid: string): Promise<Result> {
   return guarded(async () => {
     if (origenUuid === destinoUuid) return fail('Elige una categoría distinta')
@@ -612,9 +545,8 @@ export async function fusionarCategorias(origenUuid: string, destinoUuid: string
     if (!origen || !destino) return fail('Categoría no encontrada')
     // Mezclar un gasto con un ingreso no significa nada: son dos listas.
     if (origen.type !== destino.type) return fail('Las dos categorías deben ser del mismo tipo')
-    // Los grupos se quedan fuera de la fusión por los dos lados: uno no tiene
-    // movimientos propios que llevarse y al otro no se le pueden colgar (los
-    // movimientos van siempre a una categoría).
+    // Los grupos quedan fuera de la fusión: no tienen movimientos propios ni pueden
+    // recibirlos.
     if (origen.isGroup || destino.isGroup) {
       return fail('Los grupos no se fusionan: fusiona las categorías que tienen dentro')
     }
@@ -642,14 +574,8 @@ export async function fusionarCategorias(origenUuid: string, destinoUuid: string
   })
 }
 
-/**
- * Borra una categoría, PERO solo si no la usa nada.
- *
- * El FK es SET NULL, así que técnicamente se podría borrar y dejar los
- * movimientos "sin categoría" — y ahí se pierde en silencio la clasificación
- * de todo su historial, que es justo lo que el módulo sirve para tener. Si
- * tiene movimientos o recurrentes, el camino es **fusionarla** en otra.
- */
+/** Borra una categoría solo si nada la usa. El FK es SET NULL y borrarla perdería
+ *  la clasificación del historial en silencio; con uso, el camino es fusionar. */
 export async function deleteCategoria(uuid: string): Promise<Result> {
   return guarded(async () => {
     const [usos, hijas] = await Promise.all([

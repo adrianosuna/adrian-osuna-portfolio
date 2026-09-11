@@ -1,28 +1,18 @@
-// Alta de una nota, SIN autorización: la parte que comparten la server action
-// del Panel y la API de los Atajos de iOS.
-//
-// Mismo motivo que `alta-movimiento.ts`: dos puertas de entrada al mismo dato,
-// una sola definición de las reglas. Aquí la regla que más importa es que el
-// HTML se SANEA en el servidor antes de guardarlo — y hacerlo en un único sitio
-// es lo que garantiza que la puerta nueva no se lo salte.
+// Alta de una nota sin autorización: lo que comparten la server action y la API.
+// El HTML se sanea aquí, en un único sitio.
 import 'server-only'
 import { prisma } from '@/lib/prisma'
 import { sanitizarNota, textoDe } from '@/lib/sanitizar-html'
 
 export const NOTA_TITULO_MAX = 255
-// El contenido es HTML del editor, así que el tope va más alto que el texto que
-// representa (etiquetas de por medio). Cabe un apunte largo lejos del límite de
-// TEXT (64 KB) y evita que un cliente manipulado llene la columna.
+// El contenido es HTML del editor: el tope va más alto que el texto, lejos del
+// límite de TEXT (64 KB) y sin dejar llenar la columna.
 export const NOTA_CONTENIDO_MAX = 50_000
 
 export type NotaParse = { error: string } | { error?: never; title: string | null; content: string }
 
-/**
- * Título (opcional) y contenido HTML, comunes al alta y la edición. El HTML se
- * SANEA aquí (servidor) antes de guardar: es el punto donde pasa a ser de fiar,
- * así que pintarlo luego con dangerouslySetInnerHTML es seguro. La nota vacía se
- * detecta sobre el TEXTO (un editor "vacío" deja `<br>` o `<div></div>`).
- */
+/** Título opcional y contenido HTML, comunes al alta y la edición. El HTML se sanea
+ *  aquí antes de guardar. La nota vacía se detecta sobre el texto, no el HTML. */
 export const limpiarNotaHtml = (datos: { title?: string; content?: string }): NotaParse => {
   const content = sanitizarNota((datos.content ?? '').slice(0, NOTA_CONTENIDO_MAX))
   if (!textoDe(content)) return { error: 'La nota no puede estar vacía' }
@@ -30,13 +20,8 @@ export const limpiarNotaHtml = (datos: { title?: string; content?: string }): No
   return { title: title || null, content }
 }
 
-/**
- * Texto plano → HTML de párrafos.
- *
- * Es para la API: un Atajo dicta texto corrido, no HTML. Se escapa antes de
- * envolver (aunque el saneador pase después: escapar aquí conserva el `<` que
- * el usuario dictó en vez de dejar que el saneador se lo coma como etiqueta).
- */
+/** Texto plano → HTML de párrafos, para la API. Se escapa antes de envolver para
+ *  conservar un `<` dictado en vez de que el saneador lo coma como etiqueta. */
 export function textoAHtml(texto: string): string {
   const escapar = (t: string) =>
     t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')

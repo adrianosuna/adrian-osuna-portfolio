@@ -1,12 +1,5 @@
-# Producción con Docker: app Next.js + MySQL propio (BD desde cero).
-#
-# Uso (con .env.production en esta carpeta, ver .env.production.example):
-#   docker compose --env-file .env.production build
-#   docker compose --env-file .env.production --profile setup run --rm migrate   # solo la 1.ª vez
-#   docker compose --env-file .env.production up -d
-#
-# El proxy inverso del host (Nginx/Caddy con HTTPS, 301 y rate limit en /api/*)
-# apunta a http://localhost:9443.
+# Producción con Docker: app Next.js + MySQL propio. Build, `--profile setup run
+# --rm migrate` la primera vez y `up -d`. El proxy del host apunta a :9443.
 
 services:
   db:
@@ -30,15 +23,8 @@ services:
     logging:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }
-    # Techo de memoria, medido en el VPS el 02/09/2026 con `docker stats`:
-    # este contenedor se asienta en ~132 MiB. 768m son casi 6× eso, así que en
-    # operación normal no se toca nunca; está para que una consulta desbocada o
-    # una fuga no se lleven la máquina entera.
-    #
-    # ⚠ El tope NO se pone al consumo actual: InnoDB crece con los datos y con
-    # las conexiones, y un límite ajustado provoca justo el OOM que se quiere
-    # evitar — cuando se toca, el kernel mata el contenedor y
-    # `restart: unless-stopped` lo levanta en bucle.
+    # Techo de memoria medido en el VPS (~132 MiB): 768m no se toca en operación normal.
+    # No se ajusta al consumo: InnoDB crece y un límite apretado provoca el OOM que se evita.
     mem_limit: 768m
 
   web:
@@ -52,10 +38,8 @@ services:
     environment:
       # Ruta interna del volumen de backups para el monitor de infraestructura.
       INFRA_BACKUPS_DIR: /backups
-      # El .env.production lleva MYSQL_ROOT_PASSWORD porque `db` lo interpola del
-      # --env-file, pero la app NO lo necesita (conecta con DATABASE_URL). Se
-      # anula aquí —`environment` gana a `env_file`— para que el proceso Next no
-      # herede el root de la BD: un vuelco de env o una traza no lo expondría.
+      # MYSQL_ROOT_PASSWORD viene del --env-file para `db`; la app no lo necesita. Se anula
+      # aquí (`environment` gana a `env_file`) para que Next no herede el root.
       MYSQL_ROOT_PASSWORD: ""
     ports:
       # Atado a loopback: Docker se salta el firewall del sistema (ufw), así
@@ -65,15 +49,8 @@ services:
       # Solo lectura: el monitor de infraestructura lee la edad de los dumps
       # del cron y, de paso, el uso de disco del VPS (statfs sobre la carpeta).
       - ${BACKUPS_HOST_DIR:-/home/ubuntu/backups}:/backups:ro
-    # Salud real de la app, no solo "el proceso vive": si Next se cuelga
-    # respondiendo mal, `restart: unless-stopped` no lo pilla sin esto. La
-    # imagen alpine trae wget (busybox).
-    #
-    # Apunta a /api/health (liveness), que NO toca la base de datos: un
-    # healthcheck que la comprobara reiniciaría `web` cada vez que la BD
-    # tarda en arrancar, que es justo el bucle que se quiere evitar. Para
-    # saber si además puede servir datos está /api/ready (503 si la BD no
-    # responde), pensado para un balanceador, no para reiniciar nada.
+    # Salud real de la app. Apunta a /api/health (liveness, sin BD): comprobar la BD
+    # reiniciaría `web` cada vez que tarda en arrancar. /api/ready es para un balanceador.
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:9443/api/health || exit 1"]
       interval: 30s
@@ -83,15 +60,8 @@ services:
     logging:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }
-    # ~141 MiB medidos en el VPS; 512m dan 3,6× de margen, que cubre los picos
-    # de `sharp` (optimización de imágenes) y de `exceljs` (exportar un año).
-    # Ver la nota del servicio db.
-    #
-    # ⚠ Esto NO limita el `docker compose build`: el `next build` corre en el
-    # contenedor de BuildKit, y es ÉL el pico de memoria de esta máquina (más
-    # de 1 GB — el 02/09 mandó 1,2 GB a swap). Si algún día el build muere por
-    # OOM, la salida es construir la imagen fuera (CI) y desplegar la imagen,
-    # no tocar este número.
+    # ~141 MiB medidos; 512m cubren los picos de sharp y exceljs. No limita el build:
+    # ese corre en BuildKit y es el pico real (1,2 GB a swap el 02/09).
     mem_limit: 512m
     depends_on:
       db:

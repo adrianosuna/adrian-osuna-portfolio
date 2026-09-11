@@ -1,15 +1,5 @@
-// Coordenadas para el mapa de visitas: traduce los NOMBRES que devuelve GA4
-// (`country` y `city`) a un punto en el mapa.
-//
-// Por qué una tabla local y no un geocodificador: GA4 no devuelve latitud ni
-// longitud, solo el nombre. Resolverlo contra un servicio externo obligaría a
-// abrir `connect-src` en la CSP —lo que se acaba de cerrar en la auditoría— y
-// a mandar a un tercero de dónde son las visitas del sitio. La tabla cubre lo
-// que este sitio recibe (España y el mundo hispanohablante, más las capitales
-// grandes); lo que no esté, no sale con pin y se queda en el ranking de al
-// lado, que sigue siendo la fuente completa.
-//
-// Sin `server-only`: lo usan el mapa (cliente) y sus tests.
+// Coordenadas para el mapa: traduce los nombres de GA4 a un punto. Tabla local y no
+// geocodificador: no abre la CSP ni manda a un tercero de dónde son las visitas.
 
 /** Punto en grados: latitud (norte +) y longitud (este +). */
 export interface Punto {
@@ -17,10 +7,7 @@ export interface Punto {
   lon: number
 }
 
-/**
- * Centroide de cada país, por su nombre EN ESPAÑOL (el que ya produce
- * `PAISES_ES` de `lib/ga.ts`, que es lo que llega a la interfaz).
- */
+/** Centroide de cada país por su nombre en español (`PAISES_ES` de `lib/ga.ts`). */
 export const PAISES: Record<string, Punto> = {
   España: { lat: 40.2, lon: -3.7 },
   Portugal: { lat: 39.6, lon: -8.0 },
@@ -69,12 +56,8 @@ export const PAISES: Record<string, Punto> = {
   Desconocido: { lat: 0, lon: 0 },
 }
 
-/**
- * Ciudades, por su nombre en español (`CIUDADES_ES` de `lib/ga.ts` ya corrige
- * los exónimos ingleses: "Seville" → "Sevilla"). Las capitales de provincia
- * españolas al completo, porque es de donde viene casi todo el tráfico, más
- * las grandes del mundo hispanohablante y algunas capitales.
- */
+/** Ciudades por su nombre en español: las capitales de provincia españolas al
+ *  completo, las grandes del mundo hispanohablante y algunas capitales. */
 export const CIUDADES: Record<string, Punto> = {
   Madrid: { lat: 40.417, lon: -3.703 },
   Barcelona: { lat: 41.385, lon: 2.173 },
@@ -132,11 +115,8 @@ export const CIUDADES: Record<string, Punto> = {
   Huesca: { lat: 42.132, lon: -0.409 },
   Vitoria: { lat: 42.847, lon: -2.673 },
   'Vitoria-Gasteiz': { lat: 42.847, lon: -2.673 },
-  // Municipios españoles que no son capital pero salen en el informe. La
-  // lista creció al ver datos reales: las visitas venían de Algeciras y
-  // Castelldefels, que no son capitales, así que con las 50 capitales no
-  // llegaba. Estos son los grandes por población, que es lo que más
-  // probabilidad tiene de volver a aparecer.
+  // Municipios españoles que no son capital pero salen en el informe: los grandes por
+  // población. La lista creció con datos reales (Algeciras, Castelldefels).
   Algeciras: { lat: 36.128, lon: -5.453 },
   Castelldefels: { lat: 41.28, lon: 1.977 },
   'L\'Hospitalet de Llobregat': { lat: 41.36, lon: 2.1 },
@@ -185,9 +165,8 @@ export const CIUDADES: Record<string, Punto> = {
   'El Ejido': { lat: 36.777, lon: -2.814 },
   Motril: { lat: 36.748, lon: -3.519 },
   Ferrol: { lat: 43.484, lon: -8.234 },
-  // ⚠ "Santiago" a secas NO se mapea a Compostela: es ambiguo con Santiago de
-  // Chile, que es lo que GA suele querer decir. Compostela va con su nombre
-  // completo, que es como la devuelve el informe.
+  // "Santiago" a secas no se mapea a Compostela: es ambiguo con Santiago de Chile.
+  // Compostela va con su nombre completo.
   'Santiago de Compostela': { lat: 42.878, lon: -8.545 },
   Pontevedra: { lat: 42.431, lon: -8.644 },
   Avilés: { lat: 43.556, lon: -5.925 },
@@ -268,11 +247,8 @@ const CIUDADES_IDX = indice(CIUDADES)
 export const puntoDePais = (nombre: string): Punto | null =>
   PAISES_IDX.get(clave(nombre)) ?? null
 
-/**
- * Punto de una ciudad. GA a veces devuelve la ciudad a secas y a veces con su
- * provincia o área ("Alcalá de Henares, Madrid"): se prueba el nombre tal cual
- * y, si no está, la parte anterior a la coma.
- */
+/** Punto de una ciudad. GA a veces añade provincia ("Alcalá de Henares, Madrid"):
+ *  se prueba tal cual y, si no, la parte anterior a la coma. */
 export const puntoDeCiudad = (nombre: string): Punto | null => {
   const directo = CIUDADES_IDX.get(clave(nombre))
   if (directo) return directo
@@ -281,14 +257,8 @@ export const puntoDeCiudad = (nombre: string): Punto | null => {
   return null
 }
 
-/**
- * Proyección equirectangular a coordenadas del SVG.
- *
- * Es la que corresponde al mapa que se dibuja (`viewBox` de 0 0 1000 500, con
- * la longitud lineal): con una Mercator los pines no caerían donde está
- * pintado el país. La latitud se recorta a [-60, 84] porque el mapa no dibuja
- * la Antártida y así el eje vertical se reparte solo en la franja visible.
- */
+/** Proyección equirectangular a coordenadas del SVG (viewBox 0 0 1000 500). La
+ *  latitud se recorta a [-60, 84]: el mapa no dibuja la Antártida. */
 export const proyectar = (
   { lat, lon }: Punto,
   ancho = 1000,

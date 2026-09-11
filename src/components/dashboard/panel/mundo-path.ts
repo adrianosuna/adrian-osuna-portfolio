@@ -1,14 +1,5 @@
-// Silueta de tierra del mundo, en la proyección equirectangular de
-// `lib/geo-visitas.ts` (viewBox 0 0 1000 500).
-//
-// Generado a partir de Natural Earth 110m (dominio público, vía el paquete
-// `world-atlas`) y volcado aquí como una sola ruta: así el mapa NO añade
-// dependencia en runtime, ni descarga nada, ni toca la CSP. Los polígonos que
-// cruzan el antimeridiano vienen ya cortados —si no, salen rayas de lado a
-// lado— y los puntos decimados a 1,6 px, que a este tamaño no se distingue.
-//
-// Para regenerarla hay que rehacer el volcado a mano; no es un fichero que se
-// edite. Vive aparte del componente solo por tamaño: son ~45 KB de datos.
+// Silueta de tierra en la proyección de `lib/geo-visitas.ts` (viewBox 0 0 1000 500),
+// generada de Natural Earth 110m con el antimeridiano ya cortado. ~45 KB; no se edita.
 
 /** Contorno de tierra. `fill-rule: evenodd` recorta los lagos interiores. */
 export const MUNDO_PATH =

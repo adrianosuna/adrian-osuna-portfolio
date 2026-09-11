@@ -1,6 +1,5 @@
-// Catch-all del dashboard: cualquier ruta desconocida bajo /app dispara el
-// not-found del segmento, que se renderiza DENTRO del layout (menú incluido),
-// como el NotFoundApp del proyecto original.
+// Catch-all del dashboard: una ruta desconocida bajo /app dispara el not-found del
+// segmento, dentro del layout.
 import { notFound } from 'next/navigation'
 
 export default function CatchAll() {

@@ -1,10 +1,8 @@
-// Lógica del pipeline: métricas del embudo (valor abierto, tasa de cierre,
-// días hasta el cierre) y el aviso por correo de seguimientos vencidos que
-// dispara el cron (filtro, contenido y marcado del reaviso semanal).
+// Lógica del pipeline: métricas del embudo y aviso por correo de seguimientos
+// vencidos (filtro, contenido y reaviso semanal).
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-// El tope de peticiones vive en memoria y es COMPARTIDO por todo el proceso:
-// sin reiniciarlo, un fichero de tests con muchas actions agotaría la ventana
-// y los siguientes fallarían por algo que no están probando.
+// El tope de peticiones vive en memoria del proceso: sin reiniciarlo, un fichero con
+// muchas actions agotaría la ventana.
 import { reiniciarLimites } from '@/lib/rate-limit'
 
 const { prismaMock, correoMock } = vi.hoisted(() => ({

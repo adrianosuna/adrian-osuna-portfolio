@@ -1,25 +1,12 @@
 'use client'
 
-// Aviso de NOVEDADES: cuando la versión desplegada cambia respecto a la última
-// que se vio en este navegador, sale una franja discreta. Es la forma de
-// enterarse de que un despliegue ha entrado sin mirar el servidor.
-//
-// No toca la BD (ver `lib/preferencias.ts`): es cosa del dispositivo.
-//
-// Aquí vivía también un conmutador de DENSIDAD (tablas normales o compactas),
-// retirado el 02/09/2026 con sus reglas de CSS: apretar las filas ahorraba unos
-// píxeles y estropeaba el aspecto de todas las tablas, que es un mal cambio.
+// Aviso de novedades: cuando la versión desplegada cambia respecto a la última vista
+// en este navegador. Cosa del dispositivo (`lib/preferencias.ts`), no de la BD.
 import { Sparkles, X } from 'lucide-react'
 import { usePreferencia } from '@/lib/preferencias'
 
-/**
- * Franja de novedades: aparece cuando la versión desplegada no es la última
- * vista en este navegador, y se va al cerrarla.
- *
- * No enlaza a ningún listado de cambios porque el proyecto no publica uno
- * (el CHANGELOG vive en el repositorio, no en el sitio): el aviso dice QUE hay
- * versión nueva, que es la parte que no se puede saber desde dentro de la app.
- */
+/** Franja de novedades: sale cuando la versión desplegada no es la última vista y
+ *  se va al cerrarla. No enlaza a un listado: el proyecto no publica uno. */
 export function AvisoNovedades({ version }: { version: string }) {
   const [vista, setVista] = usePreferencia<string>('version-vista', '')
 

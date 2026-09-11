@@ -1,6 +1,5 @@
-// Superficies para buscadores (clásicos y de IA): el contrato de robots.txt
-// (agentes de IA bienvenidos, zona privada vetada) y de /llms.txt (el resumen
-// del sitio se genera desde content.ts y debe contener lo esencial).
+// Superficies para buscadores: robots.txt (IA bienvenida, zona privada vetada) y
+// /llms.txt generado desde content.ts.
 import { describe, expect, it } from 'vitest'
 import robots from '@/app/robots'
 import { GET as llms } from '@/app/llms.txt/route'

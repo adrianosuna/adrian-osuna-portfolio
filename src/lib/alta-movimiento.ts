@@ -1,11 +1,5 @@
-// Alta de un movimiento, SIN autorización: la parte que comparten la server
-// action del dashboard y la API de los Atajos de iOS.
-//
-// Existe porque hay dos puertas de entrada al mismo dato y las reglas tienen
-// que ser exactamente las mismas: si la API validara por su cuenta, el día que
-// cambie el tope del importe o el recorte del concepto solo cambiaría en un
-// lado. Quién puede llamar a esto lo decide cada puerta (sesión de admin en la
-// action, token en la API).
+// Alta de un movimiento sin autorización: lo que comparten la server action y la API
+// de los Atajos. Quién puede llamar lo decide cada puerta.
 import 'server-only'
 import { prisma } from '@/lib/prisma'
 import { redondearCentimos } from '@/lib/euros'
@@ -41,13 +35,8 @@ export type ConceptoImporte =
   | { error: string }
   | { error?: never; concept: string; amount: number }
 
-/**
- * Concepto e importe, comunes al alta y a la edición.
- *
- * El importe se redondea A CÉNTIMOS aquí y no en la BD: la columna es
- * DECIMAL(12,2) y redondearía sola, pero entonces lo guardado no sería lo que
- * validó la división en partes (que compara en céntimos).
- */
+/** Concepto e importe, comunes al alta y la edición. El importe se redondea a
+ *  céntimos aquí, no en la BD: lo guardado debe ser lo que validó la división. */
 const conceptoEsquema = textoObligatorio(255, 'El concepto')
 const importeCampo = importeEsquema()
 
@@ -75,18 +64,11 @@ export type ResultadoAlta =
   | { error: string }
   | { error?: never; uuid: string; concept: string; amount: number; expenseDate: string }
 
-/**
- * Valida y da de alta un movimiento. No revalida caché ni comprueba permisos:
- * eso es de quien llama.
- *
- * La categoría se COMPRUEBA antes de referenciarla: por la API puede llegar un
- * uuid inventado, y el FK es SET NULL — se guardaría sin categoría en silencio.
- * Aquí se prefiere decirlo.
- */
+/** Valida y da de alta un movimiento; no revalida caché ni comprueba permisos. La
+ *  categoría se comprueba antes: por la API puede llegar un uuid inventado. */
 export async function altaMovimiento(datos: DatosAlta): Promise<ResultadoAlta> {
-  // Un solo paso con el esquema completo: tipo, concepto, importe, fecha,
-  // categoría y nota. Lo que llega por la API pasa por aquí igual que lo que
-  // llega del dashboard.
+  // Un solo paso con el esquema completo: lo de la API pasa por aquí igual que lo
+  // del dashboard.
   const v = validar(MovimientoAlta, datos)
   if (!v.ok) return { error: v.message }
   const parsed = { concept: v.datos.concept, amount: redondearCentimos(v.datos.amount) }

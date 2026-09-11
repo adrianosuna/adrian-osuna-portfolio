@@ -1,10 +1,7 @@
 'use client'
 
-// Pestaña de un año del módulo de finanzas: sistema de ahorro anual (réplica
-// del Excel "Ahorro Anual"). El servidor entrega el detalle del año activo;
-// aquí vive la interactividad (control mensual, extras, viajes, objetivo) y
-// las mutaciones van por server actions. La gestión de años (crear/editar/
-// eliminar) vive en FinanzasTabs y el resumen global en ResumenGeneral.
+// Pestaña de un año del ahorro anual. El servidor entrega el detalle; aquí vive la
+// interactividad y las mutaciones van por server actions.
 import { useMemo, useState, useTransition } from 'react'
 import {
   Landmark, CalendarCheck, Check, Compass, Gift, Pencil, Percent, Plus,
@@ -413,15 +410,12 @@ export function SavingsModule({
             )}
           </div>
 
-          {/* min-w-0 en las columnas: sin él, el ancho mínimo de la tabla
-              mensual (560px) se propaga al grid y desborda la página en móvil
-              en vez de quedarse en su scroller. */}
-          {/* Aquí la pareja sí espera a xl: la columna de 15fr solo da 600px
-              en lg y la gráfica mensual (lienzo de 760) se encogería a 0,79 —
-              apilada a todo lo ancho se ve mejor que emparejada y pequeña. */}
-          {/* La pareja se forma desde lg: la gráfica mensual ya se ajusta al
-              hueco, así que emparejar no la encoge — y apilada, la tabla de
-              12×4 se estiraba a 1085px con las cifras desparramadas. */}
+          {/* min-w-0 en las columnas: sin él el ancho mínimo de la tabla mensual (560 px)
+              desborda la página en móvil en vez de quedarse en su scroller. */}
+          {/* Esta pareja espera a xl: en lg la columna da 600 px y la gráfica mensual se
+              encogería a 0,79. */}
+          {/* Esta pareja se forma desde lg: la gráfica se ajusta al hueco, y apilada la
+              tabla de 12×4 se estiraba a 1085 px. */}
           <div className="mt-4 grid gap-4 lg:grid-cols-[15fr_9fr]">
             {/* Control mensual + evolución */}
             <div className="min-w-0">

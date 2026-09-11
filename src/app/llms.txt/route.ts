@@ -1,7 +1,5 @@
-// llms.txt: resumen del sitio en Markdown para modelos de lenguaje y buscadores
-// de IA (https://llmstxt.org). Se genera desde src/lib/landing/content.ts — la
-// fuente única del contenido — así que nunca se desincroniza de la web. Al ser
-// el sitio de una sola página, incluye el contenido completo directamente.
+// llms.txt (https://llmstxt.org): resumen del sitio en Markdown, generado desde
+// `lib/landing/content.ts` para que no se desincronice de la web.
 import { CONTENT, PROFILE, TIMELINE, periodLabel } from '@/lib/landing/content'
 import { SITE_URL } from '@/lib/site'
 

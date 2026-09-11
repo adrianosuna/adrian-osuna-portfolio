@@ -1,8 +1,7 @@
 'use client'
 
-// Contador animado de la franja de cifras: cuenta de 0 al valor al entrar en
-// pantalla (una sola vez, easing suave). El servidor renderiza el valor FINAL
-// (SEO y sin-JS ven la cifra real); con `prefers-reduced-motion` no se anima.
+// Contador animado de 0 al valor al entrar en pantalla. El servidor renderiza el
+// valor final; con `prefers-reduced-motion` no se anima.
 import { useEffect, useRef, useState } from 'react'
 
 export function Contador({ numero, sufijo = '' }: { numero: number; sufijo?: string }) {

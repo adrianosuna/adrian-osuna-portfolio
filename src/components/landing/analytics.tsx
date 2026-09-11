@@ -1,9 +1,7 @@
 'use client'
 
-// Google Analytics 4 con consentimiento previo (RGPD): no se carga NINGÚN
-// script ni cookie hasta que el visitante acepta en el banner. La elección se
-// guarda en localStorage; "Rechazar" es tan fácil como "Aceptar" y se puede
-// cambiar desde /privacidad. Sin NEXT_PUBLIC_GA_ID no se renderiza nada.
+// Google Analytics 4 con consentimiento previo (RGPD): ningún script hasta aceptar.
+// La elección va en localStorage y se cambia desde /privacidad.
 import { useEffect, useSyncExternalStore } from 'react'
 import Link from 'next/link'
 import Script from 'next/script'
@@ -13,9 +11,8 @@ const CONSENT_KEY = 'pf_cookies'
 
 type Consent = 'granted' | 'denied' | null
 
-// Micro-store del consentimiento respaldado por localStorage: el servidor
-// renderiza "sin decidir" (no pinta banner ni scripts) y el cliente resuelve
-// tras hidratar, sin desajustes.
+// Micro-store del consentimiento en localStorage: el servidor renderiza "sin
+// decidir" y el cliente resuelve tras hidratar, sin desajustes.
 let current: Consent | undefined
 const subscribers = new Set<() => void>()
 
@@ -47,9 +44,8 @@ function useConsent() {
 export function Analytics() {
   const consent = useConsent()
 
-  // Eventos de conversión por delegación: cualquier elemento de la landing con
-  // data-ga="nombre" dispara ese evento al hacer clic (los mide la pestaña
-  // Visitas del Panel de control). Solo con consentimiento y gtag cargado.
+  // Eventos de conversión por delegación: cualquier elemento con data-ga="nombre"
+  // dispara ese evento al hacer clic. Solo con consentimiento y gtag cargado.
   useEffect(() => {
     if (consent !== 'granted') return
     const onClick = (e: MouseEvent) => {
@@ -125,9 +121,8 @@ export function CookieReset() {
             document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`
           }
         })
-        // A la portada con carga completa: descarga los scripts de GA de la
-        // sesión y el banner reaparece inmediatamente (feedback visible).
-        // URL absoluta: la exige la regla de lint de Next para location.
+        // A la portada con carga completa: descarga los scripts de GA y el banner
+        // reaparece. URL absoluta por la regla de lint de Next.
         window.location.assign(new URL('/', window.location.origin))
       }}>
       Cambiar mi elección de cookies

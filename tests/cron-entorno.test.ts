@@ -1,6 +1,5 @@
-// Guarda de entorno del planificador: los avisos por correo solo se programan
-// en producción. En desarrollo, con SMTP configurado en el .env, arrancar el
-// dev server enviaba correos reales (la pasada de arranque salta al minuto).
+// Guarda de entorno del cron: solo se programa en producción. En desarrollo con SMTP
+// enviaba correos reales al arrancar.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { cronMock, avisosMock } = vi.hoisted(() => ({

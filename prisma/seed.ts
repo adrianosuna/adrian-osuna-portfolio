@@ -1,6 +1,5 @@
-// Seed de la base de datos: asegura el usuario administrador (bootstrap del
-// allowlist, equivalente al ensureAdmin() del Portfolio original).
-// Ejecutar con: pnpm prisma db seed
+// Seed: asegura el usuario administrador (bootstrap del allowlist). Ejecutar con
+// pnpm prisma db seed.
 import 'dotenv/config'
 import { PrismaClient } from '../src/generated/prisma/client'
 import { PrismaMariaDb } from '@prisma/adapter-mariadb'

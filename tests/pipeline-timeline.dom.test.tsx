@@ -1,9 +1,6 @@
 // @vitest-environment jsdom
-// Timeline de actividad de una oportunidad: la carga se pide al abrir el
-// detalle (no viaja con el tablero), así que aquí se prueban sus tres estados
-// —cargando, con eventos y ERROR— con la server action mockeada. El estado de
-// error existe porque antes un fallo dejaba "Cargando…" para siempre: el toast
-// se iba y no quedaba forma de reintentar.
+// Timeline de una oportunidad: cargando, con eventos y error. El error existe porque
+// antes un fallo dejaba "Cargando…" para siempre.
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen } from '@testing-library/react'
 

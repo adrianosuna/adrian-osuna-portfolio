@@ -1,12 +1,5 @@
-// Presentación de las categorías con GRUPOS, compartida por el servidor y el
-// cliente. Sin `server-only` a propósito, mismo criterio que `topes.ts` y
-// `fechas.ts`: estas reglas las necesitan los desplegables de tres pantallas,
-// la lista de Ajustes y el correo de los topes, y tenerlas duplicadas es justo
-// cómo se desincronizan.
-//
-// La regla de fondo, de la que sale todo lo demás: los movimientos cuelgan
-// SIEMPRE de una categoría. Un grupo ("Coche") es un contenedor: se crea
-// vacío, agrupa, y no se apunta nunca.
+// Presentación de las categorías con grupos, sin `server-only`: la comparten tres
+// desplegables, Ajustes y el correo. Los movimientos cuelgan siempre de una categoría.
 
 export type TipoCategoria = 'INGRESO' | 'GASTO'
 
@@ -21,14 +14,8 @@ export interface CategoriaConGrupo {
   type: TipoCategoria
 }
 
-/**
- * ¿Es un grupo? Los grupos no se ofrecen al apuntar, no se fusionan y no se
- * borran mientras tengan categorías dentro.
- *
- * ⚠ Se lee de la MARCA y no de "tiene hijas": un grupo recién creado está
- * vacío, y deducirlo lo dejaría en los desplegables de movimientos hasta que
- * alguien le metiera algo.
- */
+/** ¿Es un grupo? Se lee de la marca, no de "tiene hijas": un grupo recién creado
+ *  está vacío y deducirlo lo dejaría en los desplegables. */
 export const esGrupo = (c: { isGroup: boolean }) => c.isGroup
 
 /** "Coche › Taller", o solo "Taller" si está suelta. */
@@ -43,17 +30,8 @@ export interface NodoCategoria {
   hijos?: NodoCategoria[]
 }
 
-/**
- * ÁRBOL de un desplegable de categoría para un tipo: "Sin categoría" primero,
- * después el primer nivel en su orden (grupos con sus categorías dentro y
- * sueltas), que ya es el orden en que llega `listCategorias`.
- *
- * Los grupos entran como CABECERA (con hijas), nunca como opción: no reciben
- * movimientos. Un grupo vacío se omite: una cabecera sin nada debajo solo
- * confunde. Es la misma regla que `opcionesDeCategoria` con otra forma; las
- * dos existen porque el disparador y el buscador necesitan la lista plana con
- * la ruta ("Coche › Taller") y la lista desplegada necesita el árbol.
- */
+/** Árbol del desplegable de categoría: "Sin categoría", luego el primer nivel con
+ *  grupos como cabecera (no opción) y sus hijas. Un grupo vacío se omite. */
 export function arbolDeCategoria(
   categorias: Array<CategoriaConGrupo & { parentUuid: string | null }>,
   tipo: TipoCategoria,
@@ -74,13 +52,8 @@ export function arbolDeCategoria(
   return nodos
 }
 
-/**
- * Opciones PLANAS de un desplegable de categoría para un tipo, con la etiqueta
- * completa ("Coche › Taller"). Sin los GRUPOS: no reciben movimientos.
- *
- * Los desplegables de la interfaz usan el árbol (`arbolDeCategoria`); esta
- * forma queda para lo que necesita una lista lineal (la API, los textos).
- */
+/** Opciones planas con la etiqueta completa ("Coche › Taller"), sin grupos. Para
+ *  lo que necesita una lista lineal (la API, los textos); la UI usa el árbol. */
 export function opcionesDeCategoria(
   categorias: CategoriaConGrupo[],
   tipo: TipoCategoria,

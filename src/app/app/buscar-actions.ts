@@ -1,15 +1,7 @@
 'use server'
 
-// Búsqueda GLOBAL del dashboard: la que alimenta la paleta ⌘K.
-//
-// Cruza los tres sitios donde hay texto que uno recuerda —movimientos,
-// oportunidades y notas— y devuelve pocos resultados de cada uno. No pretende
-// ser el buscador de ningún módulo (Gastos tiene el suyo, con filtros de fecha
-// e importe): esto es para "sé que apunté algo de la caldera y no sé dónde".
-//
-// Vive fuera de los módulos a propósito: no es de finanzas ni del pipeline. Los
-// TIPOS y las constantes están en `lib/buscar.ts`, porque un módulo
-// `'use server'` solo puede exportar funciones async.
+// Búsqueda global de la paleta ⌘K: pocos resultados de movimientos, oportunidades
+// y notas. Tipos y constantes en `lib/buscar.ts` ('use server' solo exporta async).
 import { requireAdmin } from '@/auth'
 import { prisma } from '@/lib/prisma'
 import { textoDe } from '@/lib/sanitizar-html'
@@ -17,13 +9,8 @@ import {
   MINIMO_BUSQUEDA, POR_GRUPO, RESULTADO_VACIO, type ResultadoGlobal,
 } from '@/lib/buscar'
 
-/**
- * Busca `q` en movimientos (concepto y nota), oportunidades (título, empresa,
- * contacto y notas) y notas (título y contenido).
- *
- * Sin sesión de admin devuelve vacío en vez de lanzar: la paleta no debe
- * romperse por esto, y quien no es admin no tiene ninguno de estos módulos.
- */
+/** Busca `q` en movimientos, oportunidades y notas. Sin sesión de admin devuelve
+ *  vacío en vez de lanzar: la paleta no debe romperse por esto. */
 export async function buscarGlobal(q: string): Promise<ResultadoGlobal> {
   const texto = (q ?? '').trim().slice(0, 100)
   if (texto.length < MINIMO_BUSQUEDA) return RESULTADO_VACIO

@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
-// Mapa de visitas: lo que importa es que las marcas caigan donde deben, que el
-// encuadre se ajuste a los datos (con España sola, el mundo entero es 95 % de
-// océano) y que lo que no tiene coordenadas se DIGA en vez de desaparecer.
+// Mapa de visitas: las marcas caen donde deben, el encuadre se ajusta a los datos y
+// lo que no tiene coordenadas se dice en vez de desaparecer.
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MapaVisitas } from '@/components/dashboard/panel/mapa-visitas'

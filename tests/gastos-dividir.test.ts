@@ -1,11 +1,8 @@
-// Guardas de `dividirGasto`: la suma de las partes TIENE que cuadrar con el
-// importe original. Es la validación que evita que dividir una compra descuadre
-// el mes en silencio, y la comparación va en céntimos porque en decimales
-// 0.1 + 0.2 no da 0.3.
+// Guardas de `dividirGasto`: la suma de las partes debe cuadrar con el original. En
+// céntimos, porque 0.1 + 0.2 no da 0.3.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-// El tope de peticiones vive en memoria y es COMPARTIDO por todo el proceso:
-// sin reiniciarlo, un fichero de tests con muchas actions agotaría la ventana
-// y los siguientes fallarían por algo que no están probando.
+// El tope de peticiones vive en memoria del proceso: sin reiniciarlo, un fichero con
+// muchas actions agotaría la ventana.
 import { reiniciarLimites } from '@/lib/rate-limit'
 
 const { requireAdminMock, prismaMock } = vi.hoisted(() => {

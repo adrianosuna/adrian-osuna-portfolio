@@ -1,21 +1,7 @@
 'use client'
 
-// Mapa de las visitas: la geografía del informe de GA sobre un mundo en SVG.
-//
-// Dos capas de marcas, cada una con su papel:
-//   · PAÍSES en burbuja sobre su centroide, con el área proporcional a las
-//     visitas (el área, no el radio: si no, el doble de visitas parece cuatro
-//     veces más).
-//   · CIUDADES con pin, más pequeñas y por encima.
-//
-// ⚠ Ni dependencia de mapas ni red: la silueta es una ruta incrustada
-// (`mundo-path.ts`, Natural Earth de dominio público) y las coordenadas salen
-// de una tabla local (`lib/geo-visitas.ts`). Un mapa de teselas habría exigido
-// abrir `img-src` y `connect-src` en la CSP y geocodificar las ciudades contra
-// un tercero, mandándole de dónde son las visitas del sitio.
-//
-// Lo que no está en la tabla NO se pierde: sigue en el ranking de la tarjeta,
-// y el mapa lo dice al pie con su número.
+// Mapa de visitas sobre un mundo en SVG: países en burbuja (área proporcional) y
+// ciudades con pin. Sin dependencias ni red: ruta incrustada y tabla local de coordenadas.
 import { useMemo, useState } from 'react'
 import { MapPin } from 'lucide-react'
 import { cn, cuenta } from '@/lib/utils'
@@ -61,16 +47,8 @@ function marcas(filas: Fila[], punto: (n: string) => { lat: number; lon: number 
   return { dentro: dentro.sort((a, b) => b.valor - a.valor), fuera }
 }
 
-/**
- * Encuadre: la caja que contiene las marcas, con margen, o el mundo entero si
- * se pide.
- *
- * ⚠ Sin esto el mapa es casi todo océano. Con el tráfico de este sitio (España
- * y poco más) el mundo completo desperdicia el 95 % del lienzo y las burbujas
- * quedan amontonadas en una esquina. Se conserva la proporción 2:1 del lienzo
- * para que la silueta no se deforme, y hay un ancho MÍNIMO para que un solo
- * punto no acabe en un zoom absurdo.
- */
+/** Encuadre: la caja de las marcas con margen, o el mundo entero. Sin esto el mapa
+ *  es casi todo océano. Proporción 2:1 y ancho mínimo para un solo punto. */
 const MIN_ANCHO = 220
 function encuadre(ms: Marca[], todoElMundo: boolean) {
   if (todoElMundo || ms.length === 0) return { x: 0, y: 0, w: ANCHO, h: ALTO }
@@ -104,9 +82,8 @@ export function MapaVisitas({ paises, ciudades }: { paises: Fila[]; ciudades: Fi
   const visibles = [...(verPaises ? p.dentro : []), ...(verCiudades ? c.dentro : [])]
   const nada = visibles.length === 0
   const caja = encuadre(visibles, todoElMundo)
-  // El viewBox hace zoom sobre TODO el SVG, radios y grosores incluidos, así
-  // que se compensan por el factor de escala: un pin tiene que medir lo mismo
-  // en pantalla esté el mapa encuadrado en España o en el planeta.
+  // El viewBox escala todo, radios y grosores incluidos: se compensan por el factor
+  // para que un pin mida lo mismo encuadrado en España o en el planeta.
   const k = caja.w / ANCHO
 
   return (
@@ -137,9 +114,8 @@ export function MapaVisitas({ paises, ciudades }: { paises: Fila[]; ciudades: Fi
         ))}
       </div>
 
-      {/* El encuadre automático es lo útil por defecto, pero si todo el
-          tráfico es de un país el mapa pierde la referencia de DÓNDE está:
-          este botón devuelve el planeta. */}
+      {/* Si todo el tráfico es de un país el encuadre pierde la referencia: este botón
+          devuelve el planeta. */}
       <button
         type="button"
         aria-pressed={todoElMundo}
@@ -185,9 +161,8 @@ export function MapaVisitas({ paises, ciudades }: { paises: Fila[]; ciudades: Fi
         </svg>
       </div>
 
-      {/* Las marcas del canvas SVG no son texto legible por sí solas: la lista
-          de al lado es la que se puede leer, ordenar y anunciar. Misma razón
-          por la que la leyenda de los donuts va en HTML. */}
+      {/* Las marcas del SVG no son texto legible: la lista de al lado es la que se
+          lee, ordena y anuncia (misma razón que la leyenda de los donuts). */}
       {nada ? (
         <p className="py-2 text-center text-[13px] text-muted-foreground">
           No hay ninguna ubicación que situar en el mapa con este rango.

@@ -1,5 +1,4 @@
-// Capa de datos de las notas del Panel de control (solo servidor). Apuntes
-// propios con formato: el contenido es HTML (editor visual), YA saneado al
+// Capa de datos de las notas (solo servidor). El contenido es HTML ya saneado al
 // guardarse (`lib/sanitizar-html.ts`), así que pintarlo es seguro.
 import 'server-only'
 import { prisma } from '@/lib/prisma'
@@ -11,9 +10,8 @@ export interface NotaRow {
   content: string // HTML saneado
   /** Fijada arriba. */
   pinned: boolean
-  /** Texto plano del contenido: lo que busca el buscador (el HTML no se busca:
-   *  "strong" no es una palabra de la nota). Se calcula aquí, en el servidor,
-   *  para no repetirlo en cada tecla del filtro. */
+  /** Texto plano del contenido, para el buscador (el HTML no se busca). Se calcula en
+   *  el servidor para no repetirlo en cada tecla. */
   texto: string
   /** Progreso de su checklist, si tiene ({0,0} si no). */
   tareas: { hechas: number; total: number }

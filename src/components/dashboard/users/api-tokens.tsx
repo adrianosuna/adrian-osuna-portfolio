@@ -1,12 +1,7 @@
 'use client'
 
-// Sub-pestaña API de Usuarios: los tokens con los que un Atajo del iPhone (o
-// cualquier automatización) apunta gastos y notas sin sesión de Google.
-//
-// La regla que manda el diseño de esta pantalla: **el token se ve UNA vez**. En
-// la base de datos solo queda su SHA-256, así que no hay "volver a mostrarlo" —
-// y por eso al crearlo aparece en un aviso destacado con botón de copiar, y no
-// como una fila más de la lista. Si se pierde, se revoca y se crea otro.
+// Sub-pestaña API: los tokens de los Atajos. El token se ve una vez (en BD solo
+// queda su SHA-256): al crearlo sale en un aviso con botón de copiar.
 import { useState, useTransition } from 'react'
 import { Check, Copy, KeyRound, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -204,12 +199,8 @@ export function ApiTokens({ rows, base }: { rows: ApiTokenRow[]; base: string })
   )
 }
 
-/**
- * La documentación, junto al botón que crea el token.
- *
- * Está aquí y no solo en `docs/` a propósito: cuando alguien viene a crear un
- * token es justo cuando necesita saber a qué URL apuntar y qué cabecera poner.
- */
+/** La documentación junto al botón que crea el token: es cuando se necesita saber
+ *  a qué URL apuntar y qué cabecera poner. */
 function ComoUsarla({ base }: { base: string }) {
   const ejemplo = [
     `POST ${base}/api/v1/movimientos`,

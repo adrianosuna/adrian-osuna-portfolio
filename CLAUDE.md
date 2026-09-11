@@ -81,6 +81,15 @@ y `next-auth` se procesa inline en `vitest.config.mts`.
 de `window` porque corre también en las suites de entorno `node`. Se hace ahí y
 no con guardas en el componente: un `el.scrollIntoView?.()` no protege de nada
 real y esconde el fallo si algún día se llama sobre lo que no es un elemento.
+⚠ **`testTimeout` está en 20 s**, no en los 5 de fábrica, y hay que dejarlo:
+varias suites hacen `await import()` DENTRO del test —los mocks de `vi.mock`
+se aplican al importar, y `dev-login.test.ts` reimporta `@/auth` con distintos
+entornos a propósito— y ese import arrastra Prisma y next-auth. Transformarlo
+cuesta 647 ms con la máquina libre y **4,8 s con ella cargada** (medido el
+11/09/2026 forzando CPU), así que con 5 s el PRIMER test de un fichero daba un
+rojo aleatorio que pasaba al reintentar. Estuvo mal diagnosticado como el tope
+de peticiones compartido entre ficheros: no puede ser, cada fichero corre
+aislado en su propio proceso.
 Antes de dar algo por terminado: `pnpm test`, `pnpm lint` y `pnpm build`.
 
 Los **e2e (Playwright, `e2e/`)** son otra cosa y no sustituyen a los
@@ -1291,6 +1300,19 @@ propio (BD desde cero, volumen `db-data`) y un servicio `migrate`
 one-shot (`--profile setup`) que aplica la migración baseline y el seed.
 `NEXT_PUBLIC_SITE_URL` y `NEXT_PUBLIC_GA_ID` se hornean como build-args. Guía
 completa: `docs/DESPLIEGUE.md` (procedimiento validado en local el 25/08/2026).
+
+## Comentarios del código
+
+**Uno o dos renglones, directos y profesionales** (petición de Adrián,
+12/09/2026). Un comentario dice qué hace algo que no es evidente o por qué se
+decidió así, y nada más: sin narrativa, sin la historia del fallo, sin
+mayúsculas de énfasis ni avisos con emoji. El porqué largo —el fallo que
+costó, la alternativa descartada, la medida que lo justifica— va a este
+fichero o al CHANGELOG, no al código. Vale para `//`, para JSDoc (una función
+se documenta en una frase o dos: `/** … \n *  … */`) y para los `{/* */}` de
+JSX. Las directivas (`// @vitest-environment jsdom`, `# syntax=`,
+`eslint-disable-next-line`) no son comentarios y no cuentan. El 12/09/2026 se
+reescribieron así los 669 bloques que pasaban de dos líneas (ver CHANGELOG).
 
 ## Idioma y textos de la UI
 

@@ -1,9 +1,5 @@
-// Layout del dashboard interno (/app/*): protegido por sesión. El menú es una
-// barra superior (no hay menú lateral en escritorio, como el original).
-//
-// Aquí se montan también las piezas GLOBALES del dashboard, por orden: la barra
-// de carga, las acciones rápidas (paleta ⌘K, alta rápida y atajos de teclado) y
-// el diálogo de confirmaciones. Cualquier vista las usa por contexto.
+// Layout del dashboard (/app/*), protegido por sesión. Monta las piezas globales:
+// barra de carga, acciones rápidas (⌘K, alta rápida, atajos) y confirmaciones.
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
@@ -27,10 +23,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!session?.user) redirect('/login')
   const isAdmin = session.user.role === 'ADMIN'
 
-  // Avisos para la campana de la barra superior. Son tres selects acotados (los
-  // mismos criterios que la franja del inicio, vía `construirAvisos`), y se
-  // calculan aquí porque la campana está en TODAS las páginas: pedirlos al
-  // abrirla dejaría el contador en blanco justo cuando sirve para algo.
+  // Avisos para la campana: tres selects acotados (los de la franja del inicio, vía
+  // `construirAvisos`). Van aquí porque la campana está en todas las páginas.
   const avisos = isAdmin ? await avisosPendientes() : []
 
   const cerrarSesion = async () => {
@@ -39,13 +33,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    // min-w-0 en la cadena de flex: sin él, un hijo con anchura mínima grande
-    // (p. ej. el tablero del pipeline con min-w-260 dentro de su scroller)
-    // impediría encoger al layout entero y desbordaría la página en móvil.
+    // min-w-0 en la cadena de flex: sin él un hijo con anchura mínima grande (el
+    // tablero del pipeline) impide encoger al layout y desborda en móvil.
     <div className="flex min-h-screen min-w-0 flex-col bg-muted/40">
-      {/* La barra de carga (useSearchParams) va bajo Suspense por exigencia de
-          Next; envuelve top-nav y contenido para que el contexto llegue a los
-          tabs. */}
+      {/* La barra de carga (useSearchParams) va bajo Suspense por exigencia de Next;
+          envuelve top-nav y contenido para que el contexto llegue a los tabs. */}
       <Suspense>
         <BarraCargaProvider>
           {/* Acciones globales (paleta ⌘K, alta rápida y atajos de teclado). */}
@@ -55,13 +47,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <ConfirmarProvider>
               {/* Service worker: pantalla offline y recepción de push. */}
               <RegistrarServiceWorker />
-              {/* En su propio landmark: si no, su texto queda fuera de
-                  cualquier región y un lector de pantalla que navegue por
-                  landmarks no lo alcanza (axe: `region`).
-                  ⚠ Sin `role="status"` AQUÍ: el rol implícito de `aside` es
-                  `complementary` y no admite que se le sobrescriba con uno de
-                  live region (axe: `aria-allowed-role`). El `role` va dentro,
-                  en la propia franja. */}
+              {/* En su propio landmark para que un lector de pantalla lo alcance (axe: region).
+                  Sin role="status" aquí: aside es complementary y no admite live region. */}
               <aside aria-label="Avisos de la aplicación">
                 <AvisoNovedades version={pkg.version} />
               </aside>

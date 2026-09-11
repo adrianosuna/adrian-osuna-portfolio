@@ -1,12 +1,9 @@
-// Utilidades compartidas del módulo de finanzas (lado cliente): formato de
-// euros, fórmulas del resumen anual y clases/piezas de UI comunes. Las
-// fórmulas duplican a propósito las de lib/finance.ts (server-only: un
-// componente cliente no puede importarlas).
+// Utilidades cliente del módulo de finanzas: formato, fórmulas del resumen anual y
+// piezas de UI. Las fórmulas duplican las de lib/finance.ts (server-only).
 import type { YearSummary } from '@/lib/finance'
 
-// Formato de importes: la fuente única es `lib/euros.ts` (decimales solo si el
-// importe los tiene). Se re-exporta aquí porque todo el módulo lo importa de
-// `./comun` desde antes de unificarlo.
+// Formato de importes: la fuente única es `lib/euros.ts`. Se re-exporta porque todo
+// el módulo lo importa de `./comun`.
 export { eur, eurEntero } from '@/lib/euros'
 
 // Ahorro anual = mensual + extras + sobrante de viajes (lo no gastado en
@@ -14,20 +11,15 @@ export { eur, eurEntero } from '@/lib/euros'
 export const ahorroAnualDe = (y: YearSummary) =>
   y.monthsGeneral + y.extrasTotal + (y.monthsTravel - y.travelsTotal)
 
-/**
- * Tasa de ahorro: qué parte de lo ingresado se ahorra (null sin ingresos).
- * Los ingresos extraordinarios cuentan en AMBOS lados: son ahorro, pero
- * también son ingresos. Dejándolos solo arriba la tasa se inflaba y podía
- * pasar del 100% (imposible: no se ahorra más de lo que entra).
- */
+/** Tasa de ahorro (null sin ingresos). Los extraordinarios cuentan en ambos lados:
+ *  son ahorro y también ingresos; solo arriba, la tasa pasaba del 100 %. */
 export const tasaAhorroDe = (y: YearSummary) => {
   const ingresos = y.incomeTotal + y.extrasTotal
   return ingresos > 0 ? ahorroAnualDe(y) / ingresos : null
 }
 
-/** Formato de tasa: '34 %' o '—'. El porcentaje va con espacio (norma RAE) y
- *  lo pone Intl, que en es-ES usa un espacio IRROMPIBLE: la cifra y el símbolo
- *  nunca se separan en un salto de línea. */
+/** Formato de tasa: '34 %' o '—'. El espacio (norma RAE) lo pone Intl y es
+ *  irrompible: cifra y símbolo no se separan en un salto de línea. */
 export const pct = (v: number | null) =>
   v === null ? '—' : v.toLocaleString('es-ES', { style: 'percent', maximumFractionDigits: 0 })
 
@@ -45,9 +37,8 @@ export interface ProyeccionAnual {
   mesesFuturos: number
 }
 
-/** Proyección de fin de año a ritmo actual. `fijos` son los aportes que no
- *  dependen del mes (extras + sobrante de viajes). `mesActual` en 1-12; los
- *  meses pasados sin rellenar se dan por perdidos (no se ahorra hacia atrás). */
+/** Proyección de fin de año a ritmo actual. `fijos` son extras + sobrante de
+ *  viajes; `mesActual` en 1-12. Los meses pasados sin rellenar se dan por perdidos. */
 export function proyeccionDe(
   meses: Array<{ month: number; savingGeneral: number | null }>,
   fijos: number,
@@ -85,9 +76,8 @@ export function proyeccionDe(
   }
 }
 
-/** Objetivo prorrateado a hoy (por día del año natural): cuánto "deberías"
- *  llevar ahorrado a estas alturas. Años pasados: el objetivo completo;
- *  futuros: 0. */
+/** Objetivo prorrateado a hoy por día del año natural. Años pasados: el objetivo
+ *  completo; futuros: 0. */
 export function esperadoHoy(goal: number, año: number, hoyIso: string): number {
   const añoHoy = Number(hoyIso.slice(0, 4))
   if (año < añoHoy) return goal
@@ -98,9 +88,7 @@ export function esperadoHoy(goal: number, año: number, hoyIso: string): number 
   return goal * (dias / total)
 }
 
-// ─────────── piezas del control de gastos ───────────
-// Aquí y no en gastos.tsx porque las comparten la vista de Gastos y la de
-// Ajustes (categorías y recurrentes).
+// Piezas del control de gastos, aquí porque las comparten Gastos y Ajustes.
 
 /** 'YYYY-MM-DD' → 'DD/MM'. */
 export const fmtDia = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`

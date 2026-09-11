@@ -1,6 +1,4 @@
-// Fechas y duraciones de la experiencia (estilo LinkedIn): rangos "Mes Año —
-// Actualidad" y duraciones con conteo INCLUSIVO ("Julio 2021 → Agosto 2026"
-// son 5 años y 2 meses, no 5 y 1). Se congela el reloj: son cálculos "al día".
+// Fechas y duraciones de la experiencia: rangos y conteo inclusivo. Reloj congelado.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { companyDuration, periodLabel, yearsSince } from '@/lib/landing/content'
 

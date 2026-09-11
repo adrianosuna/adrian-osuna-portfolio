@@ -6,6 +6,49 @@ cuando algo se termina, se cuenta aquí con su porqué y desaparece de allí.
 
 ---
 
+## 12/09/2026
+
+### Los comentarios del código, a uno o dos renglones
+
+Petición de Adrián: «los comentarios deben ser de 1 o 2 líneas, directos y
+profesionales». La regla queda en CLAUDE.md (sección «Comentarios del código»)
+y se aplicó al código entero en una pasada.
+
+Lo que había: **669 bloques de más de dos líneas en 199 ficheros, 4.062 líneas
+de comentario**. El estilo de la casa era contar la historia completa dentro
+del código —el fallo que costó, la alternativa descartada, la medida que lo
+justifica—, y eso ya vive en este fichero y en CLAUDE.md. En el código sobraba.
+
+Cómo se hizo, porque no es una sustitución mecánica: un inventario recorrió
+`src/`, `tests/`, `e2e/`, `scripts/`, `prisma/`, `.github/` y los ficheros de
+configuración de la raíz, y sacó cada bloque de `//`, JSDoc, `{/* */}` de JSX
+y `#` de YAML/Dockerfile con más de dos líneas. Cada uno se **reescribió a
+mano** conservando el qué y el porqué —la trampa, la decisión— y quitando la
+narrativa, las mayúsculas de énfasis, los avisos con emoji y las atribuciones
+con fecha. La aplicación fue por coincidencia exacta del bloque original
+(cero fallos en 669) y reindentando con la sangría mínima del bloque, que es
+lo que hace bien los `{/* */}` de JSX y el único bloque que estaba mal
+sangrado. Resultado: **1.323 líneas**, un 67 % menos.
+
+⚠ Dos cosas que había que respetar y se respetaron: la directiva
+`// @vitest-environment jsdom` en la primera línea de doce suites (y el
+`# syntax=` del Dockerfile) no es un comentario y se queda; y el
+`eslint-disable-next-line` de `tooltip.tsx` tiene que seguir pegado a la línea
+que exime, así que ahí el comentario es de una línea y la directiva la
+segunda.
+
+Verificado: lint, tsc, **668 tests** y el build de producción, sin cambios de
+código —solo comentarios— y sin tocar los finales de línea (todo sigue en LF).
+
+⚠ Y un detalle para quien vuelva a hacer algo así por Bash: un `cat <<'EOF'`
+con el JSON de los reemplazos **rompía el parseo del shell** por la comilla
+simple de `'use server'` dentro del texto, aunque el delimitador iba entre
+comillas. Los ficheros grandes con texto arbitrario se escriben con la
+herramienta de ficheros, no con heredocs —es la misma nota que ya estaba en
+CLAUDE.md para los heredocs largos, con otra causa—.
+
+---
+
 ## 11/09/2026
 
 ### El logo nuevo, en todos los sitios
@@ -103,6 +146,70 @@ ahora **los dos formatos** (SVG primero, `.ico` de respaldo), y el nombre corto
 de la app instalada pasa de «AO.» a **«AO»** — el punto era del logotipo viejo.
 El prefijo de los asuntos del correo se queda en `[Panel AO]`: cambiarlo
 rompería la regla de filtrado del buzón.
+
+### El test intermitente no era el tope de peticiones
+
+Estaba en TAREAS desde el 06/09 con una hipótesis —el contador del tope de
+peticiones, compartido entre ficheros que corren en paralelo— que resultó
+**falsa**: `vitest.config.mts` no toca `isolate` ni `pool`, así que cada
+fichero corre en su propio proceso y no comparte módulos con nadie.
+
+Lo que era de verdad se vio **midiendo**. Con `--reporter=verbose`, el primer
+test de `actions.test.ts` tarda **647 ms** y los siguientes 1–4 ms: ese
+primero paga el `await import('@/app/app/panel/actions')`, que arrastra
+Prisma, next-auth y el grafo de las actions, y lo que cuesta es que Vite lo
+transforme — no lo que el test comprueba. Forzando carga (22 procesos
+quemando CPU en 12 núcleos) para imitar un runner ocupado, ese mismo test
+subió a **4,8 s**, rozando los 5 s del tope por defecto, y en las tres
+pasadas cayó otro de la misma familia: `dev-login.test.ts`, que reimporta
+`@/auth` con distintos entornos a propósito. «Test timed out in 5000ms»: un
+mensaje que no dice nada del import, y por eso se había diagnosticado mal.
+
+El arreglo es `testTimeout: 20_000` (y `hookTimeout`), con la explicación en
+la propia config. No esconde nada: el tope sigue cazando un cuelgue real, solo
+deja de cronometrar el arranque de los módulos, que es una cosa distinta de lo
+que se prueba. Verificado con la misma carga: de 3 rojos de 3 a 4 verdes de 4.
+Importa más ahora que antes, porque **el CI va a ejecutarse por primera vez**
+(ver abajo) y un runner compartido de dos núcleos es exactamente la máquina
+cargada que reproduce el fallo.
+
+### La barra del dashboard entre 768 y 1023 px
+
+Se solapaba: los cuatro módulos (Inicio, Finanzas, Oportunidades, Panel de
+control) miden 406 px de contenido y, con todo lo demás a su ancho natural, a
+768 px les quedaban 294 — los enlaces se montaban encima del buscador. La `nav`
+lleva `min-w-0 flex-1` y los enlaces `whitespace-nowrap`, así que podía
+encogerse por debajo de su contenido sin partir línea. Previo al logo (que
+aporta 8 px de los 112 de desborde); se vio al revisarlo.
+
+Dos salidas posibles y se eligió la que no toca la navegación: en vez de mandar
+los enlaces al menú hamburguesa hasta `lg`, se **compacta lo secundario** en
+esa franja — el botón de buscar se queda en icono (de 149 a 38 px) y el perfil
+en avatar (sin el nombre ni su `pr-2`, que descentraba el círculo). Se
+recuperan ~165 px para un desborde de 112. La navegación es lo primario y cabe
+si lo demás cede; esconderla en un iPad en vertical porque un botón lleva un
+`Ctrl K` no tenía sentido.
+
+⚠ Los dos textos se ocultan con **`sr-only lg:not-sr-only`**, no con `hidden`:
+son el ÚNICO nombre accesible de sus botones (la imagen del perfil va con
+`alt=""`), y con `display: none` se habrían quedado dos botones sin nombre en
+la barra — justo la trampa de la cabecera del calendario. El `Ctrl K` sí va
+con `hidden`: es una pista, no el nombre. Medido a 768, 1023, 1024 y 1280 px:
+desborde 0 en los cuatro, y el texto vuelve exactamente en `lg`.
+
+### El CI no había corrido nunca
+
+Al empujar el commit de hoy, GitHub Actions respondió «Invalid workflow file»
+en la línea 59 de `ci.yml`: un `: ` («seguridad: ver») dentro de un `run:` en
+una sola línea y sin comillas — en YAML, dos puntos y espacio en un escalar
+plano abren una clave de mapa; las comillas del `echo` son del shell, no del
+YAML. Pasado a bloque (`run: |`).
+
+Lo grave no es el fallo sino desde cuándo: parseando el fichero tal y como
+estaba en cada commit, es inválido desde `3d33a0f`, tres commits atrás,
+`c0edace` incluido — el que está en producción. Y con un workflow inválido no
+falla un job: **no se ejecuta ninguno**. Todo lo que se ha verificado hasta
+hoy ha sido en local; el CI de este repo no ha corrido jamás.
 
 ---
 

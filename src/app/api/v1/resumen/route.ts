@@ -1,10 +1,5 @@
-// GET /api/v1/resumen — lo del mes en curso, en una respuesta pequeña.
-//
-// Es la mitad de lectura de la API: un Atajo o un widget pregunta "¿cuánto he
-// gastado este mes?" y lo lee en voz alta o lo pinta. Devuelve cifras, nunca la
-// lista de movimientos: el objetivo es que quepa en una frase.
-//
-// Parámetro opcional `?mes=2026-08` (por defecto, el mes de hoy en Madrid).
+// GET /api/v1/resumen: cifras del mes en curso (?mes=YYYY-MM, por defecto hoy en
+// Madrid), pensadas para leerse en una frase; nunca la lista de movimientos.
 import { getMesMovimientos, listCategorias } from '@/lib/gastos'
 import { hoyMadrid } from '@/lib/mantenimiento'
 import { avisosPendientes } from '@/lib/inicio'
@@ -28,9 +23,8 @@ export async function GET(req: Request) {
     avisosPendientes(),
   ])
 
-  // Redondeo a dos decimales: los importes vienen ya en céntimos exactos, pero
-  // la suma en coma flotante puede dejar un 0.30000000000000004 que un Atajo
-  // leería tal cual en voz alta.
+  // Redondeo a dos decimales: la suma en coma flotante puede dejar un
+  // 0.30000000000000004 que un Atajo leería en voz alta.
   const dos = (n: number) => Math.round(n * 100) / 100
 
   return jsonOk({

@@ -1,10 +1,7 @@
 'use client'
 
-// Gestión de usuarios (solo administradores): invitar por correo, cambiar rol,
-// activar/deshabilitar y eliminar. Réplica del Users original. En escritorio
-// es una tabla; en móvil, tarjetas apiladas (la tabla con scroll horizontal se
-// veía mal). La fila del propio admin no muestra acciones: ninguna es legal
-// sobre uno mismo (el servidor lo revalida igualmente).
+// Gestión de usuarios (solo admin): invitar, rol, activar/deshabilitar, eliminar.
+// Tabla en escritorio, tarjetas en móvil. El propio admin no tiene acciones.
 import { useState, useTransition } from 'react'
 import Image from 'next/image'
 import {
@@ -95,12 +92,8 @@ export function UsersTable({ rows, meUuid }: { rows: UserRow[]; meUuid: string }
       setRole('USER')
     })
 
-  // Acciones sobre OTRO usuario (nunca se pintan para el propio admin).
-  //
-  // Declaradas, no maquetadas: `MenuAcciones` las pinta como iconos en
-  // escritorio y como menú de tres puntos en móvil. De paso cada una gana un
-  // NOMBRE de verdad — antes solo tenían `title`, que un lector de pantalla
-  // usa como último recurso y un móvil no enseña nunca.
+  // Acciones sobre otro usuario, declaradas: `MenuAcciones` las pinta como iconos o
+  // menú, y cada una lleva nombre de verdad, no solo `title`.
   const acciones = (row: UserRow) => {
     const makeAdmin = row.role !== 'ADMIN'
     const bloqueado = row.status === 'DISABLED'

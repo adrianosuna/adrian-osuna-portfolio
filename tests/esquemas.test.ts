@@ -1,15 +1,5 @@
-// Esquemas de validación compartidos (Zod).
-//
-// Lo que más importa aquí no son los rechazos obvios, sino **las dos trampas
-// de Zod** que ya provocaron un fallo real al escribirlos y que un refactor
-// podría reintroducir sin que nada más se queje:
-//
-//   1. `z.coerce.number()` en una unión con `z.null()` convierte `null` en 0
-//      (`Number(null) === 0`). En el control mensual del ahorro eso escribe un
-//      cero donde el mes estaba SIN RELLENAR — justo lo que el módulo
-//      distingue para avisar por correo.
-//   2. Un campo con `.transform()` sigue siendo obligatorio: sin `.nullish()`
-//      antes, omitir la clave falla con "expected nonoptional".
+// Esquemas Zod: sobre todo las dos trampas (coerce en unión con null → 0, y
+// transform sin nullish sigue siendo obligatorio) que un refactor reintroduciría.
 import { describe, expect, it } from 'vitest'
 import {
   AnioEdicion,
@@ -187,10 +177,8 @@ describe('identificador', () => {
   })
 
   it('una categoría inventada la caza la BD, no el esquema', () => {
-    // El esquema la deja pasar (es texto válido); quien la rechaza es
-    // `altaMovimiento`, que comprueba que exista y que sea de ese tipo — la
-    // garantía que de verdad importa, porque el FK es SET NULL y si no se
-    // guardaría sin categoría en silencio (ver api-v1.test.ts).
+    // El esquema la deja pasar; quien la rechaza es `altaMovimiento`, que comprueba que
+    // exista y sea del tipo (el FK es SET NULL).
     const res = validar(MovimientoAlta, {
       type: 'GASTO',
       concept: 'x',

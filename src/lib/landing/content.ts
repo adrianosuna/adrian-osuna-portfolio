@@ -1,6 +1,5 @@
-// Contenido de la landing pública. Fuente única de datos: perfil, experiencia,
-// casos de estudio y textos en español. Enfoque: la página gira alrededor de
-// la evidencia (proyectos como casos de estudio), no de la biografía.
+// Contenido de la landing: perfil, experiencia, casos de estudio y textos. Fuente
+// única.
 
 export const PROFILE = {
   name: 'Adrián Osuna',
@@ -9,9 +8,7 @@ export const PROFILE = {
   github: 'https://github.com/adrianosuna',
 }
 
-// ─────────── Experiencia: fechas ───────────
-// `end` ausente = puesto actual. El rango y la duración se calculan
-// dinámicamente, de modo que "X años y Y meses" está siempre al día.
+// Experiencia: `end` ausente = puesto actual. Rango y duración se calculan al vuelo.
 
 export type YM = { y: number; m: number }
 
@@ -71,9 +68,8 @@ const durationLabel = (start: YM, end?: YM | null) => {
 // Años completos desde una fecha hasta hoy (para la franja de cifras: "5+").
 export const yearsSince = (start: YM) => Math.floor(diffMonths(nowYM(), start) / 12)
 
-// Duración total en una empresa: del primer puesto al último (o a la actualidad).
-// Firma sobre YM genérico (no sobre los literales de TIMELINE): así admite
-// cualquier rol, incluidos los de los tests.
+// Duración total en una empresa: del primer puesto al último o a hoy. Firma sobre YM
+// genérico para admitir cualquier rol, incluidos los de los tests.
 export const companyDuration = (roles: ReadonlyArray<{ start: YM; end?: YM }>) => {
   const minStart = roles.map((r) => r.start).reduce((a, b) => (diffMonths(a, b) <= 0 ? a : b))
   const anyPresent = roles.some((r) => !('end' in r) || !r.end)
@@ -254,11 +250,8 @@ export const CONTENT: Content = {
   },
   a11y: {
     skip: 'Saltar al contenido',
-    // Es el ÚNICO nombre del enlace del logo: la marca es un dibujo sin texto
-    // (`ui/logotipo.tsx`), así que sin esto el enlace se queda sin nombre. Ya
-    // no hay que arrastrar el «AO.» delante —la regla WCAG 2.5.3 (label in
-    // name) solo aplica cuando hay una etiqueta VISIBLE que respetar—, así que
-    // el nombre puede decir lo que hace en vez de deletrear el logo.
+    // Único nombre del enlace del logo: la marca es un dibujo sin texto. WCAG 2.5.3 solo
+    // aplica con etiqueta visible, así que no hace falta arrastrar «AO.».
     home: 'Adrián Osuna · ir al inicio',
     openMenu: 'Abrir menú',
     closeMenu: 'Cerrar menú',

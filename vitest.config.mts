@@ -1,6 +1,5 @@
-// Configuración de Vitest: tests unitarios de la lógica crítica (fórmulas de
-// finanzas, parsers de GA, validaciones de server actions). Sin BD ni red:
-// todo lo externo se mockea en cada suite.
+// Configuración de Vitest: tests unitarios sin BD ni red; lo externo se mockea en
+// cada suite.
 import path from 'node:path'
 import { defineConfig } from 'vitest/config'
 
@@ -18,6 +17,10 @@ export default defineConfig({
     include: ['tests/**/*.test.{ts,tsx}'],
     // Rellena lo que jsdom no implementa (matchMedia, scrollIntoView).
     setupFiles: ['tests/setup.ts'],
+    // 20 s y no 5: varias suites hacen `await import()` dentro del test y ese import
+    // arrastra Prisma y next-auth (647 ms libre, 4,8 s con carga). Ver CLAUDE.md.
+    testTimeout: 20_000,
+    hookTimeout: 20_000,
     server: {
       deps: {
         // next-auth importa 'next/server' sin extensión: el ESM nativo de Node

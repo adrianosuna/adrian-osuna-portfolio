@@ -75,9 +75,8 @@ describe('GET /app/finance/exportar', () => {
   })
 })
 
-// Modo GLOBAL (`?todo=1`): todo el módulo en un libro. Existe porque el dato
-// solo salía año a año, y lo que se quería es tenerlo FUERA de la aplicación
-// en un formato que se abra sin ella.
+// Modo global (`?todo=1`): todo el módulo en un libro, para tener el dato fuera de la
+// aplicación.
 describe('GET /app/finance/exportar?todo=1', () => {
   const anio = (year: number) => ({
     uuid: `y-${year}`, year, goal: 14000, incomeTotal: 24000,

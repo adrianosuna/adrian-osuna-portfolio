@@ -10,11 +10,6 @@ export function cn(...inputs: ClassValue[]) {
 export const sinAcentos = (s: string) =>
   s.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
 
-/**
- * "1 país" / "3 países". Para los nombres accesibles, que se leen en voz alta:
- * ahí un "1 países" canta más que en cualquier otro sitio, y la regla ya está
- * en CLAUDE.md. Vive aquí y no en cada componente porque ya había dos copias
- * (el mapa de visitas y las celdas del calendario).
- */
+/** "1 país" / "3 países", para los nombres accesibles que se leen en voz alta. */
 export const cuenta = (n: number, singular: string, plural: string) =>
   `${n} ${n === 1 ? singular : plural}`

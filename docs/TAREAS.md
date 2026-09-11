@@ -41,20 +41,6 @@ mes**, y del 11/09 **el logo nuevo** en toda la aplicación.
       siendo el «AO.» viejo hasta que se quite y se vuelva a añadir. El favicon
       del navegador sí se actualiza solo (puede costar un Ctrl+F5).
 
-## Un test intermitente
-
-- [ ] **`tests/actions.test.ts` falla de vez en cuando** («inviteUser rechaza
-      correo vacío…»). Pasa aislado y en la siguiente pasada completa, así que
-      no bloquea nada, pero un rojo aleatorio antes de una subida obliga a
-      pararse a decidir si es real.
-      Hipótesis: el **tope de peticiones vive en memoria del proceso** y vitest
-      corre los ficheros en paralelo (varios comparten worker), así que el
-      `reiniciarLimites()` de un fichero puede caer en medio de otro — el
-      riesgo que ya avisa el comentario de cabecera de esos tests. Las salidas
-      serían `fileParallelism: false` (simple, pero ralentiza la suite entera)
-      o hacer el contador inyectable en los tests en vez de global. Detectado
-      el 06/09/2026 revisando antes del despliegue.
-
 ## Del despliegue del 02/09: una cosa suelta
 
 - [ ] **Crear el primer token de la API** en Panel de control → Usuarios →
@@ -135,16 +121,6 @@ y que el `docker-compose.yml` del repo ya trae **activo**, no comentado.
       26 y Prisma 8 (en RC). Son migraciones deliberadas, cada una con sus
       cambios de ruptura; no entran en un `pnpm up`. Prisma es la más delicada
       (adapter, generated client y la BD con baseline).
-
-- [ ] **La barra del dashboard se solapa entre 768 y ~880 px.** Visto al
-      revisar el logo nuevo el 11/09, pero **no lo causa él**: los cinco
-      enlaces de módulo miden 406 px de contenido y el hueco que les queda son
-      296, así que a partir de `md` —justo donde aparecen— se montan encima del
-      buscador. La `nav` lleva `min-w-0 flex-1` y los enlaces
-      `whitespace-nowrap`: puede encogerse por debajo de su contenido y no
-      parte línea. Por encima de ~900 px y en móvil (donde van al desplegable)
-      se ve bien, así que es una franja estrecha. Salidas: subir el breakpoint
-      del menú desplegable de `md` a `lg`, o dejar que la fila se desplace.
 
 ---
 

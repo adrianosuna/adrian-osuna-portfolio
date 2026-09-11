@@ -1,10 +1,5 @@
-// API v1 (Atajos de iOS): la autenticación por token, el parseo del cuerpo y
-// las reglas compartidas del alta.
-//
-// Es la superficie NUEVA que se puede tocar sin sesión de Google, así que lo
-// que se prueba aquí es sobre todo lo que tiene que RECHAZAR: sin token, con
-// token de una cuenta deshabilitada, con un uuid de categoría inventado o con
-// una categoría del tipo contrario.
+// API v1: autenticación por token, parseo del cuerpo y reglas del alta. Sobre todo
+// lo que tiene que rechazar: sin token, cuenta deshabilitada, categoría inválida.
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createHash } from 'node:crypto'
 
@@ -254,9 +249,8 @@ describe('resolverCategoria (por nombre, para los Atajos)', () => {
     expect('error' in res && res.error).toContain('Nómina')
   })
 
-  // Con grupos, el nombre ya NO es único dentro del tipo: "Varios" puede
-  // colgar de Coche y de Casa. Lo que el Atajo dicta tiene que poder
-  // desambiguarse, y un grupo nunca puede recibir el movimiento.
+  // Con grupos el nombre no es único en el tipo ("Varios" en Coche y Casa): el Atajo
+  // debe poder desambiguar, y un grupo nunca recibe el movimiento.
   describe('con grupos', () => {
     const ARBOL = [
       { uuid: 'coche', name: 'Coche', isGroup: true, parentUuid: null },
