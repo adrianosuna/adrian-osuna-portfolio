@@ -10,6 +10,8 @@ import { AppError } from '@/lib/errors'
 import { prisma } from '@/lib/prisma'
 import { log } from '@/lib/log'
 import { avisarFrenado, limitar, LIMITE_ACCIONES } from '@/lib/rate-limit'
+import { hoyMadrid } from '@/lib/mantenimiento'
+import { sumarDias } from '@/lib/fechas'
 import type { z } from 'zod'
 import {
   CamposOportunidad,
@@ -390,4 +392,57 @@ export async function getOpportunityEvents(uuid: string): Promise<
     log.error('pipeline', 'error inesperado', { error: e })
     return fail('Error inesperado')
   }
+}
+
+/**
+ * Posponer el seguimiento: mueve `next_action_date` N días hacia delante.
+ *
+ * Por qué existe: hoy, para retrasar un seguimiento hay que abrir la
+ * oportunidad, buscar el campo de la fecha y elegir el día en el calendario.
+ * Y es lo que más se hace con un seguimiento vencido —«esta semana no, la que
+ * viene»—, así que era el gesto más frecuente con el camino más largo.
+ *
+ * ⚠ Cuenta **desde hoy**, no desde la fecha que tenía. Un seguimiento vencido
+ * hace tres semanas, sumándole 7 a su propia fecha, seguiría vencido: se
+ * pospone y no pasa nada, que es justo lo contrario de lo que se pedía.
+ *
+ * ⚠ Y deja un apunte en el timeline. Posponer es una decisión sobre la
+ * oportunidad, y sin rastro no hay forma de ver que algo lleva un mes
+ * aplazándose semana a semana — que es la señal de que hay que cerrarlo o
+ * descartarlo.
+ */
+export async function snoozeSeguimiento(uuid: string, dias: number): Promise<Result> {
+  return guarded(async () => {
+    if (!Number.isInteger(dias) || dias < 1 || dias > 90) {
+      return fail('El aplazamiento va de 1 a 90 días')
+    }
+    const o = await prisma.opportunity.findUnique({
+      where: { uuid },
+      select: { nextActionDate: true, nextAction: true, status: true, archived: true },
+    })
+    if (!o) return fail('Oportunidad no encontrada')
+    // Sin seguimiento no hay nada que posponer, y crearlo aquí sería inventarse
+    // una próxima acción que nadie ha escrito.
+    if (!o.nextActionDate) return fail('Esta oportunidad no tiene seguimiento que posponer')
+    if (o.archived) return fail('Una oportunidad archivada no tiene seguimiento activo')
+
+    const hoy = hoyMadrid()
+    const nueva = sumarDias(hoy, dias)
+    await prisma.opportunity.update({
+      where: { uuid },
+      data: {
+        nextActionDate: new Date(`${nueva}T00:00:00Z`),
+        // El aviso por correo se reinicia: si vuelve a vencer, vuelve a avisar.
+        nextActionNotified: null,
+        events: {
+          create: {
+            type: 'NOTA',
+            detail: `Seguimiento aplazado ${dias} ${dias === 1 ? 'día' : 'días'}, al ${nueva.split('-').reverse().join('/')}`,
+          },
+        },
+      },
+    })
+    refresh()
+    return ok
+  })
 }

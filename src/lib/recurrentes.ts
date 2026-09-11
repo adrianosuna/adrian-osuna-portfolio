@@ -113,3 +113,41 @@ export function cargosPendientes(
   while (cursor <= hoy) cursor = sumarMeses(cursor, r.intervalMonths, r.dayAnchor)
   return { fechas, siguiente: cursor, truncado }
 }
+
+/**
+ * Fechas en las que un recurrente carga dentro de un mes ('YYYY-MM').
+ *
+ * Proyecta desde `nextDate` hacia delante con el ancla del día, así que sirve
+ * para el mes en curso y los futuros: es la PREVISIÓN. Para un mes pasado
+ * devuelve vacío a propósito —la serie solo se conoce desde el próximo cargo—,
+ * y ahí la verdad son los movimientos ya apuntados (`recurringUuid`), no una
+ * proyección hacia atrás que se inventaría cargos que quizá nunca ocurrieron.
+ *
+ * ⚠ Una sola implementación para las dos pantallas que proyectan recurrentes:
+ * la tarjeta de la vista del mes y el calendario del Panel. Tenerla dos veces
+ * es justo cómo se desincronizan el ancla del día y los meses cortos.
+ */
+export function fechasEnMes(
+  r: Pick<RecurrenteRow, 'nextDate' | 'intervalMonths' | 'dayAnchor'>,
+  mes: string,
+): string[] {
+  if (!(r.intervalMonths >= 1)) return r.nextDate.startsWith(mes) ? [r.nextDate] : []
+  const inicio = `${mes}-01`
+  const fin = sumarMeses(inicio, 1)
+  const fechas: string[] = []
+  let cursor = r.nextDate
+  // El freno es el mismo de `cargosPendientes`: protege de un intervalo
+  // corrupto o de una fecha disparatada, no del uso normal.
+  let saltos = 0
+  const TOPE = MAX_CARGOS * 30
+  while (cursor < inicio && saltos < TOPE) {
+    cursor = sumarMeses(cursor, r.intervalMonths, r.dayAnchor)
+    saltos++
+  }
+  while (cursor < fin && saltos < TOPE) {
+    fechas.push(cursor)
+    cursor = sumarMeses(cursor, r.intervalMonths, r.dayAnchor)
+    saltos++
+  }
+  return fechas
+}

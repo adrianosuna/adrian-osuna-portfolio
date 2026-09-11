@@ -13,6 +13,7 @@ import {
 // lucide retiró los iconos de marcas; GitHub y LinkedIn vienen de react-icons.
 import { FaGithub, FaLinkedin } from 'react-icons/fa6'
 import { cn } from '@/lib/utils'
+import { Logotipo } from '@/components/ui/logotipo'
 import { Reveal } from '@/components/landing/reveal'
 import { Contador } from '@/components/landing/contador'
 import {
@@ -475,9 +476,9 @@ export function Footer({ t }: { t: Content }) {
     <footer className="border-t border-border bg-card">
       <Reveal className="mx-auto grid w-full max-w-250 gap-7 px-[6%] pt-12 sm:grid-cols-2 sm:pt-14 md:grid-cols-[2fr_1fr_1fr] md:gap-8">
         <div className="sm:col-span-2 md:col-span-1">
-          <span className="text-[22px] font-extrabold tracking-[-0.5px] text-foreground">
-            AO<span className="text-accent-teal">.</span>
-          </span>
+          {/* Decorativa: el nombre completo va justo debajo, así que anunciarla
+              solo repetiría. Ver `ui/logotipo.tsx`. */}
+          <Logotipo className="h-6 w-auto text-foreground" />
           <p className="mt-2.5 font-semibold text-foreground">{PROFILE.name}</p>
           <p className="mt-2 max-w-80 text-sm leading-relaxed text-muted-foreground">{t.footer.blurb}</p>
         </div>

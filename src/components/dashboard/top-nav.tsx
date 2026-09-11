@@ -10,6 +10,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ExternalLink, Keyboard, LogOut, Menu, Plus, RotateCcw, Search, UserRound, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Logotipo } from '@/components/ui/logotipo'
 import { Tooltip } from '@/components/ui/tooltip'
 import { useAcciones } from '@/components/dashboard/acciones-rapidas'
 import { useSilenciadas } from '@/components/dashboard/confirmar'
@@ -68,8 +69,10 @@ export function TopNav({ user, avisos, onSignOut }: TopNavProps) {
     // safe-top: en apaisado y en la isla dinámica el recorte llega hasta aquí.
     <header className="safe-top sticky top-0 z-40 border-b border-border bg-background">
       <div className="safe-x mx-auto flex h-14 w-full max-w-300 items-center gap-4">
-        <Link href="/app" className="text-lg font-extrabold tracking-tight text-foreground">
-          AO<span className="text-primary">.</span>
+        {/* El enlace necesita su propio `aria-label`: la marca es un dibujo
+            sin texto, así que sin él el enlace se queda SIN NOMBRE. */}
+        <Link href="/app" aria-label="Inicio del panel" className="shrink-0 text-foreground transition-colors hover:text-primary">
+          <Logotipo className="h-5 w-auto" />
         </Link>
 
         {/* Enlaces inline solo en escritorio; en móvil van al panel desplegable */}

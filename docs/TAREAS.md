@@ -1,41 +1,59 @@
 # Tareas pendientes
 
-> Desplegado en producción el **02/09/2026**: las diez migraciones, la API v1
-> para los Atajos, la PWA con push, el endurecimiento (Zod, rate limiting,
-> CSP, logs por niveles, salud del contenedor, e2e), los recordatorios
-> puntuales, las tablas unificadas y los arreglos de la auditoría de
-> accesibilidad. Verificado tras el despliegue: `/api/health` y `/api/ready`
-> en 200, la API en 401 sin token, las seis cabeceras aplicadas (CSP ya no en
-> report-only) y `/app/*` en 307. El detalle, en `CHANGELOG.md`.
+> Desplegado en producción el **06/09/2026** (commit `c0edace`): las categorías
+> de gasto en dos niveles con su migración `grupos_de_categorias`, el
+> calendario del Panel, el mapa de visitas, el tooltip propio, el atajo de
+> login de desarrollo, los tres findings de la auditoría externa que tocaban el
+> repo y los cuatro repasos de la pestaña Mantenimiento. Verificado desde
+> fuera: `/api/ready` en 200 (la migración entró y la BD responde), la API en
+> 401 sin token, `security.txt` en `text/plain`, el favicon sirviéndose, la CSP
+> y HSTS aplicadas y **sin `X-Powered-By`**. Antes, el 02/09: las diez
+> migraciones, la API v1, la PWA con push y el endurecimiento. El detalle de
+> todo, en `CHANGELOG.md`.
 
 ## Antes del próximo despliegue
 
-Lo que trae este despliegue está contado en `CHANGELOG.md` (04 y 05/09): las
-categorías de gasto en dos niveles, el calendario del Panel, el mapa de
-visitas, el tooltip propio, el atajo de login de desarrollo, los tres findings
-de la auditoría externa que tocaban el repo y cuatro repasos de la pestaña
-Mantenimiento. Antes de subir:
+Pendiente de subir (ver `CHANGELOG.md`): **la tarjeta de recurrentes acotada al
+mes** (06/09), del 07/09 **los logs en el Panel** y la **previsión de cierre de
+mes**, y del 11/09 **el logo nuevo** en toda la aplicación.
 
-- [ ] **Aplicar la migración `grupos_de_categorias`** (servicio `migrate` del
-      compose, `--profile setup`; ver `DESPLIEGUE.md`). Está ya aplicada en la
-      BD local, y unifica las dos que hubo el 04/09 antes de llegar a
-      producción. No es destructiva: `parent_uuid` nace NULL e `is_group` en
-      false, así que todo lo que hay se queda como **categoría suelta** hasta
-      que se agrupe a mano desde Ajustes. Es la ÚNICA migración pendiente.
-- [ ] **Comprobar que `DEV_LOGIN_EMAIL` no está en el `.env` del VPS.** El
-      atajo de login sin Google tiene dos candados para no poder existir en
-      producción (`NODE_ENV` y la variable como opt-in), así que colarla no
-      abriría nada — pero no tiene ningún sentido que esté ahí.
-- [ ] **Los `mem_limit` del compose ya vienen activos** (`db` 768m, `web`
-      512m, con las cifras medidas el 02/09). Si en el VPS los pusiste a mano,
-      comprobar que coinciden antes de sobrescribir el fichero.
-- [ ] **Pasar los e2e antes de subir** (`pnpm test:e2e`): comprueban las
-      cabeceras sobre un build de producción y `next.config.ts` ha cambiado
-      (`poweredByHeader`). En la última ejecución: 24 en verde.
-- [ ] **Al terminar, marcar los días en el CHANGELOG.** Las cabeceras `##
-      04/09/2026` y `## 05/09/2026` pasan a `(en producción)`, como se hizo con
-      el 02/09: es lo que distingue de un vistazo lo subido de lo que está solo
-      en local. Y retirar de aquí esta sección.
+- [ ] **Aplicar la migración `registro_de_eventos`** (la tabla `log_event`).
+      Ya aplicada en local; no es destructiva —tabla nueva, no toca ninguna
+      existente—. Al llevar migración, el build necesita el perfil:
+
+      ```bash
+      git pull
+      docker compose --env-file .env.production --profile setup build
+      docker compose --env-file .env.production --profile setup run --rm migrate
+      docker compose --env-file .env.production up -d
+      ```
+
+- [ ] **`LOG_RETENCION_DIAS` es opcional**: sin ponerla son 30 días, que es lo
+      que se quiere. Solo hace falta tocarla para acortar o desactivar la purga.
+- [ ] **Pasar los e2e antes de subir** (`pnpm test:e2e`). En la última
+      ejecución: 24 en verde, pero fue ANTES de estos tres cambios.
+- [ ] **Al terminar, marcar los días en el CHANGELOG**: `## 06/09/2026`,
+      `## 07/09/2026` y `## 11/09/2026` pasan a `(en producción)`, como los
+      anteriores. Es lo que distingue de un vistazo lo subido de lo que está
+      solo en local.
+- [ ] **Con el logo nuevo, refrescar el icono en el móvil.** iOS y Android se
+      guardan el icono al instalar la app: el de la pantalla de inicio seguirá
+      siendo el «AO.» viejo hasta que se quite y se vuelva a añadir. El favicon
+      del navegador sí se actualiza solo (puede costar un Ctrl+F5).
+
+## Un test intermitente
+
+- [ ] **`tests/actions.test.ts` falla de vez en cuando** («inviteUser rechaza
+      correo vacío…»). Pasa aislado y en la siguiente pasada completa, así que
+      no bloquea nada, pero un rojo aleatorio antes de una subida obliga a
+      pararse a decidir si es real.
+      Hipótesis: el **tope de peticiones vive en memoria del proceso** y vitest
+      corre los ficheros en paralelo (varios comparten worker), así que el
+      `reiniciarLimites()` de un fichero puede caer en medio de otro — el
+      riesgo que ya avisa el comentario de cabecera de esos tests. Las salidas
+      serían `fileParallelism: false` (simple, pero ralentiza la suite entera)
+      o hacer el contador inyectable en los tests en vez de global. Detectado
+      el 06/09/2026 revisando antes del despliegue.
 
 ## Del despliegue del 02/09: una cosa suelta
 
@@ -113,16 +131,21 @@ y que el `docker-compose.yml` del repo ya trae **activo**, no comentado.
       ⚠ Ojo con el idioma: en finanzas "presupuesto" ya significa otra cosa,
       así que los topes de gasto se llaman **topes** para no chocar con estos.
 
-- [ ] **Límites y sanitizado de subidas de ficheros**, si algún día se añaden
-      adjuntos. Hoy el proyecto **no tiene ninguna subida** —ni formulario, ni
-      endpoint, ni almacenamiento—, así que escribirlos ahora sería código
-      muerto. Cuando toque, el patrón está: el tope de cuerpo de la API v1
-      (`_comun.ts`) y el saneado del HTML de las notas.
-
 - [ ] **Mayores de las dependencias**: eslint 10, TypeScript 7, `@types/node`
       26 y Prisma 8 (en RC). Son migraciones deliberadas, cada una con sus
       cambios de ruptura; no entran en un `pnpm up`. Prisma es la más delicada
       (adapter, generated client y la BD con baseline).
+
+- [ ] **La barra del dashboard se solapa entre 768 y ~880 px.** Visto al
+      revisar el logo nuevo el 11/09, pero **no lo causa él**: los cinco
+      enlaces de módulo miden 406 px de contenido y el hueco que les queda son
+      296, así que a partir de `md` —justo donde aparecen— se montan encima del
+      buscador. La `nav` lleva `min-w-0 flex-1` y los enlaces
+      `whitespace-nowrap`: puede encogerse por debajo de su contenido y no
+      parte línea. Por encima de ~900 px y en móvil (donde van al desplegable)
+      se ve bien, así que es una franja estrecha. Salidas: subir el breakpoint
+      del menú desplegable de `md` a `lg`, o dejar que la fila se desplace.
+
 ---
 
 Cómo funciona este fichero:

@@ -4,14 +4,14 @@
 //
 // En iPhone/iPad, Safari IGNORA los iconos de aquí y usa el apple-touch-icon
 // (apple-icon.tsx) más los metadatos `appleWebApp` del layout raíz; el manifest
-// da la experiencia instalable en Android y escritorio. El monograma AO. y los
-// colores son los mismos de la marca (icon.svg / apple-icon.tsx).
+// da la experiencia instalable en Android y escritorio. La marca y los colores
+// son los mismos de todo lo demás (`lib/marca.ts`, icon.svg, apple-icon.tsx).
 import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'Adrián Osuna',
-    short_name: 'AO.',
+    short_name: 'AO',
     description: 'Portfolio y panel de gestión personal.',
     // Abre directo al dashboard (si no hay sesión, él mismo lleva a /login).
     start_url: '/app',

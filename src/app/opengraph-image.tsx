@@ -1,7 +1,8 @@
-// Tarjeta OpenGraph (1200×630) al compartir el portfolio. Minimalista:
-// nombre con el punto teal de la marca, rol y la URL discreta al pie,
+// Tarjeta OpenGraph (1200×630) al compartir el portfolio. Minimalista: la
+// marca, el nombre con su punto teal, el rol y la URL discreta al pie,
 // centrado sobre el fondo oscuro de la paleta pública.
 import { ImageResponse } from 'next/og'
+import { MARCA_ALTO, MARCA_ANCHO, MARCA_D, MARCA_TINTA } from '@/lib/marca'
 
 export const alt = 'Adrián Osuna — Desarrollador Web Full-Stack'
 export const size = { width: 1200, height: 630 }
@@ -42,10 +43,19 @@ export default async function OpengraphImage() {
           color: '#eafaf4',
           fontFamily: fonts.length ? 'Inter' : 'sans-serif',
         }}>
+        {/* La marca encima del nombre: al compartir el enlace, la miniatura se
+            ve pequeña y el logo es lo que se reconoce antes que el texto. */}
+        <svg
+          width={200}
+          height={(200 * MARCA_ALTO) / MARCA_ANCHO}
+          viewBox={`0 0 ${MARCA_ANCHO} ${MARCA_ALTO}`}
+          style={{ marginBottom: 40 }}>
+          <path d={MARCA_D} fill={MARCA_TINTA} fillRule="evenodd" />
+        </svg>
         <div
           style={{
             display: 'flex',
-            fontSize: 108,
+            fontSize: 96,
             fontWeight: 800,
             letterSpacing: '-4px',
             lineHeight: 1,
@@ -55,7 +65,7 @@ export default async function OpengraphImage() {
         <div
           style={{
             display: 'flex',
-            marginTop: 30,
+            marginTop: 28,
             fontSize: 38,
             fontWeight: 500,
             letterSpacing: '0.5px',

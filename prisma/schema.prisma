@@ -511,3 +511,34 @@ model ApiToken {
   @@index([userUuid], map: "idx_api_token_user")
   @@map("api_token")
 }
+
+// ─────────── REGISTRO DE EVENTOS (los logs que se ven en el Panel) ───────────
+// `lib/log.ts` escribe a la consola, y en producción eso significa
+// `docker compose logs web` por SSH: se mira cuando ya se sospecha algo, no
+// cuando pasa. Esta tabla es el sumidero persistente de lo que importa
+// (`warn` y `error`) para poder verlo desde el Panel de control.
+//
+// Solo warn y error a propósito: `info` incluye una línea por cada pasada del
+// cron y por cada login, y guardar eso convierte la tabla en un vertedero
+// donde el error de verdad no se encuentra. La consola sigue teniendo los
+// cuatro niveles.
+//
+// El cron diario purga lo más viejo de `LOG_RETENCION_DIAS` (30 por defecto):
+// sin retención, una tabla de logs solo crece.
+model LogEvent {
+  id       Int      @id @default(autoincrement())
+  uuid     String   @unique(map: "uuid") @default(uuid()) @db.VarChar(36)
+  /// 'warn' | 'error'. Texto y no enum: los niveles los define `lib/log.ts`.
+  level    String   @db.VarChar(10)
+  /// El módulo que registra ('cron', 'api', 'push'…), el prefijo de siempre.
+  scope    String   @db.VarChar(60)
+  message  String   @db.VarChar(500)
+  /// Los campos que acompañaban al evento, como JSON. Aquí SÍ va la traza:
+  /// es una tabla privada del admin y es justo lo que hace falta para depurar.
+  data     String?  @db.Text
+  createTs DateTime @default(now()) @map("create_ts") @db.Timestamp(0)
+
+  @@index([createTs], map: "idx_log_event_created")
+  @@index([level, createTs], map: "idx_log_event_level")
+  @@map("log_event")
+}

@@ -25,6 +25,8 @@ import {
 } from '@/components/dashboard/panel/mantenimiento'
 import { NotasTab } from '@/components/dashboard/panel/notas'
 import { PanelTabsMovil } from '@/components/dashboard/panel/tabs-movil'
+import { Registro as RegistroTab } from '@/components/dashboard/panel/registro'
+import { listLogs, POR_PAGINA as POR_PAGINA_LOG, retencionDias } from '@/lib/log-db'
 import { cn } from '@/lib/utils'
 import { dispositivoDe } from '@/lib/dispositivo'
 import { correoConfigurado } from '@/lib/correo'
@@ -43,6 +45,7 @@ const TABS = [
   { id: 'usuarios', label: 'Usuarios', href: '/app/panel?tab=usuarios' },
   { id: 'mantenimiento', label: 'Mantenimiento', href: '/app/panel?tab=mantenimiento' },
   { id: 'notas', label: 'Notas', href: '/app/panel?tab=notas' },
+  { id: 'registro', label: 'Registro', href: '/app/panel?tab=registro' },
 ] as const
 
 // Componentes async separados: es lo que permite al Suspense pintar el
@@ -244,12 +247,35 @@ async function Notas({ abrir, nueva }: { abrir?: string; nueva?: boolean }) {
   return <NotasTab rows={await listNotes()} abrirUuid={abrir} nueva={nueva} />
 }
 
+/** Registro de eventos: los warn y error guardados, con sus filtros. */
+async function RegistroSeccion({
+  nivel, scope, q, dias, pagina,
+}: {
+  nivel?: 'warn' | 'error'
+  scope?: string
+  q?: string
+  dias: number
+  pagina: number
+}) {
+  const datos = await listLogs({ nivel, scope, q, dias, pagina })
+  return (
+    <RegistroTab
+      datos={datos}
+      filtros={{ nivel, scope, q, dias, pagina }}
+      porPagina={POR_PAGINA_LOG}
+      retencion={retencionDias()}
+    />
+  )
+}
+
 
 export default async function PanelPage({
   searchParams,
 }: {
   searchParams: Promise<{
     tab?: string; dias?: string; u?: string; abrir?: string; nueva?: string; vista?: string
+    // Filtros de la pestaña Registro (en la URL: el enlace es compartible).
+    nivel?: string; scope?: string; q?: string; p?: string
   }>
 }) {
   // El layout ya redirige sin sesión, pero layout y página renderizan en
@@ -258,10 +284,18 @@ export default async function PanelPage({
   if (!session?.user) redirect('/login')
   if (session.user.role !== 'ADMIN') redirect('/app')
 
-  const { tab, dias: diasParam, u, abrir, nueva, vista } = await searchParams
+  const {
+    tab, dias: diasParam, u, abrir, nueva, vista,
+    nivel: nivelParam, scope, q, p,
+  } = await searchParams
+  const nivel = nivelParam === 'warn' || nivelParam === 'error' ? nivelParam : undefined
+  // `dias` lo comparte con Visitas, pero aquí las ventanas son otras (y 0 = todo).
+  const diasLog = diasParam === '1' || diasParam === '7' || diasParam === '0' ? Number(diasParam) : 30
+  const pagina = Math.max(1, Number(p) || 1)
   const vistaMant: VistaMant = vista === 'calendario' ? 'calendario' : 'lista'
   const activa =
-    tab === 'visitas' || tab === 'usuarios' || tab === 'mantenimiento' || tab === 'notas'
+    tab === 'visitas' || tab === 'usuarios' || tab === 'mantenimiento' ||
+    tab === 'notas' || tab === 'registro'
       ? tab
       : 'servidor'
   const dias: RangoDias = diasParam === '7' ? 7 : diasParam === '90' ? 90 : 30
@@ -310,6 +344,9 @@ export default async function PanelPage({
         )}
         {activa === 'mantenimiento' && <Mantenimiento vista={vistaMant} />}
         {activa === 'notas' && <Notas abrir={abrir} nueva={nueva !== undefined} />}
+        {activa === 'registro' && (
+          <RegistroSeccion nivel={nivel} scope={scope} q={q} dias={diasLog} pagina={pagina} />
+        )}
       </Suspense>
     </div>
   )

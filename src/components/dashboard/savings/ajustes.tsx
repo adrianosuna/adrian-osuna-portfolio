@@ -1223,6 +1223,22 @@ function PanelAnios({ years }: { years: YearSummary[] }) {
         icono={<CalendarRange className="size-4 text-primary" />}
         titulo="Años de ahorro"
         resumen={resumen}>
+        {/* Exportación GLOBAL, aparte de la de cada año que hay en su fila:
+            todo el módulo en un libro —resumen histórico, un año por hoja,
+            todos los movimientos, categorías y recurrentes—. Es el dato fuera
+            de la aplicación, en un formato que se abre sin ella; el backup de
+            la BD sirve para restaurar, esto para leer. */}
+        <Tooltip texto="Todo Finanzas en un Excel: resumen, cada año, movimientos, categorías y recurrentes">
+          {/* `<a download>` y no `<Link>`: esto es un route handler que
+              devuelve un fichero, no una página — igual que el enlace de cada
+              año. Con `Link` habría navegación de cliente y no descarga. */}
+          <a
+            href={`/app/finance/exportar?todo=${1}`}
+            download
+            className={cn(btnOutline, 'px-2.5 py-1 text-[12.5px] max-sm:py-2')}>
+            <FileDown className="size-3.5" /> Exportar todo
+          </a>
+        </Tooltip>
         <button
           type="button"
           className={cn(btnPrimary, 'px-2.5 py-1 text-[12.5px] max-sm:py-2')}

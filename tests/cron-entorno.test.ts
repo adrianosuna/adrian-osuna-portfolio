@@ -14,6 +14,7 @@ const { cronMock, avisosMock } = vi.hoisted(() => ({
     guardarMuestraInfra: vi.fn(async () => true),
     avisosPendientes: vi.fn(async () => []),
     avisarPush: vi.fn(async () => 0),
+    purgarLogs: vi.fn(async () => 0),
   },
 }))
 
@@ -33,6 +34,8 @@ vi.mock('@/lib/infra-historico', () => ({
 // El aviso push lee los avisos pendientes: los dos módulos tocan prisma.
 vi.mock('@/lib/inicio', () => ({ avisosPendientes: avisosMock.avisosPendientes }))
 vi.mock('@/lib/push', () => ({ avisarPush: avisosMock.avisarPush }))
+// La purga del registro: el cron la llama, y `log-db` arrastra Prisma.
+vi.mock('@/lib/log-db', () => ({ purgarLogs: avisosMock.purgarLogs }))
 
 const entornoOriginal = { ...process.env }
 

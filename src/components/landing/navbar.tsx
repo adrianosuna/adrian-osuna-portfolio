@@ -7,17 +7,14 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Menu, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Logotipo } from '@/components/ui/logotipo'
 import type { Content } from '@/lib/landing/content'
 
 function Logo() {
   return (
-    // El punto salta y pasa a esmeralda al pasar el cursor (micro-detalle).
-    <span className="group text-[22px] font-extrabold tracking-[-0.5px] text-foreground">
-      AO
-      <span className="inline-block text-accent-teal transition-all duration-300 group-hover:-translate-y-0.5 group-hover:scale-125 group-hover:text-primary motion-reduce:transition-none">
-        .
-      </span>
-    </span>
+    // Hereda el color del texto, y pasa a esmeralda al pasar el cursor (el
+    // micro-detalle que antes hacía el punto del «AO.»).
+    <Logotipo className="h-6 w-auto text-foreground transition-colors duration-300 group-hover:text-primary motion-reduce:transition-none" />
   )
 }
 
@@ -110,7 +107,7 @@ export function Navbar({ t }: NavbarProps) {
               : 'border-transparent bg-transparent',
         )}>
         <div className="relative mx-auto flex h-16 max-w-300 items-center justify-between px-4 sm:px-8">
-          <a href="#contenido" aria-label={t.a11y.home}>
+          <a href="#contenido" className="group" aria-label={t.a11y.home}>
             <Logo />
           </a>
 

@@ -7,6 +7,7 @@ import {
   cargosPendientes,
   equivalenteMensual,
   etiquetaPeriodo,
+  fechasEnMes,
   MAX_CARGOS,
   proximaFecha,
   resumenRecurrentes,
@@ -327,5 +328,71 @@ describe('movimientosDeRecurrente', () => {
     // Acotado a ese recurrente y del más reciente al más antiguo.
     expect(prismaMock.expense.findMany.mock.calls[0][0].where).toEqual({ recurringUuid: 'r1' })
     expect(prismaMock.expense.count.mock.calls[0][0].where).toEqual({ recurringUuid: 'r1' })
+  })
+})
+
+// ⚠ Lo que decide qué recurrentes salen en la tarjeta de la vista del MES (y
+// también en el calendario del Panel, que usa esta misma función). Antes la
+// tarjeta enseñaba todos los activos en cualquier mes, así que un seguro anual
+// de marzo figuraba en septiembre con un "próximo 12/03" que no dice nada.
+describe('fechasEnMes', () => {
+  it('un mensual carga en todos los meses', () => {
+    const r = rec({ intervalMonths: 1, nextDate: '2026-09-03', dayAnchor: 3 })
+    expect(fechasEnMes(r, '2026-09')).toEqual(['2026-09-03'])
+    expect(fechasEnMes(r, '2026-10')).toEqual(['2026-10-03'])
+    expect(fechasEnMes(r, '2027-01')).toEqual(['2027-01-03'])
+  })
+
+  it('un trimestral solo en los suyos', () => {
+    const r = rec({ intervalMonths: 3, nextDate: '2026-10-12', dayAnchor: 12 })
+    expect(fechasEnMes(r, '2026-10')).toEqual(['2026-10-12'])
+    expect(fechasEnMes(r, '2026-11')).toEqual([])
+    expect(fechasEnMes(r, '2026-12')).toEqual([])
+    expect(fechasEnMes(r, '2027-01')).toEqual(['2027-01-12'])
+  })
+
+  it('un anual solo en su mes, y el año que viene también', () => {
+    const r = rec({ intervalMonths: 12, nextDate: '2027-03-12', dayAnchor: 12 })
+    expect(fechasEnMes(r, '2026-09')).toEqual([])
+    expect(fechasEnMes(r, '2027-03')).toEqual(['2027-03-12'])
+    expect(fechasEnMes(r, '2028-03')).toEqual(['2028-03-12'])
+  })
+
+  it('respeta el ANCLA del día: un recibo del 31 no se clava en el 28', () => {
+    const r = rec({ intervalMonths: 1, nextDate: '2027-01-31', dayAnchor: 31 })
+    expect(fechasEnMes(r, '2027-02')).toEqual(['2027-02-28'])
+    // Y vuelve al 31 en cuanto el mes lo permite, que es lo que hace el ancla.
+    expect(fechasEnMes(r, '2027-03')).toEqual(['2027-03-31'])
+  })
+
+  it('un mes PASADO devuelve vacío: la serie solo se conoce hacia delante', () => {
+    // Es deliberado. Para un mes pasado la verdad son los movimientos ya
+    // apuntados (`recurringUuid`), no una proyección hacia atrás que se
+    // inventaría cargos que quizá nunca ocurrieron (servidor parado, alta
+    // posterior, el recurrente creado el mes siguiente...).
+    const r = rec({ intervalMonths: 1, nextDate: '2026-09-03', dayAnchor: 3 })
+    expect(fechasEnMes(r, '2026-08')).toEqual([])
+    expect(fechasEnMes(r, '2025-12')).toEqual([])
+  })
+
+  it('sin periodicidad válida no entra en bucle: solo su propia fecha', () => {
+    const r = rec({ intervalMonths: 0, nextDate: '2026-09-03', dayAnchor: 3 })
+    expect(fechasEnMes(r, '2026-09')).toEqual(['2026-09-03'])
+    expect(fechasEnMes(r, '2026-10')).toEqual([])
+  })
+
+  it('una fecha vieja se proyecta igual: no es un caso especial', () => {
+    // 1999 → 2026 son 332 saltos, que caben de sobra en el freno. Un alta con
+    // la fecha atrasada tiene que salir en el mes que se está viendo, no
+    // desaparecer: eso es exactamente lo que el cron va a apuntar.
+    const r = rec({ intervalMonths: 1, nextDate: '1999-01-15', dayAnchor: 15 })
+    expect(fechasEnMes(r, '2026-09')).toEqual(['2026-09-15'])
+  })
+
+  it('y con una fecha ABSURDA el freno corta en vez de colgar la página', () => {
+    // El freno es la única razón de ser del tope: sin él, un año 1200 en la
+    // columna serían diez mil vueltas al bucle en cada render.
+    const r = rec({ intervalMonths: 1, nextDate: '1200-01-15', dayAnchor: 15 })
+    expect(fechasEnMes(r, '2026-09')).toEqual([])
   })
 })

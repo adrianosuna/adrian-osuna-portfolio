@@ -13,6 +13,7 @@ import { guardarMuestraInfra } from '@/lib/infra-historico'
 import { avisosPendientes } from '@/lib/inicio'
 import { avisarPush } from '@/lib/push'
 import { avisarVencidas } from '@/lib/mantenimiento'
+import { purgarLogs } from '@/lib/log-db'
 import { avisarSeguimientos } from '@/lib/pipeline'
 import { log } from '@/lib/log'
 
@@ -93,6 +94,14 @@ export function iniciarCron() {
     guardarMuestraInfra().then((ok) => {
       if (ok) log.info('cron', 'muestra de infraestructura guardada')
     })
+
+    // Purga del registro de eventos. Sin retención, la tabla solo crece: un
+    // error que se repite en bucle puede meter miles de filas en una noche.
+    purgarLogs()
+      .then((n) => {
+        if (n > 0) log.info('cron', 'registro purgado', { eventos: n })
+      })
+      .catch((e) => log.error('cron', 'purga del registro fallida', { error: e }))
   }
 
   // Diario a las 8:00 (hora española), y una pasada de arranque al minuto de

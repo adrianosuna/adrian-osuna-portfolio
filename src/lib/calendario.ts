@@ -14,6 +14,7 @@
 import { sumarMeses } from '@/lib/fechas'
 import { eurEntero } from '@/lib/euros'
 import { cumplida } from '@/lib/tareas'
+import { fechasEnMes } from '@/lib/recurrentes'
 
 export type TipoEvento = 'mantenimiento' | 'recurrente' | 'seguimiento'
 
@@ -171,7 +172,10 @@ export function eventosDelMes(
   for (const r of fuentes.recurrentes ?? []) {
     // Uno en pausa no va a cargar nada: no es una previsión.
     if (!r.active) continue
-    const { fechas } = ocurrencias(r.nextDate, r.intervalMonths, inicio, fin, r.dayAnchor)
+    // La proyección de un recurrente vive en `lib/recurrentes.ts`, compartida
+    // con la tarjeta de la vista del mes: el ancla del día y los meses cortos
+    // no pueden tener dos implementaciones.
+    const fechas = fechasEnMes(r, mes)
     const base = {
       uuid: `recurrente:${r.uuid}`,
       tipo: 'recurrente' as const,

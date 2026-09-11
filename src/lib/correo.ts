@@ -2,10 +2,19 @@
 // SMTP genérico por variables de entorno (con Gmail: smtp.gmail.com:465 y una
 // contraseña de aplicación). Sin configurar, todo queda inactivo sin romper.
 // Todos los envíos pasan por la plantilla de la casa: fondo claro (los clientes
-// de correo castigan los fondos oscuros), esmeralda de acento, logo AO. y
+// de correo castigan los fondos oscuros), esmeralda de acento, la marca y
 // footer común — el contenido de cada correo solo aporta su cuerpo.
+//
+// ⚠ La marca va como IMAGEN ALOJADA (`/img/logo-correo.png`) y no en línea: un
+// correo no puede llevar un SVG (la mitad de los clientes lo tiran) ni el
+// trazo de `lib/marca.ts`. Ese PNG lleva el fondo claro de la plantilla
+// COCIDO, no transparencia: el modo oscuro de los clientes de correo no
+// invierte las imágenes, así que una tinta oscura sobre transparente se
+// volvería invisible justo ahí. Y con `alt`, quien tenga las imágenes
+// bloqueadas —que es lo normal en Outlook— lee «Adrián Osuna» en su lugar.
 import 'server-only'
 import nodemailer from 'nodemailer'
+import { SITE_URL } from '@/lib/site'
 
 export const correoConfigurado = () =>
   Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS && process.env.ALERT_EMAIL)
@@ -40,8 +49,8 @@ export function plantilla(titulo: string, contenido: string): string {
         <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;max-width:560px">
           <tr>
             <td style="padding:0 6px 14px;font-family:${FUENTE}">
-              <span style="font-size:22px;font-weight:800;letter-spacing:-0.5px;color:${C.tinta}">AO<span style="color:${C.esmeralda}">.</span></span>
-              <span style="font-size:13px;color:${C.apagado}">&nbsp;·&nbsp;Panel de control</span>
+              <img src="${SITE_URL}/img/logo-correo.png" width="66" height="36" alt="Adrián Osuna" style="display:inline-block;vertical-align:middle;border:0"
+              ><span style="font-size:13px;color:${C.apagado};vertical-align:middle">&nbsp;·&nbsp;Panel de control</span>
             </td>
           </tr>
           <tr>

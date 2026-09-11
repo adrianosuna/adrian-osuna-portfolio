@@ -12,6 +12,7 @@
     "test": "vitest run",
     "deps": "pnpm outdated || exit 0",
     "analyze": "node scripts/analizar-bundle.mjs",
+    "marca": "node scripts/generar-marca.mjs",
     "test:e2e": "playwright test"
   },
   "dependencies": {

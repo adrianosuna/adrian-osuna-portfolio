@@ -26,6 +26,7 @@ pnpm prisma db seed      # asegura ADMIN_EMAIL como admin activo
 pnpm deps                # lista dependencias desactualizadas (pnpm outdated)
 pnpm test:e2e            # tests e2e (Playwright, carpeta e2e/) — hace el build
 pnpm analyze             # build + treemap del bundle (ANALYZE=1)
+pnpm marca               # regenera las piezas del logo (ver «La marca»)
 ```
 
 Los e2e necesitan Chromium una vez: `pnpm exec playwright install chromium`.
@@ -69,7 +70,9 @@ campos custom de `fields.tsx` y el `Modal` común —con su trampa de foco— (j
 rechazos por cuenta deshabilitada/no admin, BD caída, coma decimal, tope del
 cuerpo y categoría por nombre), el **registro por niveles** (`lib/log.ts`: el
 suelo, el JSON de producción y la serialización de un `Error`), los **dos
-plazos de caducidad** de la sesión y una **auditoría axe** de las piezas
+plazos de caducidad** de la sesión, las dos trampas mudas del **logo**
+(`logotipo.dom.test.tsx`: la regla de relleno `evenodd` y el `aria-hidden` —si
+se rompen, el logo se sigue pintando) y una **auditoría axe** de las piezas
 compartidas (modal, campos, sub-pestañas y el **calendario**, que es la rejilla
 más densa: 35 botones con nombre propio). `server-only` se alias-ea a un stub
 y `next-auth` se procesa inline en `vitest.config.mts`.
@@ -310,9 +313,13 @@ mensual y objetivo prorrateado a hoy). KPIs, "restante" y proyecciones se
 calculan en el cliente sobre el borrador editable. Gráficas: Chart.js con los
 componentes de `ui/charts` (ver Arquitectura). El cron diario recuerda por correo los meses
 cerrados sin rellenar (`avisarMesSinRellenar`, reaviso semanal vía
-`saving_year.last_reminded`). Cada año se exporta a Excel desde «Gestionar
-años» (`GET /app/finance/exportar?year=`, exceljs, guarda de admin propia:
-los route handlers no los protege el layout).
+`saving_year.last_reminded`). Cada año se exporta a Excel desde la sección Ajustes
+(`GET /app/finance/exportar?year=`, exceljs, guarda de admin propia: los route
+handlers no los protege el layout), y **`?todo=1` exporta TODO el módulo** en
+un libro: resumen histórico, una hoja por año, todos los movimientos con su
+categoría ya resuelta (un Excel no puede seguir una FK), categorías y
+recurrentes. Eso no sustituye al backup de la BD — aquel sirve para restaurar,
+este para leer el dato fuera de la aplicación.
 
 ### Control de gastos e ingresos (`src/lib/gastos.ts` + `/app/finance?s=gastos`)
 
@@ -442,9 +449,29 @@ solo cuentan lo que ya pasó):
   `day_anchor` guarda el día original (1-31) para que un recibo del 31 no se
   quede clavado en el 28 tras pasar por febrero, y `cargosPendientes` recupera
   TODOS los cargos atrasados (servidor parado) con un freno de `MAX_CARGOS`
-  para que una fecha de alta disparatada no inunde el histórico. La cifra de
-  cabecera es el **equivalente mensual** (un seguro de 600 €/año son 50 €/mes):
-  sumar solo los mensuales dejaría fuera justo los recibos gordos.
+  para que una fecha de alta disparatada no inunde el histórico.
+  ⚠ **La tarjeta de la vista del MES solo enseña los que cargan en ESE mes**, y
+  su cifra es la de ese mes. Antes salían todos los activos en cualquier mes,
+  así que un seguro anual de marzo figuraba en septiembre con un «próximo
+  12/03» que no decía nada del mes que se estaba mirando. Se compone de dos
+  fuentes que se complementan: lo **ya apuntado** (un movimiento del mes con
+  `recurringUuid`, la única verdad para un mes pasado) y lo **proyectado**
+  desde `nextDate` con `fechasEnMes`, que cubre el mes en curso y los futuros.
+  Un mes pasado sin cargos apuntados sale VACÍO a propósito: proyectar hacia
+  atrás se inventaría cargos que quizá nunca ocurrieron —servidor parado, alta
+  posterior—. Y el vacío distingue sus dos casos: «ningún recurrente» (una
+  invitación a crearlos) frente a «ninguno de tus N carga en este mes».
+  En **Ajustes** salen TODOS, con sus filtros de Activos/En pausa, y ahí la
+  cifra de cabecera es el **equivalente mensual** (un seguro de 600 €/año son
+  50 €/mes): sumar solo los mensuales dejaría fuera justo los recibos gordos.
+  Son dos preguntas distintas —«qué cae este mes» y «cuánto tengo comprometido
+  al mes»—, y por eso son dos cifras y no una. **Confirmado por Adrián el
+  06/09/2026**, al ofrecerle volver al equivalente mensual también en la
+  tarjeta del mes: "déjala como está, la cifra del mes está bien". No
+  reabrirlo sin un motivo nuevo.
+  `fechasEnMes` vive en `recurrentes.ts` y la comparten la tarjeta y el
+  **calendario del Panel**: el ancla del día y los meses cortos no pueden tener
+  dos implementaciones.
   La **periodicidad es libre**: el formulario ofrece las comunes
   (`PERIODICIDADES`) y un "Personalizado" con número + unidad (meses/años) hasta
   120 meses; `etiquetaPeriodo` lee los múltiplos de 12 en años. El tope de
@@ -726,6 +753,70 @@ donde esto se rompe, y ahí hay 17 tests. Ojo con cuatro cosas ya pagadas:
   ventana de 812—, así que tocar un día parecía no hacer nada. Y es justo donde
   el panel es la ÚNICA forma de leer el día: las celdas solo llevan puntos.
 
+### Registro de eventos (`lib/log-db.ts` + `/app/panel?tab=registro`)
+
+Sexta pestaña del Panel: los `warn` y `error` que la aplicación ha guardado
+(tabla `log_event`, migración `registro_de_eventos`), para no entrar por SSH a
+leer `docker compose logs web` — que es cuando ya se sospecha algo, no cuando
+pasa.
+
+**Solo warn y error.** `info` es una línea por pasada del cron y por login:
+guardarlo convierte la tabla en un vertedero donde el error no se encuentra. Y
+la **traza SÍ se guarda** aquí, al contrario que en la consola de producción
+(allí se omite porque el log lo lee cualquiera que pueda; esta tabla es privada
+del admin y la traza es lo único que sirve para depurar).
+
+⚠ **El sumidero NO se engancha desde fuera: lo carga quien emite**, con un
+import perezoso en `persistir` (`lib/log.ts`). Registrarlo desde
+`instrumentation.ts` con una variable de módulo **no funciona** —ese contexto
+está aislado del de los route handlers y las server actions, así que el
+registro caía en una instancia de `log.ts` y los eventos salían de otra: no se
+guardaba nada y **sin ningún error**. Con el import perezoso no hay estado que
+compartir, y si algún día falla lo dice por consola una vez en vez de callarse.
+Verificado sobre un build de producción, no solo en `pnpm dev`.
+
+⚠ Y un aviso para quien intente comprobar esto en local: `next start` fija
+`NODE_ENV=production`, así que Next carga **`.env.production`**, cuyo
+`DATABASE_URL` apunta al host `db` de Docker y **no resuelve fuera del
+contenedor**. Un servidor de producción local sin `DATABASE_URL` explícita no
+tiene BD a la que escribir, y eso se confunde muy fácil con "el registro no
+funciona". Para probarlo: `NEXT_DIST_DIR=.next-aparte DATABASE_URL=<la de .env>
+pnpm exec next start -p <puerto>`.
+
+⚠ **Tres garantías del sumidero**, las tres con test, porque va enchufado al
+logger y este se llama desde dentro de cualquier petición: no se espera el
+INSERT (`void`), se traga sus errores avisando solo por consola, y **no
+re-entra** (una guarda en `log.ts` corta el bucle en el que el sumidero falla,
+lo registra, y eso vuelve a llamarlo — el bucle que se comería el proceso justo
+cuando la BD está caída).
+
+El cron diario **purga** lo más viejo de `LOG_RETENCION_DIAS` (30 por defecto,
+0 lo desactiva). Los contadores por nivel de la cabecera **no** los afecta el
+filtro de nivel: si no, la vista "solo errores" diría que hay 0 avisos y no
+habría forma de volver — el contador ES el botón de salida del filtro.
+
+### Previsión de cierre de mes (`lib/prevision.ts`)
+
+Debajo de los KPI de la vista del mes de Gastos: en qué va a acabar el gasto si
+sigue así. Puro y sin `server-only`, como `topes.ts`.
+
+⚠ **El ritmo se extrapola SOLO sobre el gasto no recurrente.** Extrapolando el
+total, el alquiler del día 3 se multiplicaría por los días del mes: a día 5 la
+previsión diría que vas a gastar cuatro alquileres. Los recurrentes tienen
+fecha, no ritmo, así que se suman aparte y solo los que aún no han caído (por
+`recurringUuid`, para no contar dos veces el que ya cargó).
+
+⚠ **Y el ritmo solo mira lo ya pasado** (`expenseDate <= hoy`). Sumar todo el
+mes y dividir entre los días transcurridos daba 5.929 € a día 7 con datos
+reales, con el mes anterior cerrado en 1.887: los movimientos de fecha futura
+ya se saben, así que se restan de la estimación de los días que quedan (suelo
+en 0) en vez de extrapolarse. No lo cazó ningún test; se vio en el navegador.
+
+Tres estados y solo uno se pinta: un mes **cerrado** no se prevé, uno
+**futuro** solo sabe lo recurrente, y la tarjeta sale únicamente en el mes **en
+curso**. Va DEBAJO de los KPI y no como un quinto KPI a propósito: los cuatro
+de arriba son hechos y esto es una estimación.
+
 ### Notas (`src/lib/notas.ts` + `/app/panel?tab=notas`)
 
 Quinta pestaña del Panel: apuntes propios del admin con formato (tabla `note`,
@@ -755,6 +846,13 @@ emails/reuniones), métricas de cabecera y tres vistas: tablero, **Tabla**
 (todas las oportunidades por última actividad) e **Histórico** (archivadas)
 — las dos últimas comparten `tabla-oportunidades.tsx`. Cerrar o descartar
 sella `closed_at` y retira el seguimiento; reabrir lo limpia y desarchiva.
+**Posponer el seguimiento** (`snoozeSeguimiento`) es una acción de fila de la
+vista Tabla: una semana en un clic. ⚠ Cuenta desde **hoy** y no desde la fecha
+que tenía —un vencido hace tres semanas seguiría vencido—, reinicia
+`nextActionNotified` y deja apunte en el timeline: sin rastro no se ve que algo
+lleva un mes aplazándose semana a semana, que es la señal de cerrarlo. No se
+ofrece sin seguimiento ni en una archivada, y va en la Tabla porque en la
+tarjeta del kanban (130 px) no cabe otro control.
 Componentes en `src/components/dashboard/pipeline/` (constantes compartidas
 en `comun.ts`).
 
@@ -1057,6 +1155,74 @@ esperar), y la `key` del `Suspense` debe llevar los parámetros de la vista, o
 al cambiar de sección se queda congelada la anterior en vez de salir el
 esqueleto.
 
+### La marca (`lib/marca.ts` + `ui/logotipo.tsx`)
+
+El logo es un **dibujo**: una A de trazos rectos entrelazada con un anillo O.
+No es tipografía, así que no se escribe —hasta el 11/09/2026 la marca era el
+texto «AO.» con `font-weight: 800` y un punto teal, repetido en seis sitios—.
+El trazo vive en **`src/lib/marca.ts`** (`MARCA_D`), sin `server-only` y sin
+depender de React por el mismo motivo que `fechas.ts` o `topes.ts`: lo usan a
+la vez el componente de la interfaz, el favicon, el icono de iOS, las
+pantallas de arranque y la tarjeta de OpenGraph.
+
+⚠ **Se pinta con `fill-rule="evenodd"`**, no con el `nonzero` por defecto. Son
+tres contornos —el anillo, la A con el arco inferior y el **hueco triangular
+de la A**—, y el tercero es un agujero dentro del segundo: con `nonzero` la A
+sale maciza. Es el fallo silencioso de esto, porque se sigue pintando algo.
+Con test (`tests/logotipo.dom.test.tsx`).
+
+⚠ **El `<svg>` va `aria-hidden`** y el nombre accesible lo pone SIEMPRE el
+enlace que lo envuelve. La marca no tiene texto dentro, así que un enlace sin
+`aria-label` se queda **sin nombre** — con el «AO.» de antes se nombraba solo,
+y por eso el `top-nav` del dashboard no llevaba etiqueta y hubo que añadírsela.
+En la landing ese nombre es `a11y.home` de `content.ts`, que ya no tiene que
+arrastrar el «AO.» delante: la regla WCAG 2.5.3 (label in name) solo aplica
+cuando hay una etiqueta VISIBLE que respetar.
+
+Dónde sale: la barra y el footer de la landing, el login, el `top-nav` del
+dashboard, `icon.svg`, `favicon.ico`, `apple-icon`, las splash y la tarjeta de
+OpenGraph. **La excepción es el correo**, y no por gusto: un correo no puede
+llevar un SVG en línea (medio cliente lo tira), así que va como imagen alojada
+(`/img/logo-correo.png`) con el fondo claro de la plantilla **cocido** —el modo
+oscuro de los clientes de correo no invierte las imágenes, y una tinta oscura
+sobre transparente desaparecería justo ahí— y con `alt`, que es lo que se lee
+en Outlook, donde las imágenes vienen bloqueadas de fábrica.
+
+**Todo se regenera con `pnpm marca`** (`scripts/generar-marca.mjs`) desde el
+PNG maestro `docs/marca/logo-blanco.png`, el fichero original: vectoriza el
+contorno, reescribe `MARCA_D`, `icon.svg`, `favicon.ico` (16/32/48) y el PNG
+del correo. Existe para que las piezas binarias no sean un callejón sin
+salida; sin receta, cambiar el logo dentro de un año es rehacer a mano un .ico
+y un trazo de 134 puntos. El script **avisa** si el trazo deja de tener sus
+tres contornos o si cambia la proporción (habría que tocar `MARCA_ALTO`), y
+comprueba la fidelidad rellenando el trazo de vuelta y comparándolo con el
+original — hoy, 0,8 % de píxeles distintos, todos en el filo del borde. Un
+contorno perdido no se ve a ojo hasta que se ve.
+⚠ **El favicon del navegador va NEGRO y SIN FONDO** (petición de Adrián,
+11/09/2026), al revés que el icono de iOS, que sí lleva la placa oscura. De ahí
+dos cosas:
+
+- **Dos encuadres.** Con placa la marca deja margen (54 de cada 64); suelta va
+  de **borde a borde**, que es el máximo sin recortar el dibujo. ⚠ Y ese tope
+  lo pone el ANCHO: la marca es 1,887:1 y la casilla del favicon es cuadrada,
+  así que de alto ocupará siempre poco más de la mitad —a 16 px, 16×8— por
+  mucho que se estire. Si algún día hace falta más presencia en la pestaña, la
+  única salida es un favicon que NO sea el logotipo entero (la O suelta es casi
+  cuadrada), y eso es una decisión de marca, no de encuadre. El del favicon lo
+  fija el script; el de la placa vive en `apple-icon.tsx`.
+- **El `icon.svg` lleva un `prefers-color-scheme` DENTRO**, y no es un adorno:
+  sin fondo, el negro sobre la barra de pestañas oscura del navegador no se ve.
+  Un favicon SVG admite CSS —de las pocas cosas que lo distinguen del `.ico`—,
+  así que en tema oscuro la misma marca se pinta en blanco. El `.ico` no puede
+  hacer eso y se queda en negro siempre; es solo el respaldo para quien no
+  admita el SVG.
+
+Sin `server-only` ni dependencias: el script decodifica y codifica PNG con
+`zlib`, que para un logo de un color es todo lo que hace falta. ⚠ Y al componer
+sobre fondo TRANSPARENTE el suavizado del borde va por el canal alfa, no
+mezclando con el fondo: mezclando quedaría el filo teñido del color de una
+placa que ya no está — una orla clara alrededor del trazo.
+
 ### Iconos y metadata (`src/app/layout.tsx`)
 
 ⚠ Trampa ya pagada: **declarar `metadata.icons` hace que Next deje de inyectar
@@ -1064,6 +1230,9 @@ los iconos por convención de fichero** (`app/icon.svg`, `app/apple-icon.tsx`).
 Añadir ahí las splash de iOS (`icons.other`) borró el favicon de la pestaña sin
 ningún aviso. Los tres van explícitos —`icon`, `apple`, `other`— y quien toque
 ese bloque tiene que dejarlos.
+
+`icon` lleva **dos formatos**: el SVG (lo prefieren los navegadores modernos y
+escala sin pixelarse) y `/favicon.ico` de respaldo para quien no lo admita.
 
 ### Mapa de las visitas (`panel/mapa-visitas.tsx`)
 

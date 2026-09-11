@@ -29,7 +29,7 @@ export const metadata: Metadata = {
   // de estado en negro combina con el tema oscuro sin solaparse con el contenido.
   appleWebApp: {
     capable: true,
-    title: "AO.",
+    title: "AO",
     statusBarStyle: "black",
   },
   // Next emite el estándar moderno `mobile-web-app-capable`; el `apple-`
@@ -45,7 +45,13 @@ export const metadata: Metadata = {
   //     instalada enseña un fogonazo blanco. Una por familia de pantalla (ver
   //     `lib/splash.ts`); las imágenes las genera `/splash/[dim]` en runtime.
   icons: {
-    icon: { url: "/icon.svg", type: "image/svg+xml" },
+    // Dos formatos para `icon`: el SVG (lo prefieren los navegadores
+    // modernos, y escala sin pixelarse) y el .ico de respaldo para quien no
+    // lo admita. Los dos llevan la misma marca con el mismo encuadre.
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "16x16 32x32 48x48" },
+    ],
     apple: "/apple-icon",
     other: LINKS_SPLASH,
   },

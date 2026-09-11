@@ -32,10 +32,11 @@ import { GraficaDonut } from '@/components/ui/charts/donut'
 import { Tooltip } from '@/components/ui/tooltip'
 import { MESES, mesCorto } from '@/lib/fechas'
 import { nivelTope, resumenTopes, type TopeRow } from '@/lib/topes'
-import { etiquetaPeriodo, resumenRecurrentes, type RecurrenteRow } from '@/lib/recurrentes'
+import { etiquetaPeriodo, fechasEnMes, type RecurrenteRow } from '@/lib/recurrentes'
+import { previsionCierre, type Prevision } from '@/lib/prevision'
 import { ejeEuros, ejeMeses } from './charts'
 import {
-  btnIcon, btnOutline, btnPrimary, cardClass, chipFiltro, eur, eurEntero, fmtDia, fmtDiaAnio, SIN_CATEGORIA, TIPOS,
+  btnIcon, btnOutline, btnPrimary, cardClass, chipFiltro, eur, eurEntero, fmtDia, SIN_CATEGORIA, TIPOS,
 } from './comun'
 import {
   CabeceraMovil,
@@ -246,33 +247,134 @@ function BarraTope({ nombre, color, gastado, budget, pct, destacada }: {
 }
 
 /**
- * Recurrentes activos: lo que va a caer solo, con su próximo cargo.
+ * Previsión de cierre: en qué va a acabar el mes si sigue así.
  *
- * El número que manda es el EQUIVALENTE MENSUAL: un seguro de 600 € al año son
- * 50 € al mes, y sumar solo los mensuales dejaría fuera justo los recibos
- * gordos. Los pausados no cuentan y solo se ven en el modal.
+ * Va DEBAJO de los KPI y no como un quinto KPI: los cuatro de arriba son
+ * hechos ("llevas 1.398 €") y esto es una estimación, así que mezclarlos en la
+ * misma rejilla las haría parecer la misma clase de dato. La barra compara lo
+ * gastado con lo previsto, que es la lectura de un vistazo.
+ *
+ * Solo se pinta en el mes EN CURSO: en uno cerrado la previsión es el total
+ * (no informa de nada) y en uno futuro solo se sabría lo recurrente, que ya
+ * está en su propia tarjeta.
  */
-function Recurrentes({ filas, mes, hoy, categorias }: {
+function PrevisionCierre({ p, mes }: { p: Prevision; mes: string }) {
+  if (p.estado !== 'en curso') return null
+  const quedan = p.diasDelMes - p.diasTranscurridos
+  const pct = p.previsto > 0 ? (p.gastado / p.previsto) * 100 : 0
+
+  return (
+    <div className={cn(cardClass, 'mt-4 px-5 py-4')}>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h3 className="font-semibold">Previsión de cierre de {nombreMes(mes).toLowerCase()}</h3>
+        <p className="text-[12.5px] text-muted-foreground">
+          {/* La media es del gasto del día a día: es lo único que se
+              extrapola, y decirlo evita que la cifra parezca magia. */}
+          {eur(p.mediaDiaria)} al día de gasto corriente
+          {quedan > 0 && ` · ${quedan} ${quedan === 1 ? 'día' : 'días'} por delante`}
+        </p>
+      </div>
+      <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
+        <span className="text-2xl font-bold tabular-nums text-danger">{eurEntero(p.previsto)}</span>
+        <span className="text-[13px] text-muted-foreground">
+          llevas <span className="font-semibold tabular-nums">{eurEntero(p.gastado)}</span>
+        </span>
+      </p>
+      <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-muted" aria-hidden>
+        <div
+          className="h-full rounded-full bg-danger transition-[width]"
+          style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+        />
+      </div>
+      {/* De dónde sale lo que falta: sin este desglose la cifra no se puede
+          discutir, y una previsión que no se puede discutir no se cree. */}
+      <p className="mt-2 text-[12.5px] text-muted-foreground">
+        Faltan{' '}
+        <span className="font-semibold tabular-nums text-foreground">
+          {eurEntero(p.ritmoRestante)}
+        </span>{' '}
+        a este ritmo
+        {p.porCaer > 0 && (
+          <>
+            {' y '}
+            <span className="font-semibold tabular-nums text-foreground">
+              {eurEntero(p.porCaer)}
+            </span>{' '}
+            de recurrentes por caer
+          </>
+        )}
+        .
+      </p>
+    </div>
+  )
+}
+
+/**
+ * Los recurrentes que CARGAN en el mes que se está viendo.
+ *
+ * ⚠ Antes salían los activos, todos, en cualquier mes: un seguro anual que se
+ * paga en marzo figuraba en la tarjeta de septiembre con un "próximo 12/03"
+ * que no dice nada del mes que se está mirando. Aquí solo entran los que
+ * tienen cargo en ESE mes, de dos fuentes que se complementan:
+ *
+ *   · lo YA apuntado — un movimiento del mes con `recurringUuid`, que es la
+ *     única verdad para un mes pasado;
+ *   · lo PROYECTADO desde `nextDate` (`fechasEnMes`), que cubre el mes en
+ *     curso y los futuros.
+ *
+ * La gestión sigue estando en Ajustes, y allí salen TODOS con su equivalente
+ * mensual: son dos preguntas distintas ("qué cae este mes" y "cuánto tengo
+ * comprometido al mes"), y por eso la cifra de esta cabecera es la del mes.
+ * Los pausados no cuentan en ninguno de los dos sitios.
+ */
+function Recurrentes({ filas, mes, hoy, movimientos, categorias }: {
   filas: RecurrenteRow[]
   mes: string
   hoy: string
+  /** Los del mes, para saber cuáles ya cargaron (y en qué día). */
+  movimientos: MovimientoRow[]
   categorias: CategoriaRow[]
 }) {
-  const resumen = resumenRecurrentes(filas)
+  // uuid del recurrente → día en que ya cargó en este mes.
+  const yaCargado = new Map<string, string>()
+  for (const m of movimientos) {
+    if (m.recurringUuid) yaCargado.set(m.recurringUuid, m.expenseDate)
+  }
+
   const activos = filas.filter((r) => r.active)
+  const delMes = activos
+    .map((r) => {
+      const cargado = yaCargado.get(r.uuid) ?? null
+      const previstas = fechasEnMes(r, mes)
+      return { r, cargado, fecha: cargado ?? previstas[0] ?? null }
+    })
+    .filter((x) => x.fecha !== null)
+    .sort((a, b) => a.fecha!.localeCompare(b.fecha!))
+
+  // La cifra de la cabecera es la de ESTE mes, no el equivalente mensual: la
+  // lista ya es del mes, y dos cifras que no cuadran en la misma tarjeta se
+  // leen como un error. El equivalente vive en Ajustes, sobre la lista entera.
+  const suma = (tipo: 'GASTO' | 'INGRESO') =>
+    delMes.filter((x) => x.r.type === tipo).reduce((s, x) => s + x.r.amount, 0)
+  const gastoMes = suma('GASTO')
+  const ingresoMes = suma('INGRESO')
 
   return (
     <div className={cn(cardClass, 'mt-4')}>
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-5 py-3">
-        <h3 className="font-semibold">Recurrentes</h3>
-        {resumen.activos > 0 && (
+        <h3 className="font-semibold">Recurrentes de este mes</h3>
+        {delMes.length > 0 && (
           <p className="text-[12.5px] text-muted-foreground">
-            <span className="font-semibold tabular-nums text-danger">{eur(resumen.gasto)}</span>
-            {' de gasto fijo al mes'}
-            {resumen.ingreso > 0 && (
+            {gastoMes > 0 && (
               <>
-                {' · '}
-                <span className="font-semibold tabular-nums text-success">{eur(resumen.ingreso)}</span>
+                <span className="font-semibold tabular-nums text-danger">{eur(gastoMes)}</span>
+                {' de gasto'}
+              </>
+            )}
+            {ingresoMes > 0 && (
+              <>
+                {gastoMes > 0 && ' · '}
+                <span className="font-semibold tabular-nums text-success">{eur(ingresoMes)}</span>
                 {' de ingreso'}
               </>
             )}
@@ -280,22 +382,23 @@ function Recurrentes({ filas, mes, hoy, categorias }: {
         )}
       </div>
 
-      {activos.length === 0 ? (
+      {delMes.length === 0 ? (
+        // Dos vacíos distintos: no tener ninguno es una invitación a crearlos;
+        // tenerlos y que ninguno caiga en este mes es un dato del mes, y decir
+        // "ningún recurrente" ahí sería mentir.
         <p className="px-5 py-4 text-[13px] text-muted-foreground">
-          Ningún recurrente. Da de alta el alquiler, las suscripciones o la nómina y se apuntarán
-          solos el día que toque, sin teclearlos cada mes.
+          {activos.length === 0
+            ? 'Ningún recurrente. Da de alta el alquiler, las suscripciones o la nómina y se apuntarán solos el día que toque, sin teclearlos cada mes.'
+            : `Ninguno de tus ${activos.length} recurrentes carga en este mes.`}
         </p>
       ) : (
         <div className="flex flex-col divide-y divide-border/60">
-          {activos.map((r) => {
+          {delMes.map(({ r, cargado, fecha }) => {
             const cat = categorias.find((c) => c.uuid === r.categoryUuid)
             const esGasto = r.type === 'GASTO'
-            // "Ya cargado" solo si el último movimiento cayó en el mes que se
-            // está viendo: en un mes pasado, el próximo cargo no dice nada.
-            const cargado = r.lastCreated?.startsWith(mes) ? r.lastCreated : null
             // Vencido y sin apuntar: pasa cuando se acaba de dar de alta con
             // una fecha ya pasada. Lo recoge la siguiente pasada del cron.
-            const pendiente = !cargado && r.nextDate <= hoy
+            const pendiente = !cargado && fecha! <= hoy
             return (
               <div key={r.uuid} className="flex items-center gap-2 px-5 py-2.5 text-[13px] max-sm:flex-wrap">
                 <Tooltip texto={cat ? etiquetaCategoria(cat) : 'Sin categoría'}>
@@ -314,11 +417,9 @@ function Recurrentes({ filas, mes, hoy, categorias }: {
                   {cargado ? (
                     <span className="text-success">cargado el {fmtDia(cargado)}</span>
                   ) : pendiente ? (
-                    <span className="text-warning">
-                      pendiente desde {fmtDiaAnio(r.nextDate, mes)}
-                    </span>
+                    <span className="text-warning">pendiente desde {fmtDia(fecha!)}</span>
                   ) : (
-                    <>próximo {fmtDiaAnio(r.nextDate, mes)}</>
+                    <>el {fmtDia(fecha!)}</>
                   )}
                 </span>
                 <span
@@ -720,6 +821,16 @@ export function GastosTab({
             />
           </div>
 
+          <PrevisionCierre
+            mes={datos.mes}
+            p={previsionCierre({
+              mes: datos.mes,
+              hoy,
+              movimientos: datos.movimientos,
+              recurrentes,
+            })}
+          />
+
           {/* Lista de movimientos */}
           <TarjetaTabla
             className="mt-4"
@@ -986,7 +1097,13 @@ export function GastosTab({
           <Topes topes={datos.topes} mes={datos.mes} />
 
           {/* Recurrentes: lo que va a caer solo */}
-          <Recurrentes filas={recurrentes} mes={datos.mes} hoy={hoy} categorias={categorias} />
+          <Recurrentes
+            filas={recurrentes}
+            mes={datos.mes}
+            hoy={hoy}
+            movimientos={datos.movimientos}
+            categorias={categorias}
+          />
 
           {/* División de un movimiento en varias categorías */}
           {dividiendo && (

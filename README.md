@@ -131,6 +131,7 @@ viven en `.env.production` — ver [.env.production.example](.env.production.exa
 | `pnpm test` | Tests unitarios de la lógica crítica (Vitest, sin BD ni red) |
 | `pnpm lint` | ESLint |
 | `pnpm deps` | Lista dependencias desactualizadas (`pnpm outdated`) |
+| `pnpm marca` | Regenera las piezas del logo (favicon, .ico, trazo) desde el PNG maestro |
 
 ## 🐳 Despliegue
 

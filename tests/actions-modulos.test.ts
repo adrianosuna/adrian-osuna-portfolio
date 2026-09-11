@@ -260,3 +260,91 @@ describe('updateYear', () => {
     })
   })
 })
+
+// ─────────── Posponer el seguimiento ───────────
+//
+// Es lo que más se hace con un seguimiento vencido («esta semana no, la que
+// viene»), y hasta ahora había que abrir la ficha y elegir día en el
+// calendario: el gesto más frecuente con el camino más largo.
+describe('snoozeSeguimiento', () => {
+  const conSeguimiento = (extra: Record<string, unknown> = {}) => {
+    prismaMock.opportunity.findUnique.mockResolvedValue({
+      nextActionDate: new Date('2026-08-20T00:00:00Z'),
+      nextAction: 'Enviar la propuesta',
+      status: 'PROPUESTA',
+      archived: false,
+      ...extra,
+    })
+  }
+
+  it('⚠ cuenta desde HOY, no desde la fecha que tenía', async () => {
+    // Un seguimiento vencido hace tres semanas, sumándole 7 días a su propia
+    // fecha, seguiría vencido: se pospone y no pasa nada, que es lo contrario
+    // de lo que se pedía.
+    conSeguimiento()
+    const { snoozeSeguimiento } = await import('@/app/app/pipeline/actions')
+    expect(await snoozeSeguimiento('op-1', 7)).toEqual({ ok: true })
+    const nueva = prismaMock.opportunity.update.mock.calls[0][0].data.nextActionDate as Date
+    const dias = (nueva.getTime() - Date.now()) / 86_400_000
+    expect(dias).toBeGreaterThan(6)
+    expect(dias).toBeLessThan(7.5)
+  })
+
+  it('reinicia el aviso por correo y deja apunte en el timeline', async () => {
+    conSeguimiento()
+    const { snoozeSeguimiento } = await import('@/app/app/pipeline/actions')
+    await snoozeSeguimiento('op-1', 7)
+    const data = prismaMock.opportunity.update.mock.calls[0][0].data
+    // Si vuelve a vencer, tiene que volver a avisar.
+    expect(data.nextActionNotified).toBeNull()
+    // Sin rastro no hay forma de ver que algo lleva un mes aplazándose semana
+    // a semana, que es la señal de que hay que cerrarlo o descartarlo.
+    expect(data.events.create.type).toBe('NOTA')
+    expect(data.events.create.detail).toMatch(/Seguimiento aplazado 7 días, al \d{2}\/\d{2}\/\d{4}/)
+  })
+
+  it('el singular del apunte concuerda', async () => {
+    conSeguimiento()
+    const { snoozeSeguimiento } = await import('@/app/app/pipeline/actions')
+    await snoozeSeguimiento('op-1', 1)
+    expect(prismaMock.opportunity.update.mock.calls[0][0].data.events.create.detail).toContain(
+      'aplazado 1 día,',
+    )
+  })
+
+  it('sin seguimiento no hay nada que posponer', async () => {
+    // Crear la fecha aquí sería inventarse una próxima acción que nadie
+    // ha escrito.
+    conSeguimiento({ nextActionDate: null })
+    const { snoozeSeguimiento } = await import('@/app/app/pipeline/actions')
+    const res = await snoozeSeguimiento('op-1', 7)
+    expect(res.ok).toBe(false)
+    expect(res.message).toMatch(/no tiene seguimiento/)
+    expect(prismaMock.opportunity.update).not.toHaveBeenCalled()
+  })
+
+  it('una archivada tampoco: su seguimiento ya no está activo', async () => {
+    conSeguimiento({ archived: true })
+    const { snoozeSeguimiento } = await import('@/app/app/pipeline/actions')
+    expect((await snoozeSeguimiento('op-1', 7)).ok).toBe(false)
+    expect(prismaMock.opportunity.update).not.toHaveBeenCalled()
+  })
+
+  it('rechaza días fuera de 1-90 y sin tocar la BD', async () => {
+    const { snoozeSeguimiento } = await import('@/app/app/pipeline/actions')
+    for (const d of [0, -7, 91, 1.5]) {
+      const res = await snoozeSeguimiento('op-1', d)
+      expect(res.ok).toBe(false)
+      expect(res.message).toMatch(/1 a 90/)
+    }
+    expect(prismaMock.opportunity.findUnique).not.toHaveBeenCalled()
+  })
+
+  it('una oportunidad que no existe se rechaza', async () => {
+    prismaMock.opportunity.findUnique.mockResolvedValue(null)
+    const { snoozeSeguimiento } = await import('@/app/app/pipeline/actions')
+    expect(await snoozeSeguimiento('fantasma', 7)).toEqual({
+      ok: false, message: 'Oportunidad no encontrada',
+    })
+  })
+})

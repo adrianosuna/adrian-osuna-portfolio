@@ -7,13 +7,15 @@
 // En móvil esta ES la vista de trabajo del pipeline (el kanban no existe
 // ahí): con `onMover`, las tarjetas cambian de estado con un selector.
 import { useState, useTransition } from 'react'
-import { Archive, ArchiveRestore, CalendarClock, Pencil, Search, Trash2 } from 'lucide-react'
+import {
+  AlarmClockPlus, Archive, ArchiveRestore, CalendarClock, Pencil, Search, Trash2,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Tooltip } from '@/components/ui/tooltip'
 import { SelectField, TextField } from '@/components/ui/fields'
 import {
-  archiveOpportunity, deleteOpportunity, restaurarOportunidad,
+  archiveOpportunity, deleteOpportunity, restaurarOportunidad, snoozeSeguimiento,
 } from '@/app/app/pipeline/actions'
 import { borrarConDeshacer } from '@/components/dashboard/deshacer'
 import { MenuAcciones, type AccionFila } from '@/components/dashboard/menu-acciones'
@@ -124,6 +126,19 @@ export function TablaOportunidades({
         onClick: () => onEditar(o),
       },
     ]
+    // Posponer una semana: es lo que más se hace con un seguimiento vencido, y
+    // hasta ahora el camino era abrir la ficha y elegir día en el calendario.
+    // Solo si HAY seguimiento y no está archivada: sin fecha no hay nada que
+    // posponer, y crearla aquí sería inventarse una próxima acción.
+    if (o.nextActionDate && !o.archived) {
+      lista.push({
+        id: 'posponer',
+        label: 'Posponer una semana',
+        icon: <AlarmClockPlus className="size-3.5" />,
+        disabled: pending,
+        onClick: () => run(snoozeSeguimiento(o.uuid, 7), 'Seguimiento aplazado una semana'),
+      })
+    }
     if (TERMINALES.includes(o.status) && !o.archived) {
       lista.push({
         id: 'archivar',

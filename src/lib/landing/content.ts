@@ -254,9 +254,12 @@ export const CONTENT: Content = {
   },
   a11y: {
     skip: 'Saltar al contenido',
-    // Debe CONTENER el texto visible del logo ("AO.") — regla WCAG 2.5.3
-    // (label in name): el nombre accesible debe incluir la etiqueta visible.
-    home: 'AO. Ir al inicio',
+    // Es el ÚNICO nombre del enlace del logo: la marca es un dibujo sin texto
+    // (`ui/logotipo.tsx`), así que sin esto el enlace se queda sin nombre. Ya
+    // no hay que arrastrar el «AO.» delante —la regla WCAG 2.5.3 (label in
+    // name) solo aplica cuando hay una etiqueta VISIBLE que respetar—, así que
+    // el nombre puede decir lo que hace en vez de deletrear el logo.
+    home: 'Adrián Osuna · ir al inicio',
     openMenu: 'Abrir menú',
     closeMenu: 'Cerrar menú',
   },

@@ -54,6 +54,10 @@ export interface MovimientoRow {
   categoryUuid: string | null
   /** Nota libre: el contexto que no cabe en el concepto. */
   note: string | null
+  /** El recurrente que lo apuntó, si lo apuntó uno. Es lo que permite decir
+   *  qué recurrentes YA cargaron en un mes —incluido uno pasado, donde la
+   *  proyección desde `nextDate` no alcanza. */
+  recurringUuid: string | null
 }
 
 /** Reparto por categoría de un tipo (el "desglose" del Excel). */
@@ -268,6 +272,7 @@ export async function getMesMovimientos(
     expenseDate: m.expenseDate.toISOString().slice(0, 10),
     categoryUuid: m.categoryUuid,
     note: m.note,
+    recurringUuid: m.recurringUuid,
   }))
 
   const suma = (tipo: TipoMovimiento) =>
@@ -451,6 +456,7 @@ export async function buscarMovimientos(f: FiltrosBusqueda): Promise<ResultadoBu
       expenseDate: iso(m.expenseDate),
       categoryUuid: m.categoryUuid,
       note: m.note,
+      recurringUuid: m.recurringUuid,
     })),
     total,
     ingresos: sumaDe('INGRESO'),
@@ -610,6 +616,7 @@ export async function movimientosDeRecurrente(
       expenseDate: iso(m.expenseDate),
       categoryUuid: m.categoryUuid,
       note: m.note,
+      recurringUuid: m.recurringUuid,
     })),
   }
 }
@@ -751,4 +758,46 @@ export async function gastadoEnMesDe(hoyIso: string): Promise<number> {
     _sum: { amount: true },
   })
   return num(suma._sum.amount)
+}
+
+/**
+ * TODOS los movimientos, para la exportación global.
+ *
+ * Sin paginar y sin filtros a propósito: el destino es un .xlsx que se abre
+ * fuera de la aplicación, y una exportación "de todo" que se quedara en las
+ * 50 primeras filas no sería una exportación. La cifra a la que puede llegar
+ * esto son unos cientos de filas al año — nada que un stream mejore.
+ *
+ * Trae la categoría YA resuelta (con su grupo) porque el Excel no puede seguir
+ * una FK: quien abra el fichero tiene que ver "Coche › Gasolina", no un uuid.
+ */
+export async function todosLosMovimientos(): Promise<
+  Array<{
+    expenseDate: string
+    type: TipoMovimiento
+    concept: string
+    categoria: string
+    amount: number
+    note: string | null
+    /** 'sí' si lo apuntó un recurrente: distingue lo automático de lo tecleado. */
+    deRecurrente: boolean
+  }>
+> {
+  const [filas, categorias] = await Promise.all([
+    prisma.expense.findMany({ orderBy: [{ expenseDate: 'asc' }, { id: 'asc' }] }),
+    listCategorias(),
+  ])
+  const mapa = new Map(categorias.map((c) => [c.uuid, c]))
+  return filas.map((m) => {
+    const cat = m.categoryUuid ? mapa.get(m.categoryUuid) : undefined
+    return {
+      expenseDate: m.expenseDate.toISOString().slice(0, 10),
+      type: m.type as TipoMovimiento,
+      concept: m.concept,
+      categoria: cat ? etiquetaCategoria(cat) : 'Sin categoría',
+      amount: num(m.amount),
+      note: m.note,
+      deRecurrente: m.recurringUuid !== null,
+    }
+  })
 }

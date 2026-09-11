@@ -7,6 +7,7 @@ import { ArrowLeft, FlaskConical, ShieldCheck } from 'lucide-react'
 import { FaGoogle } from 'react-icons/fa6'
 import { auth, signIn } from '@/auth'
 import { correoDevLogin } from '@/lib/dev-login'
+import { Logotipo } from '@/components/ui/logotipo'
 
 // noindex: el Disallow de robots.txt impide rastrear, pero no indexar si
 // alguien enlaza la página; la meta robots sí.
@@ -28,9 +29,9 @@ export default async function LoginPage({
     // saltar al contenido — lo caza `landmark-one-main` de axe.
     <main className="pf-public flex min-h-dvh flex-col items-center justify-center bg-background px-4 text-body">
       <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-8 text-center shadow-[0_10px_40px_var(--pf-shadow)]">
-        <span className="text-[26px] font-extrabold tracking-[-0.5px] text-foreground">
-          AO<span className="text-accent-teal">.</span>
-        </span>
+        {/* La marca, decorativa: quien lea la pantalla ya tiene el h1 de
+            debajo. Ver `ui/logotipo.tsx`. */}
+        <Logotipo className="mx-auto h-7 w-auto text-foreground" />
         <h1 className="mt-4 text-xl font-bold text-foreground">Dashboard interno</h1>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
           Acceso solo con Google y por invitación. Si tu correo no está dado de

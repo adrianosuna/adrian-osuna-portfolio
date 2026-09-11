@@ -6,8 +6,12 @@ import { botonHtml, plantilla, tarjetaHtml } from '@/lib/correo'
 describe('plantilla de correo', () => {
   const html = plantilla('Asunto de prueba', '<p>Cuerpo del mensaje</p>')
 
-  it('envuelve el contenido con la identidad: logo AO., título y footer', () => {
-    expect(html).toContain('AO<span')
+  it('envuelve el contenido con la identidad: la marca, el título y el footer', () => {
+    // La marca va como imagen alojada, no en línea: ver la nota de `lib/correo.ts`.
+    expect(html).toContain('/img/logo-correo.png')
+    // Y SIEMPRE con `alt`: en Outlook las imágenes vienen bloqueadas de fábrica,
+    // y sin él la cabecera del correo se queda en blanco.
+    expect(html).toMatch(/<img[^>]+alt="Adrián Osuna"/)
     expect(html).toContain('Asunto de prueba')
     expect(html).toContain('<p>Cuerpo del mensaje</p>')
     expect(html).toContain('adrianosuna.com')

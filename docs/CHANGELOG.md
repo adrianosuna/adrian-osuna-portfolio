@@ -6,7 +6,373 @@ cuando algo se termina, se cuenta aquí con su porqué y desaparece de allí.
 
 ---
 
-## 05/09/2026
+## 11/09/2026
+
+### El logo nuevo, en todos los sitios
+
+Adrián entregó su logo personal nuevo (`Logo Blanco.png`, 1672×941): una **A de
+trazos rectos entrelazada con un anillo O**. Hasta hoy la marca era el texto
+«AO.» —`font-weight: 800` y un punto teal—, copiado en seis sitios: la barra y
+el footer de la landing, el login, el `top-nav` del dashboard, la cabecera de
+los correos y los iconos. Un logo de verdad no se escribe, así que había que
+convertirlo en algo que sirviera para todo eso.
+
+**Se vectorizó.** Un PNG no vale como logo: en el favicon de 16 px y en la
+splash del iPad hacen falta tamaños que van de 16 a 560 px, y los iconos de
+iOS y la tarjeta de OpenGraph se generan en runtime, donde un PNG habría que
+recortarlo y recolorearlo. El trazo salió de seguir el contorno de la máscara
+supermuestreada y simplificarlo con Douglas-Peucker: **3 contornos, 134 puntos,
+1.610 caracteres**. La desviación máxima es el 0,07 % del ancho —medio píxel a
+512 px—, y al rellenar el trazo de vuelta coincide con el original en el
+**99,2 % de los píxeles**; el resto es el filo del borde.
+
+Se intentó antes reconstruirlo con primitivas (dos polígonos y un anillo con
+`<circle>`): **no vale**, porque el anillo tiene el **grosor variable** y sus
+extremos afinados, que es justo lo que le da el aire al logo. Un ajuste por
+mínimos cuadrados del borde exterior da un círculo casi perfecto (desviación
+2,1 px de 162 de radio), pero el interior no: el trazo mide 52 px a la derecha
+y se va afinando hasta cerrar en punta por arriba a la izquierda, donde el
+anillo se abre para dejar pasar la A. Reconstruirlo con un trazo constante
+habría sido dibujar otro logo.
+
+⚠ **`fill-rule="evenodd"`, no el `nonzero` por defecto.** El tercer contorno es
+el hueco triangular de la A, y con la regla por defecto se rellena: la A sale
+maciza. Es el fallo silencioso de todo esto —se sigue pintando algo—, así que
+va con test y con nota en `lib/marca.ts`, en el componente y en CLAUDE.md.
+
+⚠ **Un dibujo no se nombra solo.** El «AO.» era texto, así que cualquier enlace
+que lo envolviera tenía nombre accesible de gratis. El SVG no: va `aria-hidden`
+y el nombre lo pone el enlace. El del `top-nav` del dashboard **no llevaba
+`aria-label`** —no le hacía falta— y se habría quedado sin nombre; ahora lo
+tiene. Al revés, el de la landing ya no necesita arrastrar el «AO.» delante:
+`a11y.home` pasa de «AO. Ir al inicio» a «Adrián Osuna · ir al inicio», porque
+la regla WCAG 2.5.3 (label in name) solo aplica cuando hay una etiqueta
+VISIBLE que respetar. Auditoría axe de la landing y del dashboard: cero
+violaciones.
+
+**El correo es la excepción, y no por gusto.** Un correo no puede llevar un SVG
+en línea (medio cliente lo tira), así que la marca va como imagen alojada
+(`/img/logo-correo.png`) con dos decisiones detrás: el fondo claro de la
+plantilla va **cocido en el PNG** —el modo oscuro de los clientes de correo no
+invierte las imágenes, así que una tinta oscura sobre transparente
+desaparecería justo ahí— y lleva `alt="Adrián Osuna"`, que es lo que se lee en
+Outlook, donde las imágenes vienen bloqueadas de fábrica.
+
+**Y todo se regenera con `pnpm marca`** (`scripts/generar-marca.mjs`) desde el
+maestro, que se guardó en `docs/marca/logo-blanco.png` (en la raíz solo README
+y CLAUDE). El script vectoriza y reescribe `MARCA_D`, `icon.svg`, el
+`favicon.ico` (16/32/48, marcos PNG) y el PNG del correo; **avisa** si el trazo
+deja de tener sus tres contornos o si cambia la proporción, y comprueba la
+fidelidad rellenándolo de vuelta. Existe porque sin receta cambiar el logo
+dentro de un año es rehacer a mano un .ico y un trazo de 134 puntos. Sin
+dependencias nuevas: decodifica y codifica PNG con `zlib`, que para un logo de
+un color es todo lo que hace falta — meter `sharp` por un script que se ejecuta
+una vez al año no salía a cuenta.
+
+Lo demás lee `MARCA_D` en caliente y no hay nada que regenerar: el icono de
+iOS, las 15 pantallas de arranque y la tarjeta de OpenGraph (que ahora lleva la
+marca encima del nombre: al compartir un enlace la miniatura se ve pequeña y el
+logo se reconoce antes que el texto). Verificado que **satori pinta el trazo**
+—es inline SVG dentro de `ImageResponse`, y no estaba dicho que lo admitiera—:
+las tres rutas prerenderizan en el build y el hueco de la A sale hueco.
+
+**El favicon del navegador, negro y sin fondo.** Salió al verlo puesto: la
+placa oscura redondeada estaba bien para el icono de una app, pero en la
+pestaña pesa. Ahora la marca va suelta, y con dos consecuencias que no son
+cosméticas:
+
+- **Cambia el encuadre.** Sin plato que respetar, la marca va de **borde a
+  borde** (de 54 de cada 64 a los 64), que es el máximo sin recortar el dibujo.
+  ⚠ El tope lo pone el ancho: siendo 1,887:1 en una casilla cuadrada, de alto
+  ocupa poco más de la mitad —a 16 px son 16×8 px— y de ahí no se pasa con el
+  logotipo entero.
+- **El `icon.svg` lleva un `prefers-color-scheme` dentro.** Negro sobre la
+  barra de pestañas OSCURA del navegador no se ve, así que en tema oscuro la
+  misma marca se pinta en blanco. Un favicon SVG admite CSS; es de las pocas
+  cosas que lo distinguen del `.ico`, que no puede y se queda en negro siempre
+  (solo es el respaldo para quien no admita el SVG).
+
+⚠ Y al componer sobre transparente, el suavizado del borde tiene que ir por el
+**canal alfa** y no mezclando con el fondo: mezclando, el filo del trazo queda
+teñido del color de la placa que ya no está y se ve una orla clara alrededor.
+El icono de iOS y las pantallas de arranque **no cambian**: ahí la placa oscura
+sí hace falta.
+
+Dos detalles menores que venían con lo mismo: el `icon` del layout declara
+ahora **los dos formatos** (SVG primero, `.ico` de respaldo), y el nombre corto
+de la app instalada pasa de «AO.» a **«AO»** — el punto era del logotipo viejo.
+El prefijo de los asuntos del correo se queda en `[Panel AO]`: cambiarlo
+rompería la regla de filtrado del buzón.
+
+---
+
+## 07/09/2026
+
+### Los logs, en el Panel de control
+
+Pedido por Adrián de la lista de sugerencias: «monitor de errores en
+producción… aquí quiero montar unos logs y poder ver los logs desde el panel de
+control». Nueva pestaña **Registro** y una tabla, `log_event`, donde `lib/log.ts`
+deja lo que importa.
+
+El problema que resuelve: los logs iban solo a la consola, y en producción eso
+significa entrar por SSH a leer `docker compose logs web`. Se mira cuando ya se
+sospecha algo, no cuando pasa — así que un error de un martes por la tarde no
+se veía nunca. Y siendo el único usuario, no hay nadie que lo reporte.
+
+**Solo `warn` y `error` se guardan.** `info` incluye una línea por cada pasada
+del cron y por cada login: guardarlo convierte la tabla en un vertedero donde
+el error de verdad no se encuentra. La consola sigue con los cuatro niveles,
+que es donde se programa.
+
+**La traza SÍ se guarda**, al contrario que en la consola de producción. Allí
+se omite porque el log de un servidor lo lee cualquiera que pueda; esta tabla
+es privada del admin y la traza es justo lo que hace falta para saber qué pasó.
+
+⚠ **Enganchar el sumidero desde fuera no funciona, y costó tres intentos.**
+La primera versión lo guardaba en una variable de módulo de `log.ts` y lo
+registraba desde `instrumentation.ts`: no se guardaba nada, y **sin ningún
+error**. La causa es que `instrumentation.ts` corre en un grafo de módulos
+DISTINTO al de los route handlers y las server actions, así que el registro
+caía en una instancia de `log.ts` y los eventos se emitían desde otra. Se vio
+en el navegador (0 eventos tras provocar 429 de verdad) y se diagnosticó
+buscando el `[log-db]` de error en los logs del servidor, que no aparecía: el
+sumidero no se llamaba nunca.
+
+El segundo intento lo movió a `globalThis`, que es del proceso. Funcionó en
+desarrollo, y las comprobaciones en producción salían vacías... **pero por otro
+motivo**: `next start` fija `NODE_ENV=production`, así que Next carga
+`.env.production`, cuyo `DATABASE_URL` apunta al host `db` de Docker y no
+resuelve fuera del contenedor. O sea que el servidor de prueba no tenía BD a la
+que escribir, y eso se confunde con "el registro no funciona". Queda anotado en
+CLAUDE.md, porque volverá a pasarle a quien lo pruebe en local.
+
+Con la pregunta sin resolver, el tercer intento cambió el enfoque en vez de
+seguir depurando: **no depender de que nadie registre nada.** El import de
+`log-db` es PEREZOSO y lo hace quien emite, así que cada contexto carga su
+propio sumidero y no hay estado que compartir. Verificado ya con la BD
+alcanzable: los avisos de un servidor de producción aparecen en la pestaña con
+su hora exacta. Y si el import falla, ahora lo dice por consola una vez — un
+registro de errores que se calla es peor que no tenerlo, que es la lección de
+los dos intentos anteriores.
+
+Tres garantías que hacen que enchufar esto al logger no pueda romper nada, y
+las tres con test:
+
+- **No se espera** el INSERT (`void`): el registro no añade latencia a la
+  petición que lo generó.
+- **Se traga sus errores** y avisa solo por consola. Si la BD está caída, el
+  `log.error` que lo diría volvería a entrar por aquí.
+- **No re-entra**: una guarda en `log.ts` corta el bucle en el que el sumidero
+  falla, lo registra, y eso vuelve a llamar al sumidero. Es el bucle que se
+  comería el proceso justo en el peor momento.
+
+El **cron diario purga** lo más viejo de `LOG_RETENCION_DIAS` (30 por defecto,
+0 lo desactiva): sin retención, un error en bucle mete miles de filas en una
+noche. La pestaña filtra por nivel, por módulo y por texto, con ventana de días
+y paginación en el servidor; cada fila se despliega para ver sus datos en
+crudo. Los contadores por nivel **no** los afecta el filtro de nivel: si no, la
+vista "solo errores" diría que hay 0 avisos y no habría forma de volver.
+
+### La previsión de cierre de mes
+
+También de la lista de sugerencias. Debajo de los KPI de la vista del mes: en
+qué va a acabar el gasto si sigue así, con el desglose de dónde sale.
+
+⚠ **El ritmo se extrapola SOLO sobre el gasto no recurrente**, y es la decisión
+que hace que la cifra signifique algo: extrapolando el total, el alquiler del
+día 3 se multiplicaría por los 30 días del mes y a día 5 la previsión diría que
+vas a gastar cuatro alquileres. Los recurrentes no siguen un ritmo, tienen
+fecha, así que se suman aparte —y solo los que aún no han caído, mirando su
+`recurringUuid` en los movimientos del mes para no contarlos dos veces.
+
+⚠ **Y el ritmo solo mira lo que ya ha pasado** (`expenseDate <= hoy`). La
+primera versión sumaba todos los movimientos del mes y los dividía entre los
+días transcurridos: con datos reales, a día 7 y con movimientos apuntados hasta
+el 27, la previsión salía en **5.929 €** cuando el mes anterior cerró en 1.887.
+Los movimientos con fecha futura ya se saben, así que se restan de la
+estimación de los días que quedan (con suelo en 0) en vez de extrapolarse. Este
+fallo **no lo cazó ningún test**: se vio al abrirlo en el navegador con los
+datos de verdad.
+
+Los tres estados del mes son distintos a propósito: uno **cerrado** no se prevé
+(ya se sabe en qué acabó), uno **futuro** solo sabe lo recurrente (inventar una
+media diaria de un mes que no ha empezado sería mentir) y la tarjeta solo se
+pinta en el mes **en curso**.
+
+⚠ Límite conocido y asumido: el ritmo es una media, así que con pocos días
+transcurridos es ruidosa, y un gasto grande apuntado A MANO —un alquiler que no
+viene del recurrente— la infla. Se estabiliza al avanzar el mes y en cuanto los
+recurrentes hacen su trabajo. Anotado en `SUGERENCIAS.md` por si algún día
+merece un estimador más robusto.
+
+### Posponer el seguimiento en un clic
+
+De la lista de sugerencias. Acción de fila en la vista **Tabla** del pipeline:
+posponer el seguimiento una semana. Era el gesto más frecuente con un
+seguimiento vencido —«esta semana no, la que viene»— y el camino más largo:
+abrir la ficha, buscar el campo de la fecha y elegir día en el calendario.
+
+⚠ **Cuenta desde HOY, no desde la fecha que tenía.** Un seguimiento vencido
+hace tres semanas, sumándole 7 días a su propia fecha, seguiría vencido: se
+pospone y no pasa nada, que es exactamente lo contrario de lo que se pedía.
+
+⚠ **Y deja apunte en el timeline.** Posponer es una decisión sobre la
+oportunidad, y sin rastro no hay forma de ver que algo lleva un mes
+aplazándose semana a semana — que es justo la señal de que hay que cerrarlo o
+descartarlo. También reinicia `nextActionNotified`: si vuelve a vencer, vuelve
+a avisar por correo.
+
+No se ofrece sin seguimiento (crear la fecha aquí sería inventarse una próxima
+acción que nadie ha escrito) ni en una archivada. Va en la Tabla y no en la
+tarjeta del kanban porque a 130 px de ancho no cabe otro control, y la Tabla es
+la vista que existe también en móvil.
+
+### Exportación global de Finanzas
+
+`?todo=1` sobre el endpoint que ya existía. Un solo libro con el resumen
+histórico, **una hoja por año** (el mismo detalle que la exportación de un
+año, extraída a una función para reutilizarla), **todos los movimientos** con
+su categoría ya resuelta —un Excel no puede seguir una FK, así que ahí va
+«Coche › Gasolina» y no un uuid—, las categorías con su tope y los
+recurrentes.
+
+Lo que aporta sobre el backup de la BD: aquel sirve para **restaurar**, este
+para **leer** el dato fuera de la aplicación. Son dos cosas distintas y las
+dos hacen falta.
+
+Dos detalles: los movimientos llevan céntimos (son el dato de origen, no un
+KPI) y una columna que distingue lo que apuntó un recurrente de lo tecleado a
+mano. Y el nombre del fichero lleva la FECHA (`finanzas-2026-09-07.xlsx`), no
+un año: es una foto de todo.
+
+Verificado descargándolo de verdad: 200, `private, no-store`, zip válido y
+**seis hojas** — resumen, 2025, 2026, movimientos, categorías y recurrentes,
+que es exactamente lo que corresponde a los dos años que hay.
+
+### Otras siete sugerencias descartadas (y las subidas de ficheros con ellas)
+
+Segunda tanda del mismo repaso. Adrián pidió recomendaciones, y de lo que se le
+dijo que no merecía la pena hoy, decidió quitarlo. Quedan aquí con su motivo:
+
+**Cuatro que necesitan un volumen de datos que este proyecto no tiene.** No son
+malas ideas: es que hoy producirían cifras que no se pueden creer, y eso es
+peor que no tenerlas.
+
+- **Canal de origen** (referido / LinkedIn / web) con métricas por canal.
+- **Motivos de descarte** con analítica.
+- **Forecast ponderado** por probabilidad según el estado.
+- **Alerta de gasto inusual** (un movimiento por encima de la media de su
+  categoría): con doce movimientos al mes, esa "media" no tiene de dónde salir.
+
+Con cinco oportunidades abiertas, las métricas por canal son ruido; el forecast
+ponderado necesita además unas probabilidades por estado que habría que
+inventarse.
+
+**Dos de adjuntos, y su consecuencia.** «Mantenimiento: adjuntar documento» y
+«Adjuntos y enlaces por oportunidad» iban al mismo sitio que la foto del ticket
+que ya se descartó: abren las subidas de ficheros con sus límites, su
+sanitizado, su almacenamiento y su backup. Es una decisión de plataforma, no
+tres mejoras sueltas — o se toma entera o ninguna. Y al no tomarse, cae con
+ellas **«Límites y sanitizado de subidas»**, que era su condicional: se retira
+también de `TAREAS.md`, donde llevaba esperando desde el 02/09. Si algún día se
+añaden adjuntos, el patrón está donde estaba (el tope de cuerpo de la API v1 y
+el saneado del HTML de las notas).
+
+**Y el registro de auditoría** («quién cambió qué y cuándo» en las tablas
+clave): con un solo usuario admin, el «quién» es siempre él. Quedaría el «qué y
+cuándo», que no es lo que promete el nombre ni justifica tocar las tablas
+clave.
+
+### Cinco sugerencias descartadas, con su motivo
+
+Adrián pidió recomendaciones del pozo de ideas y, de lo que se le dijo que no
+merecía la pena, decidió **quitarlas**. Se retiran de `SUGERENCIAS.md` y quedan
+aquí, que es donde este proyecto guarda los descartes razonados — no reabrirlas
+sin un motivo nuevo:
+
+- **2FA / passkeys además de Google.** Se entra con Google, así que la segunda
+  factor ya la pone Google. Montar passkeys aquí sería reimplementar lo que el
+  proveedor ya hace, con más superficie que defender.
+- **Papelera / soft-delete con retención.** Ya hay «Deshacer» tras borrar (un
+  toast de 5 s en gastos y oportunidades), que cubre el error de dedo, que es
+  el miedo real. Una papelera de verdad son un flag en cada tabla, filtrarlo en
+  TODAS las consultas y una pantalla nueva: mucha maquinaria para el mismo
+  susto.
+- **Adjuntar foto del ticket a un gasto.** Abre las subidas de ficheros con
+  todo lo suyo (límites, sanitizado, almacenamiento, backup de los adjuntos).
+  Es una decisión de plataforma, no una mejora suelta; el día que se tome, el
+  condicional de las subidas sigue apuntado en `TAREAS.md`.
+- **Integración con Google Calendar.** El calendario del Panel (05/09) reúne ya
+  las tres fuentes con fecha en la propia aplicación. Sincronizar con un
+  tercero añadiría OAuth, tokens que caducan y conflictos de doble edición para
+  responder la pregunta que ya está respondida dentro.
+- **Caché por tags de las consultas del inicio (`revalidateTag`).** La
+  aplicación va rápida para un usuario, y no hay ninguna medición que diga que
+  el inicio sea lento. Optimizar sin un problema medido es justo lo que este
+  proyecto ha ido descartando bien (ver el `mem_limit`, que esperó a tener
+  cifras de `docker stats`).
+
+Y una corrección del propio fichero: **la copia de seguridad automática de la
+BD** seguía marcada como pendiente y con ⭐, cuando está hecha desde el 26/08
+—dump diario a las 4:00, rotación de 7 días, copia fuera del VPS en Drive con
+`rclone`, el Panel vigilando la edad del último dump y la restauración como
+tarea semestral de Mantenimiento—. Era la entrada más desactualizada del
+fichero.
+
+---
+
+## 06/09/2026
+
+### La tarjeta de Recurrentes, con los del mes que se está viendo
+
+Pedido por Adrián: «en recurrentes, cuando estás en la vista del mes deben
+salir realmente los que aplican a ese mes; en ajustes que salgan todos».
+
+Salían **todos los activos en cualquier mes**, así que un seguro anual que se
+paga en marzo figuraba en la tarjeta de septiembre con un «próximo 12/03» que
+no dice nada del mes que se está mirando. Ahora la tarjeta es del mes, y se
+compone de dos fuentes que se complementan:
+
+- lo **ya apuntado** — un movimiento del mes con `recurringUuid`, que es la
+  única verdad para un mes pasado (para eso `MovimientoRow` pasa a llevar ese
+  campo);
+- lo **proyectado** desde `nextDate` con `fechasEnMes`, que cubre el mes en
+  curso y los futuros.
+
+⚠ **Un mes pasado sin cargos apuntados sale vacío, y es lo correcto.**
+Proyectar hacia atrás se inventaría cargos que quizá nunca ocurrieron: el
+servidor pudo estar parado, o el recurrente pudo darse de alta después. Y el
+vacío distingue sus dos casos, que antes se leían igual: «ningún recurrente»
+—una invitación a crearlos— frente a «ninguno de tus 7 carga en este mes».
+
+**La cifra de cabecera pasa a ser la del mes**, y eso revisa una decisión
+anterior. Era el equivalente mensual (un seguro de 600 €/año son 50 €/mes)
+porque sumar solo los mensuales dejaba fuera los recibos gordos — pero ese
+argumento valía sobre una lista de TODOS. Con la lista ya acotada al mes, el
+recibo gordo aparece entero en el mes que carga, y dos cifras que no cuadran en
+la misma tarjeta se leen como un error. El equivalente mensual sigue donde
+tiene sentido: en **Ajustes**, sobre la lista entera, que no se toca. Son dos
+preguntas distintas: «qué cae este mes» y «cuánto tengo comprometido al mes».
+Se le ofreció volver atrás por si el cambio de cifra no le cuadraba, y lo
+confirmó: "déjala como está, la cifra del mes está bien".
+
+De paso, el estado de cada fila deja de mentir en los meses pasados: se leía
+del `lastCreated`, que es solo el ÚLTIMO cargo, así que en un mes anterior
+ponía «próximo 03/09»; ahora sale «cargado el 3» porque lo dice el movimiento
+de ese mes.
+
+Y **una sola proyección para los recurrentes**: `fechasEnMes` vive en
+`lib/recurrentes.ts` y la usan la tarjeta y el calendario del Panel, que tenía
+la suya. El ancla del día y los meses cortos son justo donde esto se rompe, y
+los 31 tests del calendario siguen en verde con la función compartida, que es
+la comprobación de que las dos hacían lo mismo. Ocho tests nuevos para ella:
+mensual, trimestral, anual, el ancla del 31 en febrero, el mes pasado vacío, el
+periodo inválido y el freno.
+
+---
+
+## 05/09/2026 (en producción)
 
 ### Entrar en el dashboard sin Google (solo en desarrollo)
 
@@ -470,7 +836,7 @@ pinta en Gasto, porque en Ingreso no existe. Desaparecen el filtro «Todas»
 
 ---
 
-## 04/09/2026
+## 04/09/2026 (en producción)
 
 ### Categorías de gasto en dos niveles: grupos y categorías
 
