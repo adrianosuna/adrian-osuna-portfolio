@@ -3,44 +3,16 @@
 // Panel de Finanzas: el ahorro del año (objetivo, proyección, ritmo) y el mes en
 // curso de movimientos. Cada bloque enlaza a su sección.
 import Link from 'next/link'
-import { ArrowUpRight, Euro, PiggyBank, Receipt, Scale, TrendingDown, TrendingUp } from 'lucide-react'
+import { ArrowUpRight, PiggyBank, Receipt, Scale, TrendingDown, TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { YearSummary } from '@/lib/finance'
 import type { MesMovimientos } from '@/lib/gastos'
 import { nombreMes as mesDe } from '@/lib/fechas'
 import { GraficaDonut } from '@/components/ui/charts/donut'
 import { ahorroAnualDe, cardClass, esperadoHoy, eur, eurEntero, pct, proyeccionDe, tasaAhorroDe } from './comun'
+import { TarjetaCifra } from '@/components/dashboard/tarjeta-cifra'
 
 
-
-function Kpi({ label, valor, pie, tono, Icon, to }: {
-  label: string
-  valor: string
-  pie?: React.ReactNode
-  tono?: 'success' | 'danger' | 'primary'
-  Icon: typeof Euro
-  to?: string
-}) {
-  const cuerpo = (
-    <div className={cn(cardClass, 'h-full p-4', to && 'transition-colors hover:border-primary/40')}>
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[12.5px] text-muted-foreground">{label}</p>
-        <Icon className="size-4 shrink-0 text-muted-foreground" />
-      </div>
-      <p
-        className={cn(
-          'mt-1.5 text-2xl font-semibold tabular-nums',
-          tono === 'success' && 'text-success',
-          tono === 'danger' && 'text-danger',
-          tono === 'primary' && 'text-primary',
-        )}>
-        {valor}
-      </p>
-      {pie && <div className="mt-1 text-[12px] leading-snug text-muted-foreground">{pie}</div>}
-    </div>
-  )
-  return to ? <Link href={to}>{cuerpo}</Link> : cuerpo
-}
 
 function Cabecera({ titulo, href, enlace }: { titulo: string; href: string; enlace: string }) {
   return (
@@ -60,7 +32,7 @@ function Cabecera({ titulo, href, enlace }: { titulo: string; href: string; enla
 
 function Dato({ label, valor, tono }: { label: string; valor: string; tono?: 'success' | 'danger' }) {
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-border/60 py-2 last:border-0">
+    <div className="flex items-center justify-between gap-3 border-b border-white/8 py-2 last:border-0">
       <span className="text-[13px] text-muted-foreground">{label}</span>
       <span
         className={cn(
@@ -124,11 +96,11 @@ export function PanelFinanzas({
   return (
     <div>
       {/* Las cuatro cifras que resumen el mes y el año */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <TarjetaCifra
           label={`Ahorrado en ${añoActual}`}
           valor={ahorro === null ? '—' : eurEntero(ahorro)}
-          Icon={PiggyBank}
+          icono={<PiggyBank className="size-4" />}
           tono="primary"
           to="/app/finance?s=ahorro"
           pie={
@@ -137,32 +109,34 @@ export function PanelFinanzas({
             ) : pctObjetivo === null ? (
               'sin objetivo fijado'
             ) : (
-              <span className="flex items-center gap-2">
-                <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+              // En móvil la barra va debajo del porcentaje: a su lado, en media
+              // pantalla, se quedaba en 40 px.
+              <span className="flex flex-col gap-1.5 sm:flex-row-reverse sm:items-center sm:gap-2">
+                <span className="shrink-0 tabular-nums">{pctObjetivo}&nbsp;%</span>
+                <span className="h-1.5 w-full overflow-hidden rounded-full bg-white/8 sm:flex-1">
                   <span
                     className={cn('block h-full rounded-full', pctObjetivo >= 100 ? 'bg-success' : 'bg-primary')}
                     style={{ width: `${Math.min(100, pctObjetivo)}%` }}
                   />
                 </span>
-                <span className="shrink-0 tabular-nums">{pctObjetivo}&nbsp;%</span>
               </span>
             )
           }
         />
-        <Kpi
+        <TarjetaCifra
           label={`Ingresos de ${nombreMes}`}
           valor={eurEntero(mes.ingresos)}
-          Icon={TrendingUp}
+          icono={<TrendingUp className="size-4" />}
           tono="success"
           to={enlaceGastos}
           // Los ingresos del mes, no TODOS los movimientos: bajo "Ingresos de
           // Agosto", leer "32 movimientos apuntados" hacía pensar en 32 ingresos.
           pie={`${nIngresos} ${nIngresos === 1 ? 'ingreso' : 'ingresos'} apuntados`}
         />
-        <Kpi
+        <TarjetaCifra
           label={`Gastos de ${nombreMes}`}
           valor={eurEntero(mes.gastos)}
-          Icon={Receipt}
+          icono={<Receipt className="size-4" />}
           tono="danger"
           to={enlaceGastos}
           pie={
@@ -184,10 +158,10 @@ export function PanelFinanzas({
             )
           }
         />
-        <Kpi
+        <TarjetaCifra
           label={`Balance de ${nombreMes}`}
           valor={eurEntero(mes.balance)}
-          Icon={Scale}
+          icono={<Scale className="size-4" />}
           tono={mes.balance >= 0 ? 'success' : 'danger'}
           to={enlaceGastos}
           pie={mes.balance >= 0 ? 'te queda a favor' : 'has gastado más de lo que entró'}

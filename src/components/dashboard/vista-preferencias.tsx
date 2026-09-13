@@ -16,8 +16,8 @@ export function AvisoNovedades({ version }: { version: string }) {
 
   return (
     // `role="status"`: un aviso que aparece solo tiene que anunciarse solo.
-    <div role="status" className="border-b border-primary/20 bg-primary/10">
-      <div className="mx-auto flex w-full max-w-300 items-center gap-2.5 px-4 py-2 sm:px-6">
+    <div role="status" className="border-b border-white/8 bg-white/4">
+      <div className="safe-x flex w-full items-center gap-2.5 py-2">
         <Sparkles className="size-4 shrink-0 text-primary" />
         <p className="min-w-0 flex-1 text-[13px]">
           <span className="font-semibold">Versión {version} desplegada.</span>{' '}
@@ -28,7 +28,7 @@ export function AvisoNovedades({ version }: { version: string }) {
         <button
           type="button"
           // p-2.5 en móvil (40px): 28 era un objetivo táctil corto.
-          className="shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground max-sm:p-2.5"
+          className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-white/8 hover:text-foreground max-sm:p-2.5"
           aria-label="Cerrar el aviso de novedades"
           onClick={() => setVista(version)}>
           <X className="size-4" />

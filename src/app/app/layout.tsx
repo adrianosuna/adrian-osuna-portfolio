@@ -62,9 +62,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 avisos={avisos}
                 onSignOut={cerrarSesion}
               />
-              {/* safe-x / safe-bottom: en apaisado el recorte se come un
-                  costado, y abajo está la barra de gestos del iPhone. */}
-              <main className="safe-x safe-bottom mx-auto w-full min-w-0 max-w-300 flex-1 pt-6">
+              {/* A todo el ancho de la pantalla: la estructura la ponen las rejillas de
+                  cada página, no un contenedor centrado. safe-x / safe-bottom: en
+                  apaisado el recorte se come un costado, y abajo está la barra de
+                  gestos del iPhone. */}
+              <main className="safe-x safe-bottom w-full min-w-0 flex-1 pt-6">
                 {children}
               </main>
             </ConfirmarProvider>

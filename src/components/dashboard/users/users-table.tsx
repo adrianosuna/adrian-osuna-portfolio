@@ -15,7 +15,7 @@ import { SelectField, TextField } from '@/components/ui/fields'
 import { inviteUser, removeUser, updateUser } from '@/app/app/panel/actions'
 import { btnOutline, btnPrimary } from '@/components/ui/botones'
 import { MenuAcciones } from '@/components/dashboard/menu-acciones'
-import { tdClass, thClass } from '@/components/ui/tabla'
+import { TarjetaTabla, tdClass, thClass } from '@/components/ui/tabla'
 
 export interface UserRow {
   uuid: string
@@ -162,7 +162,11 @@ export function UsersTable({ rows, meUuid }: { rows: UserRow[]; meUuid: string }
 
   return (
     <div>
-      <div className="mb-3 flex justify-end">
+      {/* Móvil: cabecera propia (la tarjeta de la tabla es solo de escritorio). */}
+      <div className="mb-3 flex items-center justify-between gap-2 md:hidden">
+        <h2 className="font-semibold">
+          Cuentas <span className="text-muted-foreground">{rows.length}</span>
+        </h2>
         <button type="button" className={btnPrimary} onClick={() => setModalOpen(true)}>
           <Plus className="size-4" /> Invitar
         </button>
@@ -174,7 +178,7 @@ export function UsersTable({ rows, meUuid }: { rows: UserRow[]; meUuid: string }
           const isMe = row.uuid === meUuid
           const status = STATUS_TAG[row.status]
           return (
-            <div key={row.uuid} className="rounded-xl border border-border bg-card p-4">
+            <div key={row.uuid} className="superficie rounded-2xl p-4">
               <div className="flex items-center gap-3">
                 <Avatar row={row} />
                 <div className="min-w-0 flex-1 leading-tight">
@@ -201,7 +205,7 @@ export function UsersTable({ rows, meUuid }: { rows: UserRow[]; meUuid: string }
                 )}
               </div>
               {!isMe && (
-                <div className="mt-2.5 flex justify-end border-t border-border/60 pt-1.5">
+                <div className="mt-2.5 flex justify-end border-t border-white/8 pt-1.5">
                   {acciones(row)}
                 </div>
               )}
@@ -210,11 +214,20 @@ export function UsersTable({ rows, meUuid }: { rows: UserRow[]; meUuid: string }
         })}
       </div>
 
-      {/* Escritorio: tabla */}
-      <div className="hidden overflow-x-auto rounded-xl border border-border bg-card md:block">
+      {/* Escritorio: la tabla en la tarjeta común, con el botón en su cabecera. */}
+      <TarjetaTabla
+        titulo="Cuentas"
+        cuenta={rows.length}
+        className="hidden md:block"
+        acciones={
+          <button type="button" className={btnPrimary} onClick={() => setModalOpen(true)}>
+            <Plus className="size-4" /> Invitar
+          </button>
+        }>
+        <div className="overflow-x-auto">
         <table className="w-full min-w-190 text-sm">
           <thead>
-            <tr className="border-b border-border">
+            <tr className="border-b border-white/8">
               <th className={thClass}>Usuario</th>
               <th className={cn(thClass, 'text-center')}>Rol</th>
               <th className={cn(thClass, 'text-center')}>Estado</th>
@@ -228,7 +241,7 @@ export function UsersTable({ rows, meUuid }: { rows: UserRow[]; meUuid: string }
               const isMe = row.uuid === meUuid
               const status = STATUS_TAG[row.status]
               return (
-                <tr key={row.uuid} className="border-b border-border/50 last:border-0">
+                <tr key={row.uuid} className="border-b border-white/8 last:border-0">
                   <td className={tdClass}>
                     <div className="flex items-center gap-3">
                       <Avatar row={row} />
@@ -265,7 +278,8 @@ export function UsersTable({ rows, meUuid }: { rows: UserRow[]; meUuid: string }
             })}
           </tbody>
         </table>
-      </div>
+        </div>
+      </TarjetaTabla>
 
       {/* Invitar usuario */}
       {modalOpen && (

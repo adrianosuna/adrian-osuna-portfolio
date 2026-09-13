@@ -12,7 +12,7 @@ export function EsqueletoTarjetas({ n = 6, conBoton = true }: { n?: number; conB
       )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: n }, (_, i) => (
-          <div key={i} className="h-32 animate-pulse rounded-xl border border-border bg-card" />
+          <div key={i} className="h-32 animate-pulse superficie rounded-2xl" />
         ))}
       </div>
     </div>
@@ -23,12 +23,12 @@ export function EsqueletoTarjetas({ n = 6, conBoton = true }: { n?: number; conB
 export function EsqueletoPanel({ kpis = 4 }: { kpis?: number }) {
   return (
     <div aria-hidden="true">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {Array.from({ length: kpis }, (_, i) => (
-          <div key={i} className="h-24 animate-pulse rounded-xl border border-border bg-card" />
+          <div key={i} className="h-24 animate-pulse superficie rounded-2xl" />
         ))}
       </div>
-      <div className="mt-4 h-72 animate-pulse rounded-xl border border-border bg-card" />
+      <div className="mt-4 h-72 animate-pulse superficie rounded-2xl" />
     </div>
   )
 }
@@ -37,7 +37,7 @@ export function EsqueletoPanel({ kpis = 4 }: { kpis?: number }) {
 export function EsqueletoLista({ filas = 8 }: { filas?: number }) {
   return (
     <div aria-hidden="true" className="overflow-hidden rounded-xl border border-border">
-      <div className="h-10 animate-pulse bg-card/60" />
+      <div className="h-10 animate-pulse bg-white/6" />
       <div className="divide-y divide-border/60">
         {Array.from({ length: filas }, (_, i) => (
           <div key={i} className="flex items-center gap-3 px-4 py-3">
@@ -55,14 +55,14 @@ export function EsqueletoLista({ filas = 8 }: { filas?: number }) {
 export function EsqueletoTablero() {
   return (
     <div aria-hidden="true">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {Array.from({ length: 4 }, (_, i) => (
-          <div key={i} className="h-20 animate-pulse rounded-xl border border-border bg-card" />
+          <div key={i} className="h-20 animate-pulse superficie rounded-2xl" />
         ))}
       </div>
       <div className="mt-4 hidden gap-3 md:grid md:grid-cols-5">
         {Array.from({ length: 5 }, (_, i) => (
-          <div key={i} className="h-80 animate-pulse rounded-xl border border-border bg-card/60" />
+          <div key={i} className="h-80 animate-pulse superficie rounded-2xl" />
         ))}
       </div>
       <div className="mt-4 md:hidden">

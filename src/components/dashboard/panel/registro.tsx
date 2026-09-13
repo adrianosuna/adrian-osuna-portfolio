@@ -81,11 +81,11 @@ export function Registro({
       {/* Cabecera: las cuentas por nivel hacen de filtro, que es como se usa
           esto de verdad ("¿hay errores?" → clic). */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex rounded-lg border border-border bg-card/50 p-0.5" role="group" aria-label="Filtrar por nivel">
+        <div className="flex superficie-baja rounded-xl p-0.5" role="group" aria-label="Filtrar por nivel">
           <button
             type="button"
             aria-pressed={!filtros.nivel}
-            className={cn(chipFiltro, !filtros.nivel ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground')}
+            className={cn(chipFiltro, !filtros.nivel ? 'bg-white/8 text-foreground' : 'text-muted-foreground hover:text-foreground')}
             onClick={() => ir({ nivel: null })}>
             Todo <span className="tabular-nums">{datos.porNivel.error + datos.porNivel.warn}</span>
           </button>
@@ -101,7 +101,7 @@ export function Registro({
                 className={cn(
                   chipFiltro,
                   'inline-flex items-center gap-1.5',
-                  filtros.nivel === n ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
+                  filtros.nivel === n ? 'bg-white/8 text-foreground' : 'text-muted-foreground hover:text-foreground',
                 )}
                 onClick={() => ir({ nivel: n })}>
                 <Icono className={cn('size-3.5', tinte)} aria-hidden />
@@ -111,13 +111,13 @@ export function Registro({
           })}
         </div>
 
-        <div className="flex rounded-lg border border-border bg-card/50 p-0.5" role="group" aria-label="Ventana de tiempo">
+        <div className="flex superficie-baja rounded-xl p-0.5" role="group" aria-label="Ventana de tiempo">
           {VENTANAS.map((v) => (
             <button
               key={v.dias}
               type="button"
               aria-pressed={filtros.dias === v.dias}
-              className={cn(chipFiltro, filtros.dias === v.dias ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground')}
+              className={cn(chipFiltro, filtros.dias === v.dias ? 'bg-white/8 text-foreground' : 'text-muted-foreground hover:text-foreground')}
               onClick={() => ir({ dias: v.dias === 30 ? null : String(v.dias) })}>
               {v.label}
             </button>
@@ -151,7 +151,7 @@ export function Registro({
       </div>
 
       {datos.filas.length === 0 ? (
-        <div className="rounded-xl border border-border bg-card p-6 text-center text-sm text-muted-foreground">
+        <div className="superficie rounded-2xl p-6 text-center text-sm text-muted-foreground">
           {hayFiltro ? (
             <>
               Ningún evento con estos filtros.{' '}
@@ -172,7 +172,7 @@ export function Registro({
           )}
         </div>
       ) : (
-        <ul className="flex flex-col divide-y divide-border/60 rounded-xl border border-border bg-card">
+        <ul className="flex flex-col divide-y divide-border/60 superficie rounded-2xl">
           {datos.filas.map((f) => {
             const { chip, Icono, nombre } = ESTILO[f.level === 'warn' ? 'warn' : 'error']
             const desplegado = abierto === f.uuid
@@ -181,7 +181,7 @@ export function Registro({
                 <button
                   type="button"
                   aria-expanded={desplegado}
-                  className="flex w-full items-start gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-muted/40"
+                  className="flex w-full items-start gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-white/6"
                   onClick={() => setAbierto(desplegado ? null : f.uuid)}>
                   {desplegado ? (
                     <ChevronDown className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />

@@ -45,10 +45,15 @@ export function AjustesTab({ categorias, recurrentes, years, hoy }: {
   hoy: string
 }) {
   return (
-    <div className="flex flex-col gap-4">
+    // En pantalla ancha, las categorías a un lado y los recurrentes con los años al
+    // otro: son listas de filas cortas y estiradas a 1.900 px el ojo tiene que
+    // cruzar la pantalla entre el nombre y su cifra.
+    <div className="grid items-start gap-4 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <PanelCategorias categorias={categorias} />
-      <PanelRecurrentes filas={recurrentes} categorias={categorias} hoy={hoy} />
-      <PanelAnios years={years} />
+      <div className="flex flex-col gap-4">
+        <PanelRecurrentes filas={recurrentes} categorias={categorias} hoy={hoy} />
+        <PanelAnios years={years} />
+      </div>
     </div>
   )
 }
@@ -99,7 +104,7 @@ function Filtros<T extends string>({ valor, onCambio, opciones, etiqueta }: {
 }) {
   return (
     <div
-      className="flex rounded-lg border border-border bg-card/50 p-0.5"
+      className="flex superficie-baja rounded-xl p-0.5"
       role="group"
       aria-label={etiqueta}>
       {opciones.map((o) => (
@@ -110,7 +115,7 @@ function Filtros<T extends string>({ valor, onCambio, opciones, etiqueta }: {
             // whitespace-nowrap: en móvil el chip se estrecha y "En pausa" se
             // partía en dos líneas, subiendo la fila entera a 54px.
             chipFiltro,
-            valor === o.value ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
+            valor === o.value ? 'bg-white/8 text-foreground' : 'text-muted-foreground hover:text-foreground',
           )}
           onClick={() => onCambio(o.value)}>
           {o.label}
@@ -209,7 +214,7 @@ function PanelCategorias({ categorias }: { categorias: CategoriaRow[] }) {
           // (`listCategorias`).
           <div
             key={c.uuid}
-            className={cn('border-b border-border/60 py-2', c.parentUuid && 'pl-4 sm:pl-6')}>
+            className={cn('border-b border-white/8 py-2', c.parentUuid && 'pl-4 sm:pl-6')}>
             {fusionando === c.uuid ? (
               <FusionarFila
                 origen={c}
@@ -897,7 +902,7 @@ function PanelRecurrentes({ filas, categorias, hoy }: {
           const cat = categorias.find((c) => c.uuid === r.categoryUuid)
           const esGasto = r.type === 'GASTO'
           return (
-            <div key={r.uuid} className="border-b border-border/60 py-2.5">
+            <div key={r.uuid} className="border-b border-white/8 py-2.5">
               {/* Mismas dos líneas que en categorías: concepto e importe arriba, periodicidad y
                   acciones abajo. En escritorio `sm:contents` y `sm:order-*` recuperan la fila. */}
               <div
@@ -1206,7 +1211,7 @@ function PanelAnios({ years }: { years: YearSummary[] }) {
         )}
 
         {years.map((y) => (
-          <div key={y.uuid} className="border-b border-border/60 py-2">
+          <div key={y.uuid} className="border-b border-white/8 py-2">
             {/* Dos líneas en móvil, una en escritorio, como los otros bloques. */}
             <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
               <div className="flex min-w-0 items-center gap-2 sm:contents">

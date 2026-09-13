@@ -22,7 +22,7 @@ const fmtCarga = (v: number) =>
 
 function Bloque({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="mb-3 mt-6 text-[11.5px] font-semibold uppercase tracking-[0.8px] text-muted-foreground first:mt-0">
+    <h2 className="mb-3 mt-6 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground first:mt-0">
       {children}
     </h2>
   )
@@ -62,7 +62,7 @@ export function ServidorTab({
       <Refrescar generadoEn={infra.generadoEn} />
 
       <Bloque>Salud del despliegue</Bloque>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 3xl:grid-cols-6">
         <CheckCard
           icon={<ShieldCheck className="size-4" />}
           title="Certificado SSL"
@@ -131,7 +131,7 @@ export function ServidorTab({
       </div>
 
       <Bloque>Recursos de la máquina · en vivo (se actualizan solos)</Bloque>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 3xl:grid-cols-6">
         <CheckCard
           icon={<Cpu className="size-4" />}
           title="CPU"
@@ -224,7 +224,7 @@ function Historico({ muestras }: { muestras: MuestraInfra[] }) {
   // Con una sola muestra no hay línea que dibujar.
   if (muestras.length < 2) {
     return (
-      <div className="rounded-xl border border-border bg-card p-6 text-center text-[13px] text-muted-foreground">
+      <div className="superficie rounded-2xl p-6 text-center text-[13px] text-muted-foreground">
         {muestras.length === 0
           ? 'Todavía no hay muestras. El cron diario (8:00) apunta una cada día; en cuanto haya dos, aquí saldrá la evolución.'
           : 'Solo hay una muestra. Mañana, con la segunda, empezará la gráfica.'}
@@ -319,7 +319,7 @@ function TarjetaSerie({
   children: React.ReactNode
 }) {
   return (
-    <div className="min-w-0 rounded-xl border border-border bg-card p-4">
+    <div className="min-w-0 superficie rounded-2xl p-4">
       <div className="mb-1 flex items-center gap-2">
         <span className="grid size-7 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
           {icon}

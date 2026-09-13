@@ -3,6 +3,7 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
+import { CabeceraPagina } from '@/components/dashboard/cabecera'
 import { Briefcase } from 'lucide-react'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
@@ -34,13 +35,11 @@ export default async function PipelinePage({
 
   return (
     <div>
-      <h1 className="flex items-center gap-2 text-xl font-bold">
-        <Briefcase className="size-5 text-primary" />
-        Oportunidades
-      </h1>
-      <p className="mb-5 mt-1 text-sm text-muted-foreground">
-        Pipeline de ofertas, encargos y contactos: de la primera toma de contacto al cierre.
-      </p>
+      <CabeceraPagina
+        titulo="Oportunidades"
+        icono={<Briefcase className="size-5" />}
+        descripcion="Pipeline de ofertas, encargos y contactos: de la primera toma de contacto al cierre."
+      />
       {/* En Suspense: la consulta trae todas las oportunidades y el título sale antes.
           La key es la vista para que al cambiar salga el esqueleto. */}
       <Suspense key={vista} fallback={<EsqueletoTablero />}>

@@ -14,6 +14,8 @@ import { Actividad, Atencion, Tile, TileEsqueleto, cardClass } from '@/component
 // ahorro y gastos de aquí son las mismas cifras que se ven allí.
 import { eurEntero } from '@/lib/euros'
 import { AccesosFijados } from '@/components/dashboard/accesos-fijados'
+import { CabeceraPagina } from '@/components/dashboard/cabecera'
+import { btnOutline } from '@/components/ui/botones'
 import { AbrirAltaAlEntrar } from '@/components/dashboard/abrir-al-entrar'
 import { cn } from '@/lib/utils'
 
@@ -52,8 +54,7 @@ async function TileVisitas() {
     <Tile
       label="Visitas (7 días)"
       valor={usuarios.toLocaleString('es-ES', { useGrouping: 'always' })}
-      icon={<TrendingUp className="size-4" />}
-      chip="bg-primary/10 text-primary"
+      icono={<TrendingUp className="size-4" />}
       to="/app/panel?tab=visitas"
       pie={
         delta === null ? (
@@ -94,22 +95,16 @@ export default async function HomePage({
   const resumen = isAdmin ? await resumenInicio() : null
 
   const cabecera = (
-    <div className="flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 className="text-2xl font-bold">
-          {saludo()}, {firstName}
-        </h1>
-        <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-          <CalendarDays className="size-4" />
-          {hoy}
-        </p>
-      </div>
-      <Link
-        href="/"
-        className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-[13px] font-semibold transition-colors hover:border-primary hover:text-primary">
-        <ExternalLink className="size-3.5" /> Ver el portfolio
-      </Link>
-    </div>
+    <CabeceraPagina
+      titulo={`${saludo()}, ${firstName}`}
+      descripcion={hoy}
+      iconoDescripcion={<CalendarDays className="size-4" />}
+      acciones={
+        <Link href="/" className={cn(btnOutline, 'text-[13px]')}>
+          <ExternalLink className="size-3.5" /> Ver el portfolio
+        </Link>
+      }
+    />
   )
 
   // Usuarios invitados: el dashboard no tiene módulos para ellos.
@@ -138,33 +133,34 @@ export default async function HomePage({
       {cabecera}
 
       {/* Lo primero: qué requiere atención hoy */}
-      <h2 className="mb-2.5 mt-6 text-[13px] font-semibold uppercase tracking-[0.5px] text-muted-foreground">
+      <h2 className="mb-2.5 mt-6 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
         {avisos.length ? 'Requiere tu atención' : 'Estado'}
       </h2>
       <Atencion avisos={avisos} />
 
       {/* KPIs con dato real */}
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Tile
           label={ahorro ? `Ahorro en ${ahorro.year}` : 'Ahorro'}
           valor={ahorro ? eurEntero(ahorro.total) : '—'}
-          icon={<Euro className="size-4" />}
-          chip="bg-primary/10 text-primary"
-          to={ahorro ? `/app/finance?s=ahorro&year=${ahorro.year}` : '/app/finance?s=ahorro'}
+          icono={<Euro className="size-4" />}
+              to={ahorro ? `/app/finance?s=ahorro&year=${ahorro.year}` : '/app/finance?s=ahorro'}
           pie={
             !ahorro ? (
               'Sin año creado'
             ) : pctObjetivo === null ? (
               'Sin objetivo fijado'
             ) : (
-              <span className="flex items-center gap-2">
-                <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+              // En móvil la barra va debajo del texto: en una tarjeta de media
+              // pantalla, a su lado se quedaba en 40 px y no se leía.
+              <span className="flex flex-col gap-1.5 sm:flex-row-reverse sm:items-center sm:gap-2">
+                <span className="shrink-0 tabular-nums">{pctObjetivo}&nbsp;% del objetivo</span>
+                <span className="h-1.5 w-full overflow-hidden rounded-full bg-white/8 sm:flex-1">
                   <span
                     className={cn('block h-full rounded-full', pctObjetivo >= 100 ? 'bg-success' : 'bg-primary')}
                     style={{ width: `${Math.min(100, pctObjetivo)}%` }}
                   />
                 </span>
-                <span className="shrink-0 tabular-nums">{pctObjetivo}&nbsp;% del objetivo</span>
               </span>
             )
           }
@@ -172,16 +168,14 @@ export default async function HomePage({
         <Tile
           label="Gastos del mes"
           valor={eurEntero(gastadoMes)}
-          icon={<Receipt className="size-4" />}
-          chip="bg-success-bg text-success"
+          icono={<Receipt className="size-4" />}
           to={`/app/finance?s=gastos&mes=${new Date().toISOString().slice(0, 7)}`}
           pie={<GastoMoM actual={gastadoMes} previo={gastadoMesPrevio} />}
         />
         <Tile
           label="Pipeline abierto"
           valor={eurEntero(pipeline.valorAbierto)}
-          icon={<Briefcase className="size-4" />}
-          chip="bg-warning-bg text-warning"
+          icono={<Briefcase className="size-4" />}
           to="/app/pipeline"
           pie={
             pipeline.abiertas === 0
@@ -194,8 +188,10 @@ export default async function HomePage({
         </Suspense>
       </div>
 
-      {/* Actividad reciente + accesos a los módulos */}
-      <div className="mt-4 grid gap-4 lg:grid-cols-[7fr_5fr]">
+      {/* Actividad reciente + accesos a los módulos. En pantalla ancha los accesos
+          se quedan en una columna fija: estirados a media pantalla eran tres filas
+          de texto perdidas en el hueco. */}
+      <div className="mt-4 grid items-start gap-4 lg:grid-cols-[7fr_5fr] 2xl:grid-cols-[minmax(0,1fr)_24rem]">
         <Actividad items={actividad} />
 
         {/* Accesos elegidos por el usuario: el catálogo está completo y cada uno fija los

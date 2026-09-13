@@ -1,6 +1,7 @@
 // La tabla del dashboard, en un solo sitio (las clases estaban copiadas en cuatro
 // ficheros con tres variantes). Referencia: la del Control mensual de Ahorro.
 import { cn } from '@/lib/utils'
+import { panel } from '@/components/ui/superficie'
 
 /** Celda de cabecera. Versalitas y color apagado: la fila de datos manda. */
 export const thClass =
@@ -47,7 +48,10 @@ export function Tabla({
   children: React.ReactNode
 }) {
   return (
-    <div className={cn('overflow-x-auto', className)}>
+    // `tabIndex`: en móvil la tabla se desplaza en horizontal, y una zona con
+    // scroll tiene que poder recorrerse con el teclado (axe:
+    // scrollable-region-focusable). El anillo lo pone la regla global.
+    <div tabIndex={0} className={cn('overflow-x-auto', className)}>
       <table className={cn('w-full text-sm', minAncho)}>
         <thead>
           <tr className="border-b border-border">
@@ -199,7 +203,7 @@ export function TarjetaTabla({
   children: React.ReactNode
 }) {
   return (
-    <div className={cn('overflow-hidden rounded-xl border border-border bg-card', className)}>
+    <div className={cn(panel, className)}>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-border px-5 py-3">
         {/* `h2` y no `h3`: el título de la tarjeta es el primer nivel bajo el
             `h1` de la página, y saltarse el h2 rompe el orden de encabezados. */}

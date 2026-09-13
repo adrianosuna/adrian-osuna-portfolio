@@ -5,7 +5,7 @@ import { Compass, House, SearchX } from 'lucide-react'
 
 export default function NotFoundApp() {
   return (
-    <div className="flex flex-col items-center rounded-xl border border-border bg-card px-6 py-16 text-center">
+    <div className="flex flex-col items-center superficie rounded-2xl px-6 py-16 text-center">
       <span className="grid size-14 place-items-center rounded-2xl bg-primary/10 text-primary">
         <SearchX className="size-7" />
       </span>

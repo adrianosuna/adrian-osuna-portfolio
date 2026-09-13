@@ -3,6 +3,9 @@
 @import "shadcn/tailwind.css";
 
 @theme inline {
+  /* Un escalón por encima de 2xl (96rem): los monitores de 1920 en adelante, donde
+     el dashboard reparte en seis columnas lo que en 2xl iría en tres. */
+  --breakpoint-3xl: 112rem;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
@@ -186,17 +189,26 @@
   --pf-nav: rgba(10, 21, 18, 0.72);
 }
 
-/* ─────────── Landing ─────────── */
+/* ─────────── Superficies (landing y dashboard) ─────────── */
 
-/* Tarjeta de la landing: degradado tenue, borde fino y brillo en el filo superior. */
-.pf-card {
+/* La tarjeta del sitio: degradado tenue, borde fino y brillo en el filo superior.
+   Trae su propio borde, así que no se le añade `border border-border`. */
+.superficie {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018));
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+}
+/* Variante pulsable (enlace o botón): el borde se aclara al pasar el ratón. */
+.superficie-int {
   transition: border-color 0.25s ease;
 }
-.pf-card:hover {
-  border-color: rgba(255, 255, 255, 0.14);
+.superficie-int:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+/* Superficie hundida: para lo que va DENTRO de una tarjeta (baldosas, campos). */
+.superficie-baja {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 /* Rejilla de fondo (hero, ilustraciones, contacto); quien la usa le pone la máscara. */
@@ -424,6 +436,14 @@ section[id] {
   .safe-x {
     padding-left: max(1.5rem, env(safe-area-inset-left));
     padding-right: max(1.5rem, env(safe-area-inset-right));
+  }
+}
+/* El dashboard va a todo el ancho en escritorio: el margen crece con la pantalla
+   para que el contenido no se pegue al borde. */
+@media (min-width: 1536px) {
+  .safe-x {
+    padding-left: max(2rem, env(safe-area-inset-left));
+    padding-right: max(2rem, env(safe-area-inset-right));
   }
 }
 /* Barra superior: se aparta del notch por arriba y por los lados (en apaisado

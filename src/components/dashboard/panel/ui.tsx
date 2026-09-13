@@ -6,6 +6,7 @@ import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { tarjeta } from '@/components/ui/superficie'
 import type { EstadoCheck } from '@/lib/infra'
 
 export const ESTADO_TAG: Record<EstadoCheck, { className: string; label: string }> = {
@@ -68,10 +69,10 @@ export function CheckCard({
 }) {
   const tag = estado && ESTADO_TAG[estado]
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <div className={cn(tarjeta, 'p-4 sm:p-5')}>
       <div className="flex items-center justify-between gap-3">
         <span className="flex items-center gap-2.5 text-sm font-semibold">
-          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-white/6 text-muted-foreground">
             {icon}
           </span>
           {title}
@@ -84,7 +85,7 @@ export function CheckCard({
       </div>
       <p className="mt-3.5 text-2xl font-semibold">{value}</p>
       {barPct !== undefined && (
-        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/8">
           <div
             className={cn('h-full rounded-full', estado ? BARRA[estado] : 'bg-primary')}
             style={{ width: `${Math.min(100, Math.max(0, barPct))}%` }}

@@ -9,6 +9,8 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { TarjetaCifra } from '@/components/dashboard/tarjeta-cifra'
+import { claseTab } from '@/components/dashboard/sub-tabs'
 import { Tooltip } from '@/components/ui/tooltip'
 import { useCarga } from '@/components/dashboard/barra-carga'
 import type { MetricasPipeline } from '@/lib/pipeline'
@@ -26,15 +28,6 @@ import {
 export type { EstadoOportunidad, OpportunityRow } from './comun'
 
 type Run = (promise: Promise<{ ok: boolean; message?: string }>, success?: string) => void
-
-function Metrica({ label, valor }: { label: string; valor: string }) {
-  return (
-    <div className="rounded-xl border border-border bg-card p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-0.5 text-lg font-bold tabular-nums">{valor}</p>
-    </div>
-  )
-}
 
 // Tarjeta del tablero, compartida por el kanban y la lista móvil: el control de
 // mover estado lo aporta cada variante vía `moverControl`.
@@ -54,7 +47,7 @@ function Tarjeta({
   className?: string
 }) {
   return (
-    <article {...dragProps} className={cn('rounded-lg border border-border bg-card p-3', className)}>
+    <article {...dragProps} className={cn('superficie rounded-xl p-3', className)}>
       <p className="text-sm font-semibold leading-snug">{o.title}</p>
       {o.company && <p className="mt-0.5 text-[12.5px] text-muted-foreground">{o.company}</p>}
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -108,7 +101,7 @@ function Tarjeta({
         </p>
       )}
 
-      <div className="mt-2 flex items-center justify-between gap-2 border-t border-border/60 pt-1.5">
+      <div className="mt-2 flex items-center justify-between gap-2 border-t border-white/8 pt-1.5">
         {moverControl}
         <span className="flex items-center">
           {TERMINALES.includes(o.status) && (
@@ -228,13 +221,13 @@ export function PipelineBoard({
     <div>
       {/* Métricas del embudo (miran también el histórico archivado) */}
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Metrica label="Valor abierto" valor={eur(metricas.valorAbierto)} />
-        <Metrica label="Abiertas" valor={String(metricas.abiertas)} />
-        <Metrica
+        <TarjetaCifra label="Valor abierto" valor={eur(metricas.valorAbierto)} />
+        <TarjetaCifra label="Abiertas" valor={String(metricas.abiertas)} />
+        <TarjetaCifra
           label="Tasa de cierre"
           valor={metricas.tasaCierre === null ? '—' : `${metricas.tasaCierre} %`}
         />
-        <Metrica
+        <TarjetaCifra
           label="Cierre medio"
           valor={metricas.diasMedioCierre === null ? '—' : `${metricas.diasMedioCierre} días`}
         />
@@ -243,12 +236,12 @@ export function PipelineBoard({
       {/* En móvil "Tablero" no existe: si la vista guardada es el tablero se muestra
           la Tabla, por CSS, sin líos de hidratación. */}
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex rounded-lg border border-border bg-card/50 p-0.5 sm:inline-flex">
+        <div className="flex superficie-baja rounded-xl p-0.5 sm:inline-flex">
           <button
             type="button"
             className={cn(
-              'hidden flex-1 rounded-md px-3 py-1 text-sm font-semibold transition-colors md:block sm:flex-none max-sm:py-2.5',
-              vista === 'tablero' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
+              claseTab(vista === 'tablero'),
+              'hidden flex-1 sm:flex-none md:block',
             )}
             onClick={() => setVista('tablero')}>
             Tablero
@@ -256,9 +249,10 @@ export function PipelineBoard({
           <button
             type="button"
             className={cn(
-              'flex-1 rounded-md px-3 py-1 text-sm font-semibold transition-colors sm:flex-none max-sm:py-2.5',
-              vista === 'tabla' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
-              vista === 'tablero' && 'max-md:bg-muted max-md:text-foreground',
+              claseTab(vista === 'tabla'),
+              'flex-1 sm:flex-none',
+              // En móvil el tablero no existe: ahí «Tabla» se ve como la activa.
+              vista === 'tablero' && 'max-md:bg-white/8 max-md:text-foreground',
             )}
             onClick={() => setVista('tabla')}>
             Tabla
@@ -266,8 +260,8 @@ export function PipelineBoard({
           <button
             type="button"
             className={cn(
-              'flex-1 rounded-md px-3 py-1 text-sm font-semibold transition-colors sm:flex-none max-sm:py-2.5',
-              vista === 'historico' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
+              claseTab(vista === 'historico'),
+              'flex-1 sm:flex-none',
             )}
             onClick={() => setVista('historico')}>
             Histórico{archivadas.length ? ` (${archivadas.length})` : ''}
@@ -300,7 +294,7 @@ export function PipelineBoard({
                 <div
                   key={col.estado}
                   className={cn(
-                    'rounded-xl border border-border bg-card/50 p-2 transition-colors',
+                    'superficie-baja rounded-2xl p-2 transition-colors',
                     drag !== null && over === col.estado && 'border-primary/60 bg-primary/5',
                   )}
                   onDragOver={(e) => {

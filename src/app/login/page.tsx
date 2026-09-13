@@ -30,7 +30,7 @@ export default async function LoginPage({
     <main className="pf-public relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-background px-4 text-body">
       <div aria-hidden="true" className="pf-grid absolute inset-0 mask-[radial-gradient(ellipse_60%_60%_at_50%_40%,#000_10%,transparent_75%)]" />
       <div aria-hidden="true" className="pf-hero-glow" />
-      <div className="pf-card relative w-full max-w-sm rounded-2xl p-8 text-center">
+      <div className="superficie relative w-full max-w-sm rounded-2xl p-8 text-center">
         {/* La marca, decorativa: quien lea la pantalla ya tiene el h1 de
             debajo. Ver `ui/logotipo.tsx`. */}
         <Logotipo className="mx-auto h-7 w-auto text-foreground" />

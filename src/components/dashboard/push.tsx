@@ -174,7 +174,7 @@ export function TogglePush() {
         <Tooltip texto="Probar" envuelto={ocupado}>
         <button
           type="button"
-          className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground max-sm:p-2.5"
+          className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-white/6 hover:text-foreground max-sm:p-2.5"
           aria-label="Enviar una notificación de prueba"
           disabled={ocupado}
           onClick={async () => {

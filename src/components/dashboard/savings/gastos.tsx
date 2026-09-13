@@ -12,6 +12,7 @@ import {
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { MenuAcciones } from '@/components/dashboard/menu-acciones'
+import { TarjetaCifra } from '@/components/dashboard/tarjeta-cifra'
 import { Modal } from '@/components/ui/modal'
 import { DateField, Field, NumberField, SelectField, TextField, TreeSelectField } from '@/components/ui/fields'
 import type {
@@ -83,29 +84,6 @@ const moverMes = (mes: string, delta: number) => {
 
 // ─────────── piezas comunes ───────────
 
-function Kpi({ label, valor, pie, tono }: {
-  label: string
-  valor: string
-  pie?: React.ReactNode
-  tono?: 'success' | 'danger' | 'primary'
-}) {
-  return (
-    <div className={cn(cardClass, 'p-4')}>
-      <p className="text-[12.5px] text-muted-foreground">{label}</p>
-      <p
-        className={cn(
-          'mt-1.5 text-2xl font-semibold tabular-nums',
-          tono === 'success' && 'text-success',
-          tono === 'danger' && 'text-danger',
-          tono === 'primary' && 'text-primary',
-        )}>
-        {valor}
-      </p>
-      {pie && <p className="mt-1 text-[12px] text-muted-foreground">{pie}</p>}
-    </div>
-  )
-}
-
 /** Comparativa contra el mes anterior. En gastos, subir es malo. */
 function Comparativa({ actual, previo, gastoEsMalo }: {
   actual: number
@@ -134,9 +112,9 @@ function Topes({ topes, mes }: { topes: TopeRow[]; mes: string }) {
   const pctTotal = resumen.total > 0 ? (resumen.gastado / resumen.total) * 100 : 0
 
   return (
-    <div className={cn(cardClass, 'mt-4')}>
+    <div className={cardClass}>
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-border px-5 py-3">
-        <h3 className="font-semibold">Topes de {nombreMes(mes)}</h3>
+        <h2 className="font-semibold">Topes de {nombreMes(mes)}</h2>
         {topes.length > 0 && (
           <p className="text-[12.5px] text-muted-foreground">
             <span className="font-semibold tabular-nums text-foreground">{eur(resumen.gastado)}</span>
@@ -201,7 +179,7 @@ function BarraTope({ nombre, color, gastado, budget, pct, destacada }: {
     nivel === 'pasado' ? 'text-danger' : nivel === 'limite' ? 'text-warning' : 'text-muted-foreground'
 
   return (
-    <div className={cn(destacada && 'border-b border-border/60 pb-3')}>
+    <div className={cn(destacada && 'border-b border-white/8 pb-3')}>
       {/* En móvil el nombre se cortaba: ahí ocupa su línea y las cifras bajan a la
           siguiente. */}
       <div className="flex items-center gap-2 text-[13px] max-sm:flex-wrap">
@@ -219,7 +197,7 @@ function BarraTope({ nombre, color, gastado, budget, pct, destacada }: {
           {Math.round(pct)}&nbsp;%
         </span>
       </div>
-      <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted">
+      <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-white/8">
         <div
           className={cn('h-full rounded-full transition-[width]', tono)}
           style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
@@ -239,7 +217,7 @@ function PrevisionCierre({ p, mes }: { p: Prevision; mes: string }) {
   return (
     <div className={cn(cardClass, 'mt-4 px-5 py-4')}>
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h3 className="font-semibold">Previsión de cierre de {nombreMes(mes).toLowerCase()}</h3>
+        <h2 className="font-semibold">Previsión de cierre de {nombreMes(mes).toLowerCase()}</h2>
         <p className="text-[12.5px] text-muted-foreground">
           {/* La media es del gasto del día a día: es lo único que se
               extrapola, y decirlo evita que la cifra parezca magia. */}
@@ -253,7 +231,7 @@ function PrevisionCierre({ p, mes }: { p: Prevision; mes: string }) {
           llevas <span className="font-semibold tabular-nums">{eurEntero(p.gastado)}</span>
         </span>
       </p>
-      <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-muted" aria-hidden>
+      <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-white/8" aria-hidden>
         <div
           className="h-full rounded-full bg-danger transition-[width]"
           style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
@@ -316,9 +294,9 @@ function Recurrentes({ filas, mes, hoy, movimientos, categorias }: {
   const ingresoMes = suma('INGRESO')
 
   return (
-    <div className={cn(cardClass, 'mt-4')}>
+    <div className={cardClass}>
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-5 py-3">
-        <h3 className="font-semibold">Recurrentes de este mes</h3>
+        <h2 className="font-semibold">Recurrentes de este mes</h2>
         {delMes.length > 0 && (
           <p className="text-[12.5px] text-muted-foreground">
             {gastoMes > 0 && (
@@ -424,13 +402,13 @@ function Desglose({ titulo, partes, centro, vacio }: {
             </button>
             {/* El h3 sigue siendo el título de la tarjeta (el orden de
                 encabezados no cambia al bajar de nivel): el grupo va dentro. */}
-            <h3 className="min-w-0 truncate font-semibold">
+            <h2 className="min-w-0 truncate font-semibold">
               {titulo}
               <span className="text-muted-foreground"> · {grupo.name}</span>
-            </h3>
+            </h2>
           </>
         ) : (
-          <h3 className="font-semibold">{titulo}</h3>
+          <h2 className="font-semibold">{titulo}</h2>
         )}
       </div>
       <div className="flex flex-1 items-center px-5 py-4">
@@ -474,6 +452,8 @@ export function GastosTab({
   // Alta rápida: tipo gasto por defecto (es lo que más se apunta) y fecha
   // HOY si se está viendo el mes en curso; si no, el día 1 de ese mes.
   const fechaPorDefecto = hoy.startsWith(datos.mes) ? hoy : `${datos.mes}-01`
+  // En móvil el alta va plegada (ver el botón de debajo de la cabecera).
+  const [altaAbierta, setAltaAbierta] = useState(false)
   const [nuevo, setNuevo] = useState<{
     type: TipoMovimiento; concept: string; amount: number | null; date: string; cat: string
     note: string
@@ -687,13 +667,13 @@ export function GastosTab({
             </button>
           </div>
           {/* Conmutador mes / año (las dos vistas del Excel) */}
-          <div className="flex rounded-lg border border-border bg-card/50 p-0.5">
+          <div className="flex superficie-baja rounded-xl p-0.5">
             <button
               type="button"
               className={cn(
                 chipFiltro,
                 'text-[13px]',
-                mostrarAnio ? 'text-muted-foreground hover:text-foreground' : 'bg-muted text-foreground',
+                mostrarAnio ? 'text-muted-foreground hover:text-foreground' : 'bg-white/8 text-foreground',
               )}
               onClick={() => irAMes(datos.mes)}>
               Mes
@@ -703,7 +683,7 @@ export function GastosTab({
               className={cn(
                 chipFiltro,
                 'text-[13px]',
-                mostrarAnio ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
+                mostrarAnio ? 'bg-white/8 text-foreground' : 'text-muted-foreground hover:text-foreground',
               )}
               onClick={() => {
                 iniciar()
@@ -732,26 +712,26 @@ export function GastosTab({
       ) : (
         <>
           {/* Resumen del mes */}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Kpi
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <TarjetaCifra
               label="Ingresos del mes"
               valor={eurEntero(datos.ingresos)}
               tono="success"
               pie={<Comparativa actual={datos.ingresos} previo={datos.ingresosPrevios} gastoEsMalo={false} />}
             />
-            <Kpi
+            <TarjetaCifra
               label="Gastos del mes"
               valor={eurEntero(datos.gastos)}
               tono="danger"
               pie={<Comparativa actual={datos.gastos} previo={datos.gastosPrevios} gastoEsMalo />}
             />
-            <Kpi
+            <TarjetaCifra
               label="Balance del mes"
               valor={eurEntero(datos.balance)}
               tono={datos.balance >= 0 ? 'primary' : 'danger'}
               pie={datos.balance >= 0 ? 'te queda a favor' : 'has gastado más de lo que entró'}
             />
-            <Kpi
+            <TarjetaCifra
               label="Gasto medio al día"
               valor={eurEntero(datos.gastoMedioDia)}
               pie={`${datos.movimientos.length} ${datos.movimientos.length === 1 ? 'movimiento' : 'movimientos'} este mes`}
@@ -768,256 +748,298 @@ export function GastosTab({
             })}
           />
 
-          {/* Lista de movimientos */}
-          <TarjetaTabla
-            className="mt-4"
-            titulo={`Movimientos de ${nombreMes(datos.mes)}`}
-            cuenta={datos.movimientos.length}>
-            {/* El alta va FUERA de la tabla, entre la cabecera y las filas:
-                es un formulario, no un movimiento. */}
-            <div className="pt-3">
-              {/* Alta arriba y para el pulgar. Es una rejilla con etiquetas: cada columna con
-                  el ancho de su contenido más largo, la nota en cuatro columnas, el botón cierra. */}
-              <div className="mb-1 grid grid-cols-2 gap-x-2 gap-y-2.5 border-b border-border px-4 pb-3 sm:grid-cols-[7rem_1fr_8rem_10rem_13rem]">
-                {/* Tipo: en móvil dos botones grandes (es binario, un select
-                    sobra); en escritorio, el select con su etiqueta. */}
-                <div className="col-span-2 flex gap-1 rounded-lg border border-border bg-card/50 p-0.5 sm:hidden">
-                  {TIPOS.map((t) => (
-                    <button
-                      key={t.value}
-                      type="button"
-                      className={cn(
-                        'flex-1 rounded-md py-2 text-sm font-semibold transition-colors',
-                        nuevo.type === t.value
-                          ? t.value === 'GASTO'
-                            ? 'bg-danger-bg text-danger'
-                            : 'bg-success-bg text-success'
-                          : 'text-muted-foreground',
-                      )}
-                      onClick={() => setNuevo((n) => ({ ...n, type: t.value, cat: '' }))}>
-                      {t.label}
-                    </button>
-                  ))}
+          {/* En pantalla ancha, dos columnas: los movimientos a la izquierda y a la
+              derecha lo que mira hacia delante (topes y recurrentes) con los desgloses. */}
+          <div className="mt-4 grid items-start gap-4 2xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+            <TarjetaTabla
+              titulo={`Movimientos de ${nombreMes(datos.mes)}`}
+              cuenta={datos.movimientos.length}>
+              {/* El alta va FUERA de la tabla, entre la cabecera y las filas:
+                  es un formulario, no un movimiento. */}
+              <div className="pt-3">
+                {/* Alta arriba y para el pulgar. Es una rejilla con etiquetas: cada columna con
+                    el ancho de su contenido más largo, la nota en cuatro columnas, el botón cierra. */}
+                {/* El formulario son seis campos: en móvil va plegado y el botón «+» de
+                    la barra superior abre esta misma alta. En escritorio es una fila. */}
+                <div className={cn('px-4 pb-3 sm:hidden', !altaAbierta && 'border-b border-white/8')}>
+                  <button
+                    type="button"
+                    className={cn(btnOutline, 'w-full')}
+                    aria-expanded={altaAbierta}
+                    aria-controls="alta-rapida"
+                    onClick={() => setAltaAbierta((v) => !v)}>
+                    <Plus className={cn('size-4 transition-transform', altaAbierta && 'rotate-45')} />
+                    {altaAbierta ? 'Cerrar' : 'Añadir movimiento'}
+                  </button>
                 </div>
-                <Field label="Tipo" className="hidden sm:flex">
-                  <SelectField
-                    ariaLabel="Tipo del movimiento"
-                    value={nuevo.type}
-                    onChange={(v) => setNuevo((n) => ({ ...n, type: v as TipoMovimiento, cat: '' }))}
-                    options={TIPOS}
-                  />
-                </Field>
-                <Field label="Concepto" className="col-span-2 min-w-0 sm:col-span-1">
-                  <TextField
-                    ariaLabel="Concepto"
-                    value={nuevo.concept}
-                    onChange={(v) => setNuevo((n) => ({ ...n, concept: v }))}
-                    onEnter={crear}
-                  />
-                </Field>
-                {/* Importe y fecha comparten fila en móvil (una columna cada uno) */}
-                <Field label="Importe" className="min-w-0">
-                  <NumberField
-                    step={5}
-                    ariaLabel="Importe"
-                    value={nuevo.amount}
-                    onChange={(v) => setNuevo((n) => ({ ...n, amount: v }))}
-                    onEnter={crear}
-                  />
-                </Field>
-                <Field label="Fecha" className="min-w-0">
-                  <DateField
-                    ariaLabel="Fecha del movimiento"
-                    value={nuevo.date}
-                    onChange={(v) => setNuevo((n) => ({ ...n, date: v }))}
-                  />
-                </Field>
-                <Field label="Categoría" className="col-span-2 min-w-0 sm:col-span-1">
-                  <TreeSelectField
-                    ariaLabel="Categoría del movimiento"
-                    value={nuevo.cat}
-                    onChange={(v) => setNuevo((n) => ({ ...n, cat: v }))}
-                    opciones={opcionesCat(nuevo.type)}
-                  />
-                </Field>
-                {/* Segunda línea: la nota en las cuatro primeras columnas y el botón en la quinta,
-                    con su texto también en escritorio. En móvil, cada uno a lo ancho. */}
-                <Field label="Nota" className="col-span-2 min-w-0 sm:col-span-4">
-                  <TextField
-                    ariaLabel="Nota del movimiento"
-                    value={nuevo.note}
-                    onChange={(v) => setNuevo((n) => ({ ...n, note: v }))}
-                    onEnter={crear}
-                  />
-                </Field>
-                <button
-                  type="button"
-                  // py-2.5 en móvil: ~44px de alto, target táctil cómodo. En
-                  // escritorio, la altura del campo de al lado (py-1.5).
-                  className={cn(btnPrimary, 'col-span-2 w-full justify-center py-2.5 sm:col-span-1 sm:self-end sm:py-1.5')}
-                  disabled={pending || !nuevo.concept.trim() || nuevo.amount === null}
-                  onClick={crear}>
-                  <Plus className="size-4" />
-                  Añadir {nuevo.type === 'GASTO' ? 'gasto' : 'ingreso'}
-                </button>
-              </div>
+                <div
+                  id="alta-rapida"
+                  className={cn(
+                    'mb-1 grid grid-cols-2 gap-x-2 gap-y-2.5 border-b border-border px-4 pb-3 sm:grid-cols-[7rem_1fr_8rem_10rem_13rem]',
+                    !altaAbierta && 'max-sm:hidden',
+                  )}>
+                  {/* Tipo: en móvil dos botones grandes (es binario, un select
+                      sobra); en escritorio, el select con su etiqueta. */}
+                  <div className="col-span-2 flex gap-1 superficie-baja rounded-xl p-0.5 sm:hidden">
+                    {TIPOS.map((t) => (
+                      <button
+                        key={t.value}
+                        type="button"
+                        className={cn(
+                          'flex-1 rounded-md py-2 text-sm font-semibold transition-colors',
+                          nuevo.type === t.value
+                            ? t.value === 'GASTO'
+                              ? 'bg-danger-bg text-danger'
+                              : 'bg-success-bg text-success'
+                            : 'text-muted-foreground',
+                        )}
+                        onClick={() => setNuevo((n) => ({ ...n, type: t.value, cat: '' }))}>
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                  <Field label="Tipo" className="hidden sm:flex">
+                    <SelectField
+                      ariaLabel="Tipo del movimiento"
+                      value={nuevo.type}
+                      onChange={(v) => setNuevo((n) => ({ ...n, type: v as TipoMovimiento, cat: '' }))}
+                      options={TIPOS}
+                    />
+                  </Field>
+                  <Field label="Concepto" className="col-span-2 min-w-0 sm:col-span-1">
+                    <TextField
+                      ariaLabel="Concepto"
+                      value={nuevo.concept}
+                      onChange={(v) => setNuevo((n) => ({ ...n, concept: v }))}
+                      onEnter={crear}
+                    />
+                  </Field>
+                  {/* Importe y fecha comparten fila en móvil (una columna cada uno) */}
+                  <Field label="Importe" className="min-w-0">
+                    <NumberField
+                      step={5}
+                      ariaLabel="Importe"
+                      value={nuevo.amount}
+                      onChange={(v) => setNuevo((n) => ({ ...n, amount: v }))}
+                      onEnter={crear}
+                    />
+                  </Field>
+                  <Field label="Fecha" className="min-w-0">
+                    <DateField
+                      ariaLabel="Fecha del movimiento"
+                      value={nuevo.date}
+                      onChange={(v) => setNuevo((n) => ({ ...n, date: v }))}
+                    />
+                  </Field>
+                  <Field label="Categoría" className="col-span-2 min-w-0 sm:col-span-1">
+                    <TreeSelectField
+                      ariaLabel="Categoría del movimiento"
+                      value={nuevo.cat}
+                      onChange={(v) => setNuevo((n) => ({ ...n, cat: v }))}
+                      opciones={opcionesCat(nuevo.type)}
+                    />
+                  </Field>
+                  {/* Segunda línea: la nota en las cuatro primeras columnas y el botón en la quinta,
+                      con su texto también en escritorio. En móvil, cada uno a lo ancho. */}
+                  <Field label="Nota" className="col-span-2 min-w-0 sm:col-span-4">
+                    <TextField
+                      ariaLabel="Nota del movimiento"
+                      value={nuevo.note}
+                      onChange={(v) => setNuevo((n) => ({ ...n, note: v }))}
+                      onEnter={crear}
+                    />
+                  </Field>
+                  <button
+                    type="button"
+                    // py-2.5 en móvil: ~44px de alto, target táctil cómodo. En
+                    // escritorio, la altura del campo de al lado (py-1.5).
+                    className={cn(btnPrimary, 'col-span-2 w-full justify-center py-2.5 sm:col-span-1 sm:self-end sm:py-1.5')}
+                    disabled={pending || !nuevo.concept.trim() || nuevo.amount === null}
+                    onClick={crear}>
+                    <Plus className="size-4" />
+                    Añadir {nuevo.type === 'GASTO' ? 'gasto' : 'ingreso'}
+                  </button>
+                </div>
 
-              {/* Las celdas se declaran una vez para la tabla de escritorio y las filas móviles:
-                  solo cambia el envoltorio, porque un <tr> no se arrastra con el dedo. */}
+                {/* Las celdas se declaran una vez para la tabla de escritorio y las filas móviles:
+                    solo cambia el envoltorio, porque un <tr> no se arrastra con el dedo. */}
 
-              {/* Escritorio: la tabla común (ver `ui/tabla.tsx`). */}
-              <div className="hidden sm:block">
-                <Tabla columnas={COLUMNAS_MOV} minAncho="min-w-140" className="pb-1">
-                  {datos.movimientos.length === 0 ? (
-                    <FilaVacia columnas={COLUMNAS_MOV.length}>
-                      Sin movimientos este mes. Apunta el primero arriba.
-                    </FilaVacia>
-                  ) : (
-                    datos.movimientos.map((m) => {
-                      const cat = catDe(m.categoryUuid)
-                      const esGasto = m.type === 'GASTO'
-                      // En edición la fila entera es el formulario: una sola celda a todo lo ancho.
-                      if (editando === m.uuid) {
+                {/* Escritorio: la tabla común (ver `ui/tabla.tsx`). */}
+                <div className="hidden sm:block">
+                  <Tabla columnas={COLUMNAS_MOV} minAncho="min-w-140" className="pb-1">
+                    {datos.movimientos.length === 0 ? (
+                      <FilaVacia columnas={COLUMNAS_MOV.length}>
+                        Sin movimientos este mes. Apunta el primero arriba.
+                      </FilaVacia>
+                    ) : (
+                      datos.movimientos.map((m) => {
+                        const cat = catDe(m.categoryUuid)
+                        const esGasto = m.type === 'GASTO'
+                        // En edición la fila entera es el formulario: una sola celda a todo lo ancho.
+                        if (editando === m.uuid) {
+                          return (
+                            <Fila key={m.uuid} destacada>
+                              <Celda colSpan={COLUMNAS_MOV.length}>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {formularioEdicion(m)}
+
+                                </div>
+                              </Celda>
+                            </Fila>
+                          )
+                        }
                         return (
-                          <Fila key={m.uuid} destacada>
-                            <Celda colSpan={COLUMNAS_MOV.length}>
-                              <div className="flex flex-wrap items-center gap-2">
-                                {formularioEdicion(m)}
-
-                              </div>
+                          <Fila key={m.uuid}>
+                            <Celda className="tabular-nums text-muted-foreground">
+                              {fmtDia(m.expenseDate)}
+                            </Celda>
+                            <Celda>
+                              <span className="flex min-w-0 items-baseline gap-1.5">
+                                <span className="truncate">{m.concept}</span>
+                                {m.note && (
+                                  <Tooltip texto={m.note}>
+                                    <span
+                                      className="shrink-0 text-muted-foreground"
+                                      aria-label={`Nota: ${m.note}`}>
+                                      <StickyNote className="size-3" />
+                                    </span>
+                                  </Tooltip>
+                                )}
+                              </span>
+                            </Celda>
+                            <Celda className="text-muted-foreground">
+                              <span className="flex items-center gap-1.5">
+                                <span
+                                  className="inline-block size-2 shrink-0 rounded-xs"
+                                  style={{ background: cat?.color ?? SIN_CATEGORIA }}
+                                />
+                                {/* La ruta entera ("Coche › Taller"): con el dashboard a todo el ancho
+                                    cabe, y así se ve de qué grupo es el gasto sin pasar el ratón. El
+                                    tooltip queda para cuando la celda la recorta. */}
+                                <Tooltip texto={cat?.parentName ? etiquetaCategoria(cat) : undefined}>
+                                  <span className="truncate">
+                                    {cat ? etiquetaCategoria(cat) : 'Sin categoría'}
+                                  </span>
+                                </Tooltip>
+                              </span>
+                            </Celda>
+                            <Celda
+                              alineado="derecha"
+                              className={cn(
+                                'font-semibold tabular-nums',
+                                esGasto ? 'text-danger' : 'text-success',
+                              )}>
+                              {esGasto ? '−' : '+'}
+                              {eur(m.amount)}
+                            </Celda>
+                            <Celda alineado="derecha">
+                              {accionesDe(m)}
                             </Celda>
                           </Fila>
                         )
-                      }
-                      return (
-                        <Fila key={m.uuid}>
-                          <Celda className="tabular-nums text-muted-foreground">
-                            {fmtDia(m.expenseDate)}
-                          </Celda>
-                          <Celda>
-                            <span className="flex min-w-0 items-baseline gap-1.5">
-                              <span className="truncate">{m.concept}</span>
-                              {m.note && (
-                                <Tooltip texto={m.note}>
-                                  <span
-                                    className="shrink-0 text-muted-foreground"
-                                    aria-label={`Nota: ${m.note}`}>
-                                    <StickyNote className="size-3" />
-                                  </span>
-                                </Tooltip>
-                              )}
-                            </span>
-                          </Celda>
-                          <Celda className="text-muted-foreground">
-                            <span className="flex items-center gap-1.5">
-                              <span
-                                className="inline-block size-2 shrink-0 rounded-xs"
-                                style={{ background: cat?.color ?? SIN_CATEGORIA }}
-                              />
-                              {/* Visible, el nombre de la hoja: "Coche › Taller" no cabe. El grupo va en el
-                                  tooltip. */}
-                              <Tooltip texto={cat?.parentName ? etiquetaCategoria(cat) : undefined}>
-                                <span className="truncate">{cat?.name ?? 'Sin categoría'}</span>
-                              </Tooltip>
-                            </span>
-                          </Celda>
-                          <Celda
-                            alineado="derecha"
-                            className={cn(
-                              'font-semibold tabular-nums',
-                              esGasto ? 'text-danger' : 'text-success',
-                            )}>
-                            {esGasto ? '−' : '+'}
-                            {eur(m.amount)}
-                          </Celda>
-                          <Celda alineado="derecha">
-                            {accionesDe(m)}
-                          </Celda>
-                        </Fila>
-                      )
-                    })
-                  )}
-                </Tabla>
-              </div>
+                      })
+                    )}
+                  </Tabla>
+                </div>
 
-              {/* Móvil: filas con gesto (→ editar, ← eliminar). No es tabla: un <tr> no se
-                  arrastra y el swipe es lo que hace usable la lista con el pulgar. */}
-              <div className="sm:hidden">
-                <CabeceraMovil columnas={COLUMNAS_MOV_MOVIL} plantilla={PLANTILLA_MOV} />
-                {datos.movimientos.length === 0 && (
-                  <p className="py-8 text-center text-sm text-muted-foreground">
-                    Sin movimientos este mes. Apunta el primero arriba.
-                  </p>
-                )}
-                {datos.movimientos.map((m) => {
-                  const cat = catDe(m.categoryUuid)
-                  const esGasto = m.type === 'GASTO'
-                  const enEdicion = editando === m.uuid
-                  const fila_ = enEdicion ? (
-                    // Editando, la fila deja de ser una rejilla de columnas: el
-                    // formulario son seis campos y necesita todo el ancho.
-                    <FilaMovil plantilla="grid-cols-1" destacada>
-                      <div className="flex flex-wrap items-center gap-2">
-                        {formularioEdicion(m)}
-                      </div>
-                    </FilaMovil>
-                  ) : (
-                    <FilaMovil plantilla={PLANTILLA_MOV}>
-                      <span className="text-[12px] tabular-nums text-muted-foreground">
-                        {fmtDia(m.expenseDate)}
-                      </span>
-                      {/* El punto de la categoría va pegado al concepto, sin columna propia: en 375 px
-                          no cabe y el color ya la identifica (nombre en el tooltip). */}
-                      <span className="flex min-w-0 items-center gap-1.5">
-                        <Tooltip texto={`${esGasto ? 'Gasto' : 'Ingreso'} · ${cat ? etiquetaCategoria(cat) : 'Sin categoría'}`}>
-                          <span
-                            className="inline-block size-2 shrink-0 rounded-xs"
-                            style={{ background: cat?.color ?? SIN_CATEGORIA }}
-                          />
-                        </Tooltip>
-                        <Tooltip texto={m.concept}>
-                          <span className="truncate text-[13.5px]">{m.concept}</span>
-                        </Tooltip>
-                        {m.note && (
-                          <Tooltip texto={m.note}>
+                {/* Móvil: filas con gesto (→ editar, ← eliminar). No es tabla: un <tr> no se
+                    arrastra y el swipe es lo que hace usable la lista con el pulgar. */}
+                <div className="sm:hidden">
+                  <CabeceraMovil columnas={COLUMNAS_MOV_MOVIL} plantilla={PLANTILLA_MOV} />
+                  {datos.movimientos.length === 0 && (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                      Sin movimientos este mes. Apunta el primero arriba.
+                    </p>
+                  )}
+                  {datos.movimientos.map((m) => {
+                    const cat = catDe(m.categoryUuid)
+                    const esGasto = m.type === 'GASTO'
+                    const enEdicion = editando === m.uuid
+                    const fila_ = enEdicion ? (
+                      // Editando, la fila deja de ser una rejilla de columnas: el
+                      // formulario son seis campos y necesita todo el ancho.
+                      <FilaMovil plantilla="grid-cols-1" destacada>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {formularioEdicion(m)}
+                        </div>
+                      </FilaMovil>
+                    ) : (
+                      <FilaMovil plantilla={PLANTILLA_MOV}>
+                        <span className="text-[12px] tabular-nums text-muted-foreground">
+                          {fmtDia(m.expenseDate)}
+                        </span>
+                        {/* El punto de la categoría va pegado al concepto, sin columna propia: en 375 px
+                            no cabe y el color ya la identifica (nombre en el tooltip). */}
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <Tooltip texto={`${esGasto ? 'Gasto' : 'Ingreso'} · ${cat ? etiquetaCategoria(cat) : 'Sin categoría'}`}>
                             <span
-                              className="shrink-0 text-muted-foreground"
-                              aria-label={`Nota: ${m.note}`}>
-                              <StickyNote className="size-3" />
-                            </span>
+                              className="inline-block size-2 shrink-0 rounded-xs"
+                              style={{ background: cat?.color ?? SIN_CATEGORIA }}
+                            />
                           </Tooltip>
-                        )}
-                      </span>
-                      <span
-                        className={cn(
-                          'text-right text-[13.5px] font-semibold tabular-nums',
-                          esGasto ? 'text-danger' : 'text-success',
-                        )}>
-                        {esGasto ? '−' : '+'}
-                        {eur(m.amount)}
-                      </span>
-                      {accionesDe(m)}
-                    </FilaMovil>
-                  )
-                  // Sin gestos: editar y borrar salen del menú «⋯» de la fila,
-                  // que es el único camino y lleva las tres acciones.
-                  return <div key={m.uuid}>{fila_}</div>
-                })}
+                          <Tooltip texto={m.concept}>
+                            <span className="truncate text-[13.5px]">{m.concept}</span>
+                          </Tooltip>
+                          {m.note && (
+                            <Tooltip texto={m.note}>
+                              <span
+                                className="shrink-0 text-muted-foreground"
+                                aria-label={`Nota: ${m.note}`}>
+                                <StickyNote className="size-3" />
+                              </span>
+                            </Tooltip>
+                          )}
+                        </span>
+                        <span
+                          className={cn(
+                            'text-right text-[13.5px] font-semibold tabular-nums',
+                            esGasto ? 'text-danger' : 'text-success',
+                          )}>
+                          {esGasto ? '−' : '+'}
+                          {eur(m.amount)}
+                        </span>
+                        {accionesDe(m)}
+                      </FilaMovil>
+                    )
+                    // Sin gestos: editar y borrar salen del menú «⋯» de la fila,
+                    // que es el único camino y lleva las tres acciones.
+                    return <div key={m.uuid}>{fila_}</div>
+                  })}
+                </div>
+              </div>
+            </TarjetaTabla>
+
+            <div className="grid gap-4">
+              {/* Topes: lo único de esta vista que avisa a tiempo */}
+              <Topes topes={datos.topes} mes={datos.mes} />
+
+              {/* Recurrentes: lo que va a caer solo */}
+              <Recurrentes
+                filas={recurrentes}
+                mes={datos.mes}
+                hoy={hoy}
+                movimientos={datos.movimientos}
+                categorias={categorias}
+              />
+
+              {/* Los dos desgloses del mes: uno al lado del otro mientras la página
+                  va en una columna, uno debajo del otro cuando van en la derecha. */}
+              <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-1">
+                <Desglose
+                  titulo="En qué se va el dinero"
+                  centro="gastado"
+                  vacio="Sin gastos este mes."
+                  partes={datos.porCategoriaGasto}
+                />
+                <Desglose
+                  titulo="De dónde viene el dinero"
+                  centro="ingresado"
+                  vacio="Sin ingresos este mes."
+                  partes={datos.porCategoriaIngreso}
+                />
               </div>
             </div>
-          </TarjetaTabla>
-
-          {/* Topes: lo único de esta vista que avisa a tiempo */}
-          <Topes topes={datos.topes} mes={datos.mes} />
-
-          {/* Recurrentes: lo que va a caer solo */}
-          <Recurrentes
-            filas={recurrentes}
-            mes={datos.mes}
-            hoy={hoy}
-            movimientos={datos.movimientos}
-            categorias={categorias}
-          />
+          </div>
 
           {/* División de un movimiento en varias categorías */}
           {dividiendo && (
@@ -1034,21 +1056,6 @@ export function GastosTab({
             />
           )}
 
-          {/* Los dos desgloses del mes */}
-          <div className="mt-4 grid gap-4 lg:grid-cols-2">
-            <Desglose
-              titulo="En qué se va el dinero"
-              centro="gastado"
-              vacio="Sin gastos este mes."
-              partes={datos.porCategoriaGasto}
-            />
-            <Desglose
-              titulo="De dónde viene el dinero"
-              centro="ingresado"
-              vacio="Sin ingresos este mes."
-              partes={datos.porCategoriaIngreso}
-            />
-          </div>
         </>
       )}
 
@@ -1206,16 +1213,16 @@ function VistaAnio({ anio, onMes }: { anio: AnioMovimientos; onMes: (mes: number
 
   return (
     <div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi label={`Ingresos de ${anio.year}`} valor={eurEntero(anio.ingresos)} tono="success" />
-        <Kpi label={`Gastos de ${anio.year}`} valor={eurEntero(anio.gastos)} tono="danger" />
-        <Kpi
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <TarjetaCifra label={`Ingresos de ${anio.year}`} valor={eurEntero(anio.ingresos)} tono="success" />
+        <TarjetaCifra label={`Gastos de ${anio.year}`} valor={eurEntero(anio.gastos)} tono="danger" />
+        <TarjetaCifra
           label="Balance del año"
           valor={eurEntero(anio.balance)}
           tono={anio.balance >= 0 ? 'primary' : 'danger'}
           pie={anio.balance >= 0 ? 'te queda a favor' : 'has gastado más de lo que entró'}
         />
-        <Kpi
+        <TarjetaCifra
           label="Gasto medio al mes"
           valor={eurEntero(anio.gastoMedioMes)}
           pie="solo cuenta los meses con algo apuntado"
@@ -1225,7 +1232,7 @@ function VistaAnio({ anio, onMes }: { anio: AnioMovimientos; onMes: (mes: number
       {/* Cada una en su fila, a todo el ancho: la gráfica ya no depende de
           escalar un lienzo fijo (mide su hueco y pinta 1:1). */}
       <div className={cn(cardClass, 'mt-4 min-w-0')}>
-        <h3 className="border-b border-border px-5 py-3 font-semibold">Mes a mes</h3>
+        <h2 className="border-b border-border px-5 py-3 font-semibold">Mes a mes</h2>
         <div>
           <table className="w-full">
             <thead>
@@ -1241,7 +1248,7 @@ function VistaAnio({ anio, onMes }: { anio: AnioMovimientos; onMes: (mes: number
                 const balance = m.ingresos - m.gastos
                 const vacio = m.ingresos === 0 && m.gastos === 0
                 return (
-                  <tr key={m.mes} className="border-b border-border/50 last:border-0">
+                  <tr key={m.mes} className="border-b border-white/8 last:border-0">
                     <td className={cn(tdClass, 'font-semibold')}>
                       <button
                         type="button"
@@ -1289,7 +1296,7 @@ function VistaAnio({ anio, onMes }: { anio: AnioMovimientos; onMes: (mes: number
       {/* Barras del año: ingresos y gastos por mes (SVG a mano, como el resto) */}
       <div className={cn(cardClass, 'mt-4 min-w-0')}>
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-3">
-          <h3 className="font-semibold">Ingresos y gastos por mes</h3>
+          <h2 className="font-semibold">Ingresos y gastos por mes</h2>
           <span className="text-[12.5px] text-muted-foreground">
             <span className="mr-1.5 inline-block size-2.5 rounded-xs bg-success align-middle" />Ingresos
             <span className="ml-3.5 mr-1.5 inline-block size-2.5 rounded-xs bg-danger align-middle" />Gastos

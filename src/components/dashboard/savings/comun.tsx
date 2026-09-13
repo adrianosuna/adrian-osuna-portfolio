@@ -106,7 +106,8 @@ export const TIPOS: Array<{ value: 'INGRESO' | 'GASTO'; label: string }> = [
   { value: 'INGRESO', label: 'Ingreso' },
 ]
 
-export const cardClass = 'rounded-xl border border-border bg-card'
+// La superficie es compartida con la landing (`ui/superficie.ts`).
+export { tarjeta as cardClass } from '@/components/ui/superficie'
 // La escala de botones vive en `ui/botones.ts` (fuente única: estaba copiada
 // en cinco ficheros). Se re-exporta porque todo el módulo la importa de aquí.
 export { btnPrimary, btnOutline, btnIcon, chipFiltro } from '@/components/ui/botones'

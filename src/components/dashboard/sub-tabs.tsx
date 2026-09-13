@@ -8,13 +8,13 @@ import { useCarga } from '@/components/dashboard/barra-carga'
 
 /** Clases de la píldora contenedora (exportadas: las usa `finanzas-tabs`). */
 export const barraTabs =
-  'mb-4 flex max-w-full gap-0.5 overflow-x-auto overflow-y-hidden rounded-lg border border-border bg-card/50 p-0.5'
+  'superficie-baja mb-4 flex max-w-full gap-0.5 overflow-x-auto overflow-y-hidden rounded-xl p-1'
 
 /** Clases de un tab según esté activo. */
 export const claseTab = (activo: boolean) =>
   cn(
-    'shrink-0 rounded-md px-4 py-1 text-sm font-semibold transition-colors max-sm:py-2.5',
-    activo ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
+    'shrink-0 rounded-lg px-4 py-1.5 text-sm font-medium transition-colors max-sm:py-2.5',
+    activo ? 'bg-white/8 text-foreground shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)]' : 'text-muted-foreground hover:text-foreground',
   )
 
 export interface SubTab {
@@ -28,7 +28,8 @@ export interface SubTab {
 export function SubTabs({
   tabs, activa, ariaLabel, repartir = true,
 }: {
-  tabs: SubTab[]
+  /** De solo lectura: la lista de tabs se declara como constante. */
+  tabs: readonly SubTab[]
   /** `id` del tab activo. */
   activa: string
   ariaLabel: string
@@ -58,7 +59,7 @@ export function SubTabs({
             <span
               className={cn(
                 'ml-1.5 rounded-full px-1.5 py-0.5 text-[11px] tabular-nums',
-                activa === t.id ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
+                activa === t.id ? 'bg-white/10 text-foreground' : 'bg-white/6 text-muted-foreground',
               )}>
               {t.cuenta}
             </span>

@@ -5,6 +5,7 @@
 import Link from 'next/link'
 import { BarChart3, LineChart, Percent, TrendingDown, TrendingUp, Trophy } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { TarjetaCifra } from '@/components/dashboard/tarjeta-cifra'
 import type { YearSummary } from '@/lib/finance'
 import { AhorroAcumulado } from './charts'
 import { ahorroAnualDe, cardClass, eur, eurEntero, pct, proyeccionDe, tasaAhorroDe } from './comun'
@@ -125,21 +126,21 @@ export function ResumenGeneral({ years, hoy }: { years: YearSummary[]; hoy: stri
   return (
     <div>
       {/* KPIs: el año en curso frente a su objetivo, su ritmo y el año pasado */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {kpis.map((k) => (
-          <div key={k.label} className={cn(cardClass, 'p-4')}>
-            <p className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
-              <k.Icon className="size-4 shrink-0 text-primary" /> {k.label}
-            </p>
-            <p className="mt-1.5 text-2xl font-semibold tabular-nums">{k.valor}</p>
-            {k.pie && <p className="mt-1 text-[12px] leading-snug text-muted-foreground">{k.pie}</p>}
-          </div>
+          <TarjetaCifra
+            key={k.label}
+            label={k.label}
+            valor={k.valor}
+            pie={k.pie}
+            icono={<k.Icon className="size-4" />}
+          />
         ))}
       </div>
 
       {/* Tabla comparativa de años (tarjetas en móvil) */}
       <div className={cn(cardClass, 'mt-4')}>
-        <h3 className="border-b border-border px-5 py-3 font-semibold">Todos los años</h3>
+        <h2 className="border-b border-border px-5 py-3 font-semibold">Todos los años</h2>
         <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-160 text-sm">
             <thead>
@@ -154,7 +155,7 @@ export function ResumenGeneral({ years, hoy }: { years: YearSummary[]; hoy: stri
             </thead>
             <tbody>
               {years.map((y, i) => (
-                <tr key={y.uuid} className="border-b border-border/50">
+                <tr key={y.uuid} className="border-b border-white/8">
                   <td className={cn(tdClass, 'py-2.5 font-semibold')}>
                     <Link href={`/app/finance?year=${y.year}`} className="text-primary hover:underline">
                       {y.year}
@@ -187,7 +188,7 @@ export function ResumenGeneral({ years, hoy }: { years: YearSummary[]; hoy: stri
             <Link
               key={y.uuid}
               href={`/app/finance?year=${y.year}`}
-              className="rounded-lg border border-border bg-card p-3 transition-colors hover:border-primary">
+              className="superficie rounded-xl p-3 transition-colors hover:border-primary">
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-primary">{y.year}</span>
                 <span className="text-sm font-semibold">{eur(ahorroAnualDe(y))}</span>

@@ -371,7 +371,7 @@ export function SelectField({
                   role="option"
                   aria-selected={o.value === value}
                   className={cn(
-                    'flex w-full items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-muted',
+                    'flex w-full items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-white/6',
                     o.value === value ? 'font-semibold text-primary' : 'text-foreground',
                   )}
                   onClick={() => {
@@ -462,7 +462,7 @@ export function TreeSelectField({
       role="option"
       aria-selected={o.value === value}
       className={cn(
-        'flex w-full items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-muted',
+        'flex w-full items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-white/6',
         o.value === value ? 'font-semibold text-primary' : 'text-foreground',
       )}
       onClick={() => elegir(o.value)}>
@@ -622,13 +622,13 @@ export function DateField({
           etiqueta="Calendario"
           className="w-64 rounded-lg border border-border bg-popover p-2.5 shadow-lg">
           <div className="mb-1.5 flex items-center justify-between">
-            <button type="button" className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground max-sm:p-2.5" aria-label="Mes anterior" onClick={() => mover(-1)}>
+            <button type="button" className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-white/6 hover:text-foreground max-sm:p-2.5" aria-label="Mes anterior" onClick={() => mover(-1)}>
               <ChevronLeft className="size-4" />
             </button>
             <span className="text-sm font-semibold">
               {MESES[vista.m]} {vista.y}
             </span>
-            <button type="button" className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground max-sm:p-2.5" aria-label="Mes siguiente" onClick={() => mover(1)}>
+            <button type="button" className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-white/6 hover:text-foreground max-sm:p-2.5" aria-label="Mes siguiente" onClick={() => mover(1)}>
               <ChevronRight className="size-4" />
             </button>
           </div>
@@ -647,7 +647,7 @@ export function DateField({
                   key={dia}
                   type="button"
                   className={cn(
-                    'rounded-md py-1 text-center text-[13px] transition-colors hover:bg-muted',
+                    'rounded-md py-1 text-center text-[13px] transition-colors hover:bg-white/6',
                     seleccion === iso(vista.y, vista.m, dia) &&
                       'bg-primary font-semibold text-primary-foreground hover:bg-primary',
                     !seleccion &&
@@ -667,7 +667,7 @@ export function DateField({
           <div className="mt-1.5 flex justify-between border-t border-border/60 pt-1.5">
             <button
               type="button"
-              className="rounded-md px-2 py-1 text-xs font-semibold text-primary transition-colors hover:bg-muted"
+              className="rounded-md px-2 py-1 text-xs font-semibold text-primary transition-colors hover:bg-white/6"
               onClick={() => {
                 const h = new Date()
                 onChange(iso(h.getFullYear(), h.getMonth(), h.getDate()))
@@ -677,7 +677,7 @@ export function DateField({
             </button>
             <button
               type="button"
-              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-white/6 hover:text-foreground"
               onClick={() => {
                 onChange('')
                 setOpen(false)

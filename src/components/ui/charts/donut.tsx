@@ -160,7 +160,7 @@ export function GraficaDonut({
             // un margen negativo y el importe de esa fila se iba 8 px a la izquierda.
             hayPulsables && 'px-1',
             pulsable &&
-              'cursor-pointer rounded-sm text-left transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary',
+              'cursor-pointer rounded-sm text-left transition-colors hover:bg-white/6 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary',
           )
           // El contenido se declara una vez y solo cambia el envoltorio: una fila pulsable
           // es un botón de verdad, porque el canvas dibuja su texto y no es DOM.

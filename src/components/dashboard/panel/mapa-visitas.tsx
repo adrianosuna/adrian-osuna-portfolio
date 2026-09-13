@@ -90,7 +90,7 @@ export function MapaVisitas({ paises, ciudades }: { paises: Fila[]; ciudades: Fi
     <div className="flex flex-col gap-3">
       {/* Capas: con pocos datos las dos juntas se leen bien, pero con muchas
           ciudades sobre un país las burbujas se pisan y conviene separarlas. */}
-      <div className="flex rounded-lg border border-border bg-card/50 p-0.5" role="group" aria-label="Capas del mapa">
+      <div className="flex superficie-baja rounded-xl p-0.5" role="group" aria-label="Capas del mapa">
         {(
           [
             { id: 'ambas', label: 'Todo' },
@@ -105,8 +105,8 @@ export function MapaVisitas({ paises, ciudades }: { paises: Fila[]; ciudades: Fi
             className={cn(
               // py-2.5 en móvil: ~44px de alto, el objetivo táctil que usa el
               // resto del proyecto (el segmentado del alta, los filtros).
-              'flex-1 whitespace-nowrap rounded-md px-3 py-1.5 text-[12.5px] font-semibold transition-colors max-sm:py-2.5',
-              capa === o.id ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
+              'flex-1 whitespace-nowrap rounded-lg px-3 py-1.5 text-[12.5px] font-medium transition-colors max-sm:py-2.5',
+              capa === o.id ? 'bg-white/8 text-foreground' : 'text-muted-foreground hover:text-foreground',
             )}
             onClick={() => setCapa(o.id)}>
             {o.label}

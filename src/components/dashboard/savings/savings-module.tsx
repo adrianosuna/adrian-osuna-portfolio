@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { TarjetaCifra } from '@/components/dashboard/tarjeta-cifra'
 import { Tooltip } from '@/components/ui/tooltip'
 import { NumberField, TextField } from '@/components/ui/fields'
 import { useConfirmar } from '@/components/dashboard/confirmar'
@@ -132,7 +133,7 @@ function ConceptList({ items, onDelete, onUpdate, emptyText }: {
   return (
     <>
       {items.map((it) => (
-        <div key={it.uuid} className="flex items-center justify-between gap-2 border-b border-border/60 py-1.5">
+        <div key={it.uuid} className="flex items-center justify-between gap-2 border-b border-white/8 py-1.5">
           {editing === it.uuid ? (
             <>
               <TextField
@@ -303,19 +304,20 @@ export function SavingsModule({
       ) : (
         <>
           {/* Resumen del año: todo gira alrededor del ahorro (sin capital) */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             {[
               { title: 'Ingresos del año', value: resumen.totalIngresos, Icon: Landmark },
-              { title: 'Ahorro anual (con sobrante)', value: resumen.ahorroAnual, Icon: TrendingUp, color: 'text-success', bold: true },
-              { title: 'Ahorro para viajes', value: resumen.ahorroViajes, Icon: Compass, color: 'text-viajes' },
+              { title: 'Ahorro anual (con sobrante)', value: resumen.ahorroAnual, Icon: TrendingUp, tono: 'primary' as const },
+              { title: 'Ahorro para viajes', value: resumen.ahorroViajes, Icon: Compass },
               { title: 'Restante uso diario', value: resumen.restanteAnual, Icon: Wallet },
             ].map((s) => (
-              <div key={s.title} className={cn(cardClass, 'p-5')}>
-                <p className="mb-1 flex items-center gap-1.5 text-[13.5px] text-muted-foreground">
-                  <s.Icon className={cn('size-4', s.color ?? 'text-primary')} /> {s.title}
-                </p>
-                <p className={cn('text-2xl font-semibold', s.bold && 'text-primary')}>{eurEntero(s.value)}</p>
-              </div>
+              <TarjetaCifra
+                key={s.title}
+                label={s.title}
+                valor={eurEntero(s.value)}
+                icono={<s.Icon className="size-4" />}
+                tono={s.tono}
+              />
             ))}
           </div>
 
@@ -347,7 +349,7 @@ export function SavingsModule({
             {goal !== null && (
               <>
                 {/* La marca vertical señala dónde "tocaría" estar hoy (prorrateo por día) */}
-                <div className="relative mt-2.5 h-2 rounded-full bg-muted">
+                <div className="relative mt-2.5 h-2 rounded-full bg-white/8">
                   <div
                     className={cn('h-full rounded-full transition-all', goalPct >= 100 ? 'bg-success' : 'bg-primary')}
                     style={{ width: `${Math.min(100, goalPct)}%` }}
@@ -370,7 +372,7 @@ export function SavingsModule({
 
             {/* Asistente del año en curso: ritmo, proyección y lo necesario */}
             {esCorriente && proy && (
-              <div className="mt-3 grid gap-2.5 border-t border-border/60 pt-3 sm:grid-cols-3">
+              <div className="mt-3 grid gap-2.5 border-t border-white/8 pt-3 sm:grid-cols-3">
                 <div>
                   <p className="text-[12px] text-muted-foreground">Ritmo actual</p>
                   <p className="text-sm font-semibold">
@@ -421,7 +423,7 @@ export function SavingsModule({
             <div className="min-w-0">
               <div className={cardClass}>
                 <div className="flex items-center justify-between border-b border-border px-5 py-3">
-                  <h3 className="font-semibold">Control mensual</h3>
+                  <h2 className="font-semibold">Control mensual</h2>
                   <button type="button" className={btnPrimary} disabled={!dirty || saving} onClick={onSaveMonths}>
                     <Save className="size-4" />
                     {saving ? 'Guardando…' : 'Guardar cambios'}
@@ -433,7 +435,7 @@ export function SavingsModule({
                     <thead>
                       <tr className="border-b border-border">
                         {/* Columna fija: al scrollear en móvil siempre se ve qué mes editas */}
-                        <th className={cn(thClass, 'sticky left-0 z-10 border-r border-border/60 bg-card')}>Mes</th>
+                        <th className={cn(thClass, 'sticky left-0 z-10 border-r border-white/8 bg-background')}>Mes</th>
                         <th className={thClass}>Ingreso</th>
                         <th className={thClass}>Ahorro general</th>
                         <th className={thClass}>Ahorro viajes</th>
@@ -450,11 +452,11 @@ export function SavingsModule({
                           esCorriente && m.month < mesActual &&
                           m.income === null && m.savingGeneral === null && m.savingTravel === null
                         return (
-                          <tr key={m.month} className={cn('border-b border-border/50', esMesActual && 'bg-primary/5')}>
+                          <tr key={m.month} className={cn('border-b border-white/8', esMesActual && 'bg-primary/5')}>
                             <td
                               className={cn(
                                 tdClass,
-                                'sticky left-0 z-10 border-r border-border/60 bg-card font-semibold',
+                                'sticky left-0 z-10 border-r border-white/8 bg-background font-semibold',
                                 esMesActual && 'text-primary',
                               )}>
                               {MESES[m.month - 1]}
@@ -484,7 +486,7 @@ export function SavingsModule({
                         )
                       })}
                       <tr className="bg-muted/50 font-semibold">
-                        <td className={cn(tdClass, 'sticky left-0 z-10 border-r border-border/60 bg-card')}>Totales</td>
+                        <td className={cn(tdClass, 'sticky left-0 z-10 border-r border-white/8 bg-card')}>Totales</td>
                         <td className={tdClass}>{eur(resumen.totalIngresos)}</td>
                         <td className={tdClass}>{eur(resumen.totalGeneral)}</td>
                         <td className={tdClass}>{eur(resumen.ahorroViajes)}</td>
@@ -505,7 +507,7 @@ export function SavingsModule({
                     return (
                       <div
                         key={m.month}
-                        className={cn('rounded-lg border border-border bg-card p-3', esMesActual && 'border-primary/50')}>
+                        className={cn('superficie rounded-xl p-3', esMesActual && 'border-primary/50')}>
                         <div className="mb-2 flex items-center justify-between">
                           <span className={cn('text-sm font-semibold', esMesActual && 'text-primary')}>
                             {MESES[m.month - 1]}
@@ -553,7 +555,7 @@ export function SavingsModule({
 
               <div className={cn(cardClass, 'mt-4')}>
                 <div className="flex items-center justify-between border-b border-border px-5 py-3">
-                  <h3 className="font-semibold">Evolución mensual</h3>
+                  <h2 className="font-semibold">Evolución mensual</h2>
                   <span className="text-[12.5px] text-muted-foreground">
                     <span className="mr-1.5 inline-block size-2.5 rounded-xs bg-primary" />General
                     <span className="ml-3.5 mr-1.5 inline-block size-2.5 rounded-xs bg-viajes" />Viajes
@@ -568,7 +570,7 @@ export function SavingsModule({
 
               {/* Composición del ahorro anual: pesos de cada fuente */}
               <div className={cn(cardClass, 'mt-4')}>
-                <h3 className="border-b border-border px-5 py-3 font-semibold">Composición del ahorro</h3>
+                <h2 className="border-b border-border px-5 py-3 font-semibold">Composición del ahorro</h2>
                 <div className="px-5 py-4">
                   <GraficaDonut
                     titulo="Composición del ahorro anual"
@@ -588,7 +590,7 @@ export function SavingsModule({
             <div className="min-w-0">
               <div className={cn(cardClass, 'px-5 pb-4 pt-3')}>
                 <div className="flex items-center justify-between border-b border-border pb-2.5">
-                  <h3 className="font-semibold">Ingresos extraordinarios</h3>
+                  <h2 className="font-semibold">Ingresos extraordinarios</h2>
                   <span className="rounded-md bg-success-bg px-2 py-0.5 text-xs font-semibold text-success">
                     {eur(resumen.extrasTotal)}
                   </span>
@@ -604,7 +606,7 @@ export function SavingsModule({
 
               <div className={cn(cardClass, 'mt-4 px-5 pb-4 pt-3')}>
                 <div className="flex items-center justify-between border-b border-border pb-2.5">
-                  <h3 className="font-semibold">Viajes</h3>
+                  <h2 className="font-semibold">Viajes</h2>
                   <span
                     className={cn(
                       'rounded-md px-2 py-0.5 text-xs font-semibold',
@@ -627,9 +629,9 @@ export function SavingsModule({
               </div>
 
               <div className={cn(cardClass, 'mt-4 px-5 py-2')}>
-                <h3 className="border-b border-border py-2.5 font-semibold">KPIs del año</h3>
+                <h2 className="border-b border-border py-2.5 font-semibold">KPIs del año</h2>
                 {kpis.map((k, i) => (
-                  <div key={k.label} className={cn('flex items-center justify-between py-2.5', i < kpis.length - 1 && 'border-b border-border/60')}>
+                  <div key={k.label} className={cn('flex items-center justify-between py-2.5', i < kpis.length - 1 && 'border-b border-white/8')}>
                     <span className="flex items-center gap-2 text-[13.5px] text-muted-foreground">
                       <k.Icon className="size-4 text-primary" />
                       {k.label}

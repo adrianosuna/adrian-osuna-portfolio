@@ -202,6 +202,47 @@ Proyecto Next.js App Router con `src/`. **Paleta única en todo el sitio**
   justificar ni partir palabras**; las rejillas de dos columnas entran en
   `lg`, no en `md`. No volver a la serif, a la mono en rótulos, al «01
   Proyectos ———» con raya ni a una foto grande en el hero.
+- **Superficies, en un solo sitio** (`ui/superficie.ts` + `.superficie` de
+  `globals.css`): la MISMA tarjeta en la landing y en el dashboard (degradado
+  tenue, borde al 8 %, brillo en el filo). `tarjeta`, `tarjetaInt` (pulsable),
+  `panel` (recorta lo de dentro) y `baldosa` (hundida, dentro de una tarjeta).
+  ⚠ La clase **trae su propio borde**: nunca `border border-border` encima.
+  **Un radio por nivel**: tarjeta `2xl`, sub-tarjeta `xl`, control `lg`,
+  píldora `full`. Y el **verde solo donde significa algo** (botón principal,
+  dinero, estados): lo activo de una barra o unas pestañas va en blanco al
+  6-8 %, no en esmeralda. Unificado el 13/09/2026; antes había tres radios sin
+  criterio y verde en todo.
+- **Tarjeta de cifra única** (`dashboard/tarjeta-cifra.tsx`) y **cabecera de
+  página única** (`dashboard/cabecera.tsx`): estaban copiadas en seis y en
+  cuatro sitios. La cifra va con el icono APAGADO en chip neutro; el `tono`
+  de color solo cuando el signo es la información (un balance), no para
+  decorar. ⚠ Y las **rejillas de KPI van a dos columnas en móvil**
+  (`grid-cols-2 lg:grid-cols-4`), con la **barra de progreso debajo** de su
+  porcentaje hasta `sm`: al lado, en media pantalla, se queda en 40 px.
+  ⚠ Una columna `sticky` (el mes del Control mensual) necesita fondo
+  **opaco** (`bg-background`): con la tarjeta translúcida deja ver las celdas
+  pasando por debajo al desplazar.
+- **El dashboard va a TODO EL ANCHO en escritorio** (13/09/2026, idea de
+  Adrián): `main`, la barra y el aviso de versión no llevan tope de anchura
+  —había uno de 1.200 px que en un monitor de 1920 dejaba 720 px de fondo— y el
+  margen lateral lo pone `.safe-x` (1 rem, 1,5 desde `sm`, 2 desde 1536 px).
+  ⚠ **La estructura la ponen las rejillas de cada página, no un contenedor
+  centrado**: el ancho que se gana se reparte en COLUMNAS, nunca estirando lo
+  que había. Estirados a 1.900 px, un KPI deja la cifra flotando, una tabla
+  separa el concepto de su importe media pantalla y una lista de ajustes obliga
+  a cruzar la vista de un borde al otro. Los repartos que hay: Gastos del mes
+  (movimientos | topes + recurrentes + desgloses), Ajustes (categorías |
+  recurrentes + años), Panel → Servidor (seis tarjetas en fila desde `3xl`),
+  Inicio (accesos en columna fija de 24 rem) y Notas (4 y 5 columnas).
+  Al añadir una página o un bloque, pensar en qué columna vive a partir de
+  `2xl`; si no se piensa, se queda estirado.
+- ⚠ **Una pieza COMPARTIDA mira su propio ancho, no el de la ventana**
+  (`@container` + variantes `@sm:` / `@3xl:`): la misma tarjeta de cifra vive
+  en una rejilla de cuatro a todo el ancho y en una columna estrecha del inicio,
+  así que el punto de corte lo decide el hueco que le toca, no la pantalla.
+  Lo usan `tarjeta-cifra.tsx` (el pie al lado de la cifra desde 24 rem) y las
+  filas de `Actividad` (origen y cuándo al otro extremo desde 48 rem). En una
+  página completa se sigue usando el breakpoint normal.
 - **Dashboard** (`/app/*`): componentes en `src/components/dashboard/`. El
   inicio es un **centro de mando**: franja de avisos accionables (seguimientos
   vencidos, mantenimiento, meses de ahorro sin rellenar), KPIs con dato real y
@@ -454,8 +495,12 @@ De ahí, las reglas que quedan:
   justo ahí donde se pierde de qué grupo era. Solo si la elegida está en un
   grupo: en una suelta, repetir su nombre no aporta.
   `opcionesDeCategoria` (plana) queda para lo que necesita una lista lineal.
-- En las tablas se ve el nombre de la CATEGORÍA y el grupo va en el `title`:
-  "Coche › Taller" no cabe en la celda.
+- En las tablas de movimientos (la del mes y la de la búsqueda) se ve la **ruta
+  entera**, "Coche › Taller" (petición de Adrián, 13/09/2026). Estuvo solo la
+  hoja con el grupo en el tooltip porque en una tabla de 1.200 px no cabía; con
+  el dashboard a todo el ancho sí cabe, y el grupo es justo lo que le da sentido
+  al gasto. El tooltip se queda para cuando la celda recorta. **En móvil sigue
+  yendo solo la hoja**: en 375 px la ruta no entra.
 - ⚠ **Grupo y categoría comparten formulario, modal y acciones**, así que los
   TEXTOS tienen que ramificar: "Grupo creado" y no "Categoría creada",
   "Eliminar el grupo" y no "la categoría". Se descubrió probándolo, y es lo
@@ -1087,6 +1132,14 @@ observado son ~150 ms. Auditoría axe y Lighthouse del 12/09/2026 en el
 CHANGELOG, con la receta (`next start` desde `.next-aparte` con la BD
 local y Lighthouse con el Chromium de Playwright).
 
+⚠ **Auditar el DASHBOARD sobre producción**: el atajo de dev-login no existe
+en un build de producción, pero las cookies **no distinguen el puerto**, así
+que se inicia sesión en el dev server y la sesión vale en el de producción.
+Ese servidor hay que arrancarlo con el `AUTH_SECRET` de `.env` (el de
+`.env.production` es otro) o el JWT no valida; Lighthouse se autentica con
+`--extra-headers` y la misma cookie. Auditoría del 13/09/2026 en el CHANGELOG
+(18 vistas × 2 tamaños, cero violaciones; 100 de rendimiento en escritorio).
+
 ⚠ Y dos trampas al MEDIR, que dan falsos positivos:
 
 - Auditar **mientras Next revela el streaming**: el árbol nuevo viaja en un
@@ -1378,6 +1431,11 @@ quedan solo para valores que la escala no tiene.
 | `aspect-[4/5]`, `aspect-[16/10]` | `aspect-4/5`, `aspect-16/10` |
 | `w-[calc(100%-1rem)]` | `w-[calc(100%-1rem)]` (calc no tiene escala: aquí sí) |
 | `text-[clamp(44px,8vw,92px)]` | igual (clamp no tiene escala) |
+
+⚠ **Hay un escalón `3xl` propio** (`--breakpoint-3xl: 112rem` = 1792 px, en
+el `@theme` de `globals.css`), por encima del `2xl` de fábrica: es donde el
+dashboard reparte en seis columnas lo que en `2xl` va en tres. No es un valor
+arbitrario, es un breakpoint declarado: se usa como `3xl:grid-cols-6`.
 
 Reglas para no dudar: la **escala de espaciado es dinámica** —`p-7.25`,
 `h-128`, `-left-7.25` existen aunque no aparezcan en ninguna lista—; los

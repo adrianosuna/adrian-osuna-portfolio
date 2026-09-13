@@ -28,16 +28,16 @@ const POR_DEFECTO = ['finanzas', 'pipeline', 'panel']
 /** Catálogo completo. `mes` es el mes en curso, para el acceso a Gastos. */
 function catalogo(mes: string): Acceso[] {
   return [
-    { id: 'finanzas', title: 'Finanzas', desc: 'Ahorro anual y gastos', icon: <Euro className="size-4" />, chip: 'bg-primary/10 text-primary', to: '/app/finance' },
-    { id: 'gastos', title: 'Gastos del mes', desc: 'Movimientos de este mes', icon: <Receipt className="size-4" />, chip: 'bg-success-bg text-success', to: `/app/finance?s=gastos&mes=${mes}` },
-    { id: 'ahorro', title: 'Ahorro', desc: 'El año en curso y su objetivo', icon: <PiggyBank className="size-4" />, chip: 'bg-primary/10 text-primary', to: '/app/finance?s=ahorro' },
-    { id: 'ajustes-finanzas', title: 'Ajustes de finanzas', desc: 'Categorías, recurrentes y años', icon: <Settings className="size-4" />, chip: 'bg-muted text-muted-foreground', to: '/app/finance?s=ajustes' },
-    { id: 'pipeline', title: 'Oportunidades', desc: 'Pipeline y seguimientos', icon: <Briefcase className="size-4" />, chip: 'bg-warning-bg text-warning', to: '/app/pipeline' },
-    { id: 'panel', title: 'Panel de control', desc: 'Servidor, visitas y usuarios', icon: <Gauge className="size-4" />, chip: 'bg-success-bg text-success', to: '/app/panel' },
-    { id: 'mantenimiento', title: 'Mantenimiento', desc: 'Lo que caduca cada N meses', icon: <Wrench className="size-4" />, chip: 'bg-warning-bg text-warning', to: '/app/panel?tab=mantenimiento' },
-    { id: 'notas', title: 'Notas', desc: 'Apuntes con formato', icon: <StickyNote className="size-4" />, chip: 'bg-muted text-muted-foreground', to: '/app/panel?tab=notas' },
-    { id: 'visitas', title: 'Visitas', desc: 'Analítica del portfolio', icon: <TrendingUp className="size-4" />, chip: 'bg-primary/10 text-primary', to: '/app/panel?tab=visitas' },
-    { id: 'usuarios', title: 'Usuarios', desc: 'Cuentas, sesiones y accesos', icon: <Users className="size-4" />, chip: 'bg-muted text-muted-foreground', to: '/app/panel?tab=usuarios' },
+    { id: 'finanzas', title: 'Finanzas', desc: 'Ahorro anual y gastos', icon: <Euro className="size-4" />, chip: 'bg-white/6 text-muted-foreground', to: '/app/finance' },
+    { id: 'gastos', title: 'Gastos del mes', desc: 'Movimientos de este mes', icon: <Receipt className="size-4" />, chip: 'bg-white/6 text-muted-foreground', to: `/app/finance?s=gastos&mes=${mes}` },
+    { id: 'ahorro', title: 'Ahorro', desc: 'El año en curso y su objetivo', icon: <PiggyBank className="size-4" />, chip: 'bg-white/6 text-muted-foreground', to: '/app/finance?s=ahorro' },
+    { id: 'ajustes-finanzas', title: 'Ajustes de finanzas', desc: 'Categorías, recurrentes y años', icon: <Settings className="size-4" />, chip: 'bg-white/6 text-muted-foreground', to: '/app/finance?s=ajustes' },
+    { id: 'pipeline', title: 'Oportunidades', desc: 'Pipeline y seguimientos', icon: <Briefcase className="size-4" />, chip: 'bg-white/6 text-muted-foreground', to: '/app/pipeline' },
+    { id: 'panel', title: 'Panel de control', desc: 'Servidor, visitas y usuarios', icon: <Gauge className="size-4" />, chip: 'bg-white/6 text-muted-foreground', to: '/app/panel' },
+    { id: 'mantenimiento', title: 'Mantenimiento', desc: 'Lo que caduca cada N meses', icon: <Wrench className="size-4" />, chip: 'bg-white/6 text-muted-foreground', to: '/app/panel?tab=mantenimiento' },
+    { id: 'notas', title: 'Notas', desc: 'Apuntes con formato', icon: <StickyNote className="size-4" />, chip: 'bg-white/6 text-muted-foreground', to: '/app/panel?tab=notas' },
+    { id: 'visitas', title: 'Visitas', desc: 'Analítica del portfolio', icon: <TrendingUp className="size-4" />, chip: 'bg-white/6 text-muted-foreground', to: '/app/panel?tab=visitas' },
+    { id: 'usuarios', title: 'Usuarios', desc: 'Cuentas, sesiones y accesos', icon: <Users className="size-4" />, chip: 'bg-white/6 text-muted-foreground', to: '/app/panel?tab=usuarios' },
   ]
 }
 
@@ -57,11 +57,11 @@ export function AccesosFijados({ mes, cardClass }: { mes: string; cardClass: str
 
   return (
     <div className={cn(cardClass, 'px-4 py-3')}>
-      <div className="flex items-center justify-between gap-2 border-b border-border pb-2.5">
+      <div className="flex items-center justify-between gap-2 border-b border-white/8 pb-2.5">
         <h2 className="text-[15px] font-semibold">Accesos</h2>
         <button
           type="button"
-          className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-[12px] font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground max-sm:px-2.5 max-sm:py-2.5"
+          className="inline-flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-white/6 hover:text-foreground max-sm:px-2.5 max-sm:py-2.5"
           onClick={() => setEditando(true)}>
           <SlidersHorizontal className="size-3.5" />
           Elegir
@@ -79,9 +79,9 @@ export function AccesosFijados({ mes, cardClass }: { mes: string; cardClass: str
             href={a.to}
             className={cn(
               'group flex items-center gap-3 py-2.5',
-              i < visibles.length - 1 && 'border-b border-border/60',
+              i < visibles.length - 1 && 'border-b border-white/8',
             )}>
-            <span className={cn('grid size-8 shrink-0 place-items-center rounded-md', a.chip)}>
+            <span className={cn('grid size-8 shrink-0 place-items-center rounded-lg', a.chip)}>
               {a.icon}
             </span>
             <div className="min-w-0 flex-1">
@@ -123,11 +123,11 @@ export function AccesosFijados({ mes, cardClass }: { mes: string; cardClass: str
                   type="button"
                   className={cn(
                     'flex items-center gap-3 rounded-lg px-2 py-2 text-left transition-colors',
-                    puesto >= 0 ? 'bg-primary/10' : 'hover:bg-muted/60',
+                    puesto >= 0 ? 'bg-primary/10' : 'hover:bg-white/6',
                   )}
                   aria-pressed={puesto >= 0}
                   onClick={() => alternar(a.id)}>
-                  <span className={cn('grid size-7 shrink-0 place-items-center rounded-md', a.chip)}>
+                  <span className={cn('grid size-7 shrink-0 place-items-center rounded-lg', a.chip)}>
                     {a.icon}
                   </span>
                   <span className="min-w-0 flex-1">

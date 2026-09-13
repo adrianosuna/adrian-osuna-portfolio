@@ -74,7 +74,7 @@ function Kpi({
   hint?: React.ReactNode
 }) {
   return (
-    <div className="flex items-center gap-3.5 rounded-xl border border-border bg-card p-5">
+    <div className="flex items-center gap-3.5 superficie rounded-2xl p-5">
       <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
         {icon}
       </span>
@@ -94,7 +94,7 @@ function Tarjeta({ titulo, children, accion }: {
   accion?: React.ReactNode
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card px-5 py-4">
+    <div className="superficie rounded-2xl px-5 py-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 className="min-w-0 text-[15px] font-semibold">{titulo}</h2>
         {accion}
@@ -184,7 +184,7 @@ function Ranking({ filas, vacio }: { filas: Array<Fila | FilaComparada>; vacio?:
               <span className="font-semibold">{nf(f.valor)}</span>
             </span>
           </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+          <div className="h-1.5 overflow-hidden rounded-full bg-white/8">
             <div className="h-full rounded-full bg-primary/70" style={{ width: `${(f.valor / max) * 100}%` }} />
           </div>
         </div>
@@ -217,7 +217,7 @@ function Variacion({ actual, previo }: { actual: number; previo: number }) {
 // Subtítulo para tarjetas con dos rankings (Geografía, Tecnología).
 function Subtitulo({ children, primero }: { children: React.ReactNode; primero?: boolean }) {
   return (
-    <h3 className={cn('mb-2 text-[11.5px] font-semibold uppercase tracking-[0.6px] text-muted-foreground', !primero && 'mt-5')}>
+    <h3 className={cn('mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground', !primero && 'mt-5')}>
       {children}
     </h3>
   )
@@ -365,7 +365,7 @@ export function VisitasTab({ snapshot }: { snapshot: VisitasSnapshot }) {
 
   if (!snapshot.configurado) {
     return (
-      <div className="rounded-xl border border-border bg-card p-6">
+      <div className="superficie rounded-2xl p-6">
         <h2 className="flex items-center gap-2.5 text-[15px] font-semibold">
           <span className="grid size-8 place-items-center rounded-lg bg-warning-bg text-warning">
             <BarChart3 className="size-4" />
@@ -416,7 +416,7 @@ export function VisitasTab({ snapshot }: { snapshot: VisitasSnapshot }) {
         </a>
       </Refrescar>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Kpi
           icon={<Radio className="size-5" />}
           label="Ahora mismo"
@@ -477,7 +477,7 @@ export function VisitasTab({ snapshot }: { snapshot: VisitasSnapshot }) {
         />
       </div>
 
-      <div className="mt-4 rounded-xl border border-border bg-card px-5 py-4">
+      <div className="mt-4 superficie rounded-2xl px-5 py-4">
         <h2 className="mb-3 text-[15px] font-semibold">Usuarios activos por día</h2>
         {/* Una sola gráfica: mide su hueco y se pinta a escala 1:1, así que
             sobran las dos variantes por breakpoint. */}
@@ -530,7 +530,7 @@ export function VisitasTab({ snapshot }: { snapshot: VisitasSnapshot }) {
         </Tarjeta>
       </div>
 
-      <div className="mt-4 rounded-xl border border-border bg-card px-5 py-4">
+      <div className="mt-4 superficie rounded-2xl px-5 py-4">
         <h2 className="mb-3 text-[15px] font-semibold">Cuándo te visitan (día × hora)</h2>
         <MapaHorario horario={snapshot.horario} />
       </div>

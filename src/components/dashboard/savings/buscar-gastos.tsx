@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, ChevronLeft, ChevronRight, Search, TrendingDown, TrendingUp } from 'lucide-react'
 import { useCarga } from '@/components/dashboard/barra-carga'
 import { cn } from '@/lib/utils'
+import { TarjetaCifra } from '@/components/dashboard/tarjeta-cifra'
 import { Tooltip } from '@/components/ui/tooltip'
 import { DateField, Field, NumberField, SelectField, TextField } from '@/components/ui/fields'
 import type { CategoriaRow, FiltrosBusqueda, ResultadoBusqueda } from '@/lib/gastos'
@@ -91,10 +92,10 @@ export function BuscarGastos({
           <ArrowLeft className="size-4" />
           <span className="max-sm:sr-only">Gastos</span>
         </button>
-        <h3 className="flex items-center gap-2 font-semibold">
+        <h2 className="flex items-center gap-2 font-semibold">
           <Search className="size-4 text-primary" />
           Buscar movimientos
-        </h3>
+        </h2>
       </div>
 
       {/* Formulario de filtros */}
@@ -159,22 +160,22 @@ export function BuscarGastos({
       ) : (
         <>
           {/* Sumas del conjunto de coincidencias */}
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Resumen label="Coincidencias" valor={String(resultado.total)} />
-            <Resumen label="Ingresos" valor={eurEntero(resultado.ingresos)} tono="success" icon={<TrendingUp className="size-4" />} />
-            <Resumen label="Gastos" valor={eurEntero(resultado.gastos)} tono="danger" icon={<TrendingDown className="size-4" />} />
-            <Resumen label="Balance" valor={eurEntero(balance)} tono={balance >= 0 ? 'primary' : 'danger'} />
+          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <TarjetaCifra label="Coincidencias" valor={String(resultado.total)} />
+            <TarjetaCifra label="Ingresos" valor={eurEntero(resultado.ingresos)} tono="success" icono={<TrendingUp className="size-4" />} />
+            <TarjetaCifra label="Gastos" valor={eurEntero(resultado.gastos)} tono="danger" icono={<TrendingDown className="size-4" />} />
+            <TarjetaCifra label="Balance" valor={eurEntero(balance)} tono={balance >= 0 ? 'primary' : 'danger'} />
           </div>
 
           <div className={cn(cardClass, 'mt-4')}>
-            <h3 className="flex flex-wrap items-baseline gap-x-2 border-b border-border px-5 py-3 font-semibold">
+            <h2 className="flex flex-wrap items-baseline gap-x-2 border-b border-border px-5 py-3 font-semibold">
               {`${resultado.total} ${resultado.total === 1 ? 'movimiento' : 'movimientos'}`}
               {resultado.paginas > 1 && (
                 <span className="text-[12.5px] font-normal text-muted-foreground">
                   página {resultado.pagina} de {resultado.paginas}
                 </span>
               )}
-            </h3>
+            </h2>
             <div className="px-4 py-2">
               {resultado.movimientos.map((m) => {
                 const cat = catDe(m.categoryUuid)
@@ -184,19 +185,22 @@ export function BuscarGastos({
                     key={m.uuid}
                     type="button"
                     // Cada fila lleva a su mes, donde se edita (aquí es consulta).
-                    className="flex w-full items-center gap-2 border-b border-border/60 py-2 text-left transition-colors last:border-0 hover:bg-muted/40"
+                    className="flex w-full items-center gap-2 border-b border-white/8 py-2 text-left transition-colors last:border-0 hover:bg-white/6"
                     onClick={() => ir(`/app/finance?s=gastos&mes=${m.expenseDate.slice(0, 7)}`)}>
                     <span className="w-20 shrink-0 text-[12px] tabular-nums text-muted-foreground">
                       {fmtFecha(m.expenseDate)}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-[13.5px]">{m.concept}</span>
                     <Tooltip texto={`${esGasto ? 'Gasto' : 'Ingreso'} · ${cat ? etiquetaCategoria(cat) : 'Sin categoría'}`}>
-                      <span className="flex shrink-0 items-center gap-1.5 text-[12px] text-muted-foreground sm:w-40">
+                      <span className="flex shrink-0 items-center gap-1.5 text-[12px] text-muted-foreground sm:w-56">
                         <span
                           className="inline-block size-2 shrink-0 rounded-xs"
                           style={{ background: cat?.color ?? SIN_CATEGORIA }}
                         />
-                        <span className="hidden min-w-0 truncate sm:block">{cat?.name ?? 'Sin categoría'}</span>
+                        {/* Con su grupo delante, como en la tabla del mes. */}
+                        <span className="hidden min-w-0 truncate sm:block">
+                          {cat ? etiquetaCategoria(cat) : 'Sin categoría'}
+                        </span>
                       </span>
                     </Tooltip>
                     <span
@@ -244,28 +248,3 @@ export function BuscarGastos({
   )
 }
 
-/** Tarjeta de suma del resultado (versión mínima del Kpi de la vista del mes). */
-function Resumen({ label, valor, tono, icon }: {
-  label: string
-  valor: string
-  tono?: 'success' | 'danger' | 'primary'
-  icon?: React.ReactNode
-}) {
-  return (
-    <div className={cn(cardClass, 'p-4')}>
-      <p className="flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
-        {icon}
-        {label}
-      </p>
-      <p
-        className={cn(
-          'mt-1.5 text-2xl font-semibold tabular-nums',
-          tono === 'success' && 'text-success',
-          tono === 'danger' && 'text-danger',
-          tono === 'primary' && 'text-primary',
-        )}>
-        {valor}
-      </p>
-    </div>
-  )
-}

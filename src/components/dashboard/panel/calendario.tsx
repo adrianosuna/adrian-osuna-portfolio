@@ -78,15 +78,16 @@ function Celda({
       className={cn(
         // `flex flex-col` para que el número quede siempre arriba a la izquierda: un
         // <button> centra su contenido en vertical. Más baja en móvil, sin títulos.
-        'flex min-h-14 flex-col border-r border-border/60 p-1.5 text-left transition-colors last:border-0 hover:bg-muted/40 sm:min-h-24',
-        !celda.delMes && 'bg-card/30',
+        'flex min-h-14 flex-col border-r border-white/8 p-1.5 text-left transition-colors last:border-0 hover:bg-white/6 sm:min-h-24',
+        !celda.delMes && 'bg-white/2',
         abierto && 'bg-muted/60',
       )}
       onClick={accion}>
       <span
         className={cn(
           'inline-flex size-5 items-center justify-center rounded-full text-[12px] tabular-nums',
-          !celda.delMes && 'text-muted-foreground/60',
+          // Sin opacidad: sobre `muted-foreground` baja de 4,5:1 (ver CLAUDE.md).
+          !celda.delMes && 'text-muted-foreground',
           esHoy && 'bg-primary font-semibold text-primary-foreground',
         )}>
         {Number(celda.fecha.slice(8, 10))}
@@ -281,7 +282,7 @@ export function Calendario({
                 className={cn(
                   'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[12px] font-semibold transition-colors max-sm:py-2',
                   activo
-                    ? 'border-border bg-card/50 text-foreground'
+                    ? 'border-white/12 bg-white/6 text-foreground'
                     : 'border-transparent text-muted-foreground hover:text-foreground',
                 )}
                 onClick={() => alternar(t)}>
@@ -298,7 +299,7 @@ export function Calendario({
       {/* Cada celda es un botón: un día vacío da de alta una tarea en esa fecha y uno
           con eventos abre su detalle. */}
       <div ref={rejilla} onKeyDown={teclas} className="overflow-hidden rounded-xl border border-border">
-        <div className="grid grid-cols-7 border-b border-border bg-card/50">
+        <div className="grid grid-cols-7 border-b border-white/8 bg-white/4">
           {/* El nombre largo va en el DOM con sr-only, no en aria-label del div: en un div
               sin rol ese atributo no existe. */}
           {CABECERA.map((d) => (
@@ -311,7 +312,7 @@ export function Calendario({
           ))}
         </div>
         {semanas.map((semana, i) => (
-          <div key={i} className="grid grid-cols-7 border-b border-border/60 last:border-0">
+          <div key={i} className="grid grid-cols-7 border-b border-white/8 last:border-0">
             {semana.map((celda) => (
               <Celda
                 key={celda.fecha}
@@ -332,7 +333,7 @@ export function Calendario({
       {/* Detalle del día: en una celda de 100 px no caben tres títulos con su
           tipo, así que el día pulsado se despliega aquí. */}
       {dia && (
-        <div ref={detalle} className="rounded-xl border border-border bg-card p-4">
+        <div ref={detalle} className="superficie rounded-2xl p-4">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
             {/* h2 y no h3: va bajo el h1 de la página sin nada en medio. */}
             <h2 className="text-sm font-semibold">{fechaLarga(dia)}</h2>
@@ -356,7 +357,7 @@ export function Calendario({
                   <li key={e.uuid}>
                     <button
                       type="button"
-                      className="flex w-full items-start gap-2.5 py-2 text-left transition-colors hover:bg-muted/40"
+                      className="flex w-full items-start gap-2.5 py-2 text-left transition-colors hover:bg-white/6"
                       onClick={() =>
                         e.tipo === 'mantenimiento' ? onAbrirTarea(e.refUuid) : onAbrirEvento(e)
                       }>

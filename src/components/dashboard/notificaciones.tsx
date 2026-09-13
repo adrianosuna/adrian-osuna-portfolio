@@ -31,7 +31,7 @@ export function Notificaciones({ avisos }: { avisos: Aviso[] }) {
         type="button"
         className={cn(
           // p-2.5 en móvil (40px): el mismo objetivo táctil que `btnIcon`.
-          'relative rounded-md p-2 transition-colors hover:bg-muted max-sm:p-2.5',
+          'relative rounded-md p-2 transition-colors hover:bg-white/6 max-sm:p-2.5',
           sinVer.length ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
         )}
         aria-label={
@@ -98,7 +98,7 @@ export function Notificaciones({ avisos }: { avisos: Aviso[] }) {
                         if (nuevo) setVistos([...vistos, huella(a)])
                         setAbierto(false)
                       }}
-                      className="flex items-start gap-2.5 border-b border-border/60 px-3.5 py-2.5 transition-colors last:border-0 hover:bg-muted/60">
+                      className="flex items-start gap-2.5 border-b border-white/8 px-3.5 py-2.5 transition-colors last:border-0 hover:bg-white/6">
                       <span
                         className={cn(
                           'mt-0.5 shrink-0',

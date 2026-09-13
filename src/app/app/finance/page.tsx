@@ -3,6 +3,7 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
+import { CabeceraPagina } from '@/components/dashboard/cabecera'
 import { Euro } from 'lucide-react'
 import { auth } from '@/auth'
 import { getYearDetail, listYears } from '@/lib/finance'
@@ -49,13 +50,11 @@ export default async function FinancePage({
 
   return (
     <div>
-      <h1 className="flex items-center gap-2 text-xl font-bold">
-        <Euro className="size-5 text-primary" />
-        Finanzas
-      </h1>
-      <p className="mb-5 mt-1 text-sm text-muted-foreground">
-        Tus finanzas personales: el sistema de ahorro anual y el control de gastos e ingresos.
-      </p>
+      <CabeceraPagina
+        titulo="Finanzas"
+        icono={<Euro className="size-5" />}
+        descripcion="Tus finanzas personales: el sistema de ahorro anual y el control de gastos e ingresos."
+      />
 
       <FinanzasNav seccion={seccion} />
 

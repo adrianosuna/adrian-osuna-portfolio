@@ -73,7 +73,7 @@ export function TablaOportunidades({
 
   if (rows.length === 0) {
     return (
-      <p className="rounded-xl border border-border bg-card/50 px-4 py-10 text-center text-sm text-muted-foreground">
+      <p className="superficie-baja rounded-2xl px-4 py-10 text-center text-sm text-muted-foreground">
         {contexto === 'historico'
           ? 'Nada archivado todavía. Al cerrar o descartar una oportunidad podrás archivarla desde su tarjeta y quedará guardada aquí.'
           : 'No hay oportunidades todavía. Crea la primera con «Nueva oportunidad».'}
@@ -222,7 +222,7 @@ export function TablaOportunidades({
             </thead>
             <tbody>
               {visibles.map((o) => (
-                <tr key={o.uuid} className="border-b border-border/50">
+                <tr key={o.uuid} className="border-b border-white/8">
                   <td className={tdClass}>
                     <p className="font-semibold leading-snug">{o.title}</p>
                     {o.company && <p className="text-xs text-muted-foreground">{o.company}</p>}
@@ -248,30 +248,31 @@ export function TablaOportunidades({
       {filtradas.length > 0 && (
         <div className="flex flex-col gap-2 md:hidden">
           {visibles.map((o) => (
-            <article key={o.uuid} className="rounded-xl border border-border bg-card p-3">
+            <article key={o.uuid} className="superficie rounded-2xl p-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold leading-snug">{o.title}</p>
                   {o.company && <p className="text-xs text-muted-foreground">{o.company}</p>}
                 </div>
-                {/* Con onMover, el estado es un selector (mover con un toque);
-                    las archivadas mantienen el chip: restaurar primero. */}
-                {onMover && !o.archived ? (
+                {/* Una archivada mantiene el chip: para moverla hay que restaurarla. */}
+                {(!onMover || o.archived) && estado(o)}
+              </div>
+              {/* El selector va debajo y a lo ancho: a la derecha del título, en
+                  375 px, truncaba los dos («Conversaci…»). */}
+              {onMover && !o.archived && (
+                <div className="mt-2">
                   <SelectField
                     ariaLabel="Mover a estado"
-                    className="w-36 shrink-0"
                     value={o.status}
                     onChange={(v) => onMover(o, v as EstadoOportunidad)}
                     options={COLUMNAS.map((c) => ({ value: c.estado, label: c.label }))}
                   />
-                ) : (
-                  estado(o)
-                )}
-              </div>
+                </div>
+              )}
               {conSeguimiento && (o.nextActionDate || o.nextAction) && (
                 <div className="mt-1.5">{seguimiento(o)}</div>
               )}
-              <div className="mt-2 flex items-center justify-between border-t border-border/60 pt-1.5 text-xs text-muted-foreground">
+              <div className="mt-2 flex items-center justify-between border-t border-white/8 pt-1.5 text-xs text-muted-foreground">
                 <span>
                   {o.closedAt ? `Cierre: ${fmtFecha(o.closedAt)}` : ''}
                   {o.closedAt && o.amount !== null && ' · '}

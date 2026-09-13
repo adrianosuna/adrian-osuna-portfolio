@@ -6,6 +6,109 @@ cuando algo se termina, se cuenta aquí con su porqué y desaparece de allí.
 
 ---
 
+### El dashboard a todo el ancho de la pantalla
+
+Idea de Adrián (13/09/2026): en escritorio el dashboard iba dentro de un
+contenedor de **1.200 px**, así que en un monitor de 1920 sobraban 720 px de
+fondo (en uno de 2560, 1.360) mientras las páginas densas se iban en largo. El
+tope se retira del todo —barra, aviso de versión y contenido— y el margen
+lateral pasa a 2 rem a partir de 1536 px.
+
+Quitar el tope **no basta**, y es la mitad interesante del trabajo: estirado a
+1.900 px, un KPI se queda con la cifra flotando en medio de la nada, una tabla
+separa el concepto de su importe media pantalla y una lista de ajustes obliga
+a cruzar la vista de un borde al otro. Así que el ancho que se gana se reparte
+en COLUMNAS, no en estirar lo que había:
+
+- **Gastos (vista del mes)**: dos columnas a partir de 2xl — los movimientos a
+  la izquierda y a la derecha lo que mira hacia delante (topes, recurrentes) con
+  los dos desgloses. La página pasa de **2.576 px de alto a 1.833**. Los
+  desgloses siguen yendo uno al lado del otro mientras la página va en una
+  columna (`lg:grid-cols-2 2xl:grid-cols-1`).
+- **Ajustes de finanzas**: categorías a un lado; recurrentes y años al otro.
+- **Panel → Servidor**: las dos rejillas de seis tarjetas pasan a **seis
+  columnas** desde 1792 px (el escalón `3xl` nuevo), así que salud y recursos
+  caben en una fila cada uno. De 1.518 px de alto a 1.138.
+- **Inicio**: los accesos se quedan en una **columna fija de 24 rem** en vez de
+  ocupar media pantalla, y las filas de actividad llevan el origen y el cuándo
+  al otro extremo de la fila.
+- **Notas**: cuatro columnas en 2xl y cinco en 3xl.
+
+Dos piezas compartidas aprenden a mirar **su propio ancho** en vez del de la
+ventana, con consultas de contenedor (`@container`): la **tarjeta de cifra**
+pone el pie al lado de la cifra cuando la tarjeta pasa de 24 rem (a 1920 la
+cifra y su «91 % del objetivo» van en la misma línea; en móvil, igual que
+antes), y las **filas de actividad** reparten texto y meta a los dos extremos
+por encima de 48 rem. Es lo correcto aquí: la misma tarjeta vive en una rejilla
+de cuatro a todo el ancho y en una columna estrecha del inicio, y quien decide
+no es la pantalla sino el hueco que le toca.
+
+El calendario del Panel y el tablero del pipeline no necesitaron nada: al
+soltarse el tope, sus columnas se reparten el ancho y los títulos dejan de
+recortarse.
+
+Y una consecuencia directa: la columna **Categoría** de las tablas de
+movimientos (la del mes y la de la búsqueda) enseña ahora la **ruta entera**,
+"Coche › Taller". Iba solo la hoja, con el grupo escondido en el tooltip,
+porque en 1.200 px no cabía; ahora sí, y es el grupo lo que da sentido al
+gasto de un vistazo. En móvil se queda la hoja: en 375 px la ruta no entra.
+
+
+### Auditoría axe y Lighthouse del dashboard
+
+Sobre el build de producción, como la de la landing. ⚠ El dashboard es
+privado, así que la receta tiene un paso más: el **atajo de dev-login no
+existe en producción** (por diseño), pero las **cookies no distinguen el
+puerto**, así que se inicia sesión en el dev server (9444) y la sesión vale
+en el de producción (9445) sin más. Para que el JWT valide hay que arrancar
+ese servidor con el `AUTH_SECRET` de `.env` (el de `.env.production` es
+otro) y la `DATABASE_URL` local. Lighthouse, que usa su propio Chrome, se
+autentica con `--extra-headers` y esa misma cookie.
+
+**axe** (axe-core 4.13, WCAG 2.1 A/AA + buenas prácticas) en **18 vistas × 2
+tamaños**: 13 violaciones de cuatro tipos, todas corregidas, y **cero** en la
+repetición. Dos de ellas incumplían reglas que este fichero ya documentaba:
+
+- **`heading-order`** (8 casos): las tarjetas de Finanzas titulaban con
+  `h3` bajo el `h1` de la página, saltándose el `h2`. La regla está escrita
+  en «Accesibilidad» desde el 02/09 y se había ido colando en cuatro
+  ficheros; ahora son `h2` los dieciséis títulos de tarjeta del módulo.
+- **`color-contrast`** (2): el día del mes vecino en el calendario iba con
+  `text-muted-foreground/60` — exactamente la opacidad que la regla prohíbe
+  (3,24:1 medido en su día). Sin opacidad, 6,9:1.
+- **`nested-interactive`** (2): la tarjeta de una nota era un `div` con
+  `role="button"` y dentro llevaba el botón de fijar: dos controles
+  anidados, que un lector de pantalla no sabe leer. Ahora el contenedor no
+  tiene rol y quien abre la nota es un **botón de verdad que la cubre**, con
+  su nombre accesible («Abrir la nota …»), por debajo del de fijar.
+- **`scrollable-region-focusable`** (1 + 2 en móvil): una zona que se
+  desplaza tiene que poder recorrerse con el teclado. `Tabla` (la pieza
+  compartida, que en móvil desplaza en horizontal) y los dos bloques de
+  código de los tokens de la API reciben `tabIndex`.
+
+**Teclado**, lo que axe no cubre: Ctrl+K abre la paleta y Escape la cierra;
+Enter sobre una nota abre su modal con el foco dentro y Escape lo devuelve al
+botón; el calendario mantiene **una sola parada de tabulador** entre sus 35
+celdas; y no queda ninguna clase `muted-foreground` con opacidad en todo el
+dashboard.
+
+**Lighthouse 12** (con la cookie de sesión):
+
+| Vista | Rendimiento | Accesibilidad | Buenas prácticas | LCP |
+|---|---|---|---|---|
+| Inicio (escritorio) | 100 | 100 | 100 | 0,6 s |
+| Gastos (escritorio) | 100 | 100 | 100 | 0,7 s |
+| Panel (escritorio) | 100 | 100 | 100 | 0,8 s |
+| Inicio (móvil) | 96 | 100 | — | 2,8 s |
+
+Lo que señala y se deja: `unused-javascript` (28 KiB en el inicio, 104 en el
+Panel: Chart.js y el mapa, que sí se usan al desplazarse), 13 KiB de JS
+«legacy» del runtime de Next, y `bf-cache`, que no aplica a una página
+privada con `no-store`. `label-content-name-mismatch` sale como informativa
+—el nombre accesible de un `SelectField` es su etiqueta («Tipo del
+movimiento») y el texto visible es el valor («Gasto»)—: la categoría da 100 y
+axe no lo marca.
+
 ## 12/09/2026 (pendiente de desplegar)
 
 ### La landing, rehecha en clave de producto
@@ -371,6 +474,124 @@ Tres remates que salieron de la revisión de «qué le falta»:
   opciones; píldora esmeralda con punto que late (quieto con
   `prefers-reduced-motion`) bajo el texto de contacto, y una línea más en
   `llms.txt`. Antes no se sabía a qué estaba abierto.
+
+## 13/09/2026 (pendiente de desplegar)
+
+### El dashboard, con el lenguaje visual de la landing (piezas compartidas)
+
+Con la landing rediseñada, dentro y fuera ya no se parecían: la landing usaba
+tarjetas con degradado y borde al 8 %, y el dashboard `bg-card` plano con
+borde sólido; convivían **tres radios sin criterio** (63 `rounded-md`, 39
+`rounded-xl`, 36 `rounded-lg`) y el verde estaba en todo —cifras, chips,
+enlaces, pestañas, iconos—, así que ya no señalaba nada. Adrián eligió
+unificar, empezando por las piezas compartidas: un cambio ahí se ve en las
+catorce vistas a la vez.
+
+- **Una sola superficie** (`ui/superficie.ts` + `globals.css`): `.pf-card`
+  pasa a llamarse **`.superficie`** porque ya no es de la landing, con
+  `.superficie-int` (aclara el borde solo si es pulsable) y
+  `.superficie-baja` para lo que va dentro de una tarjeta. De ahí salen
+  `tarjeta`, `tarjetaInt`, `panel` y `baldosa`. La clase trae su propio
+  borde, así que **no se le añade `border border-border`**.
+- **Un radio por nivel**: tarjeta `rounded-2xl`, sub-tarjeta `rounded-xl`,
+  control `rounded-lg`, píldora `rounded-full`. Las 43 tarjetas sueltas del
+  dashboard pasaron a la pieza compartida (los dos `cardClass` de
+  `inicio.tsx` y `savings/comun.tsx` re-exportan `tarjeta`, así que 28 de
+  ellas se actualizaron solas), y con ellas `TarjetaTabla` y `CheckCard`.
+- **El verde vuelve a significar algo**: se queda en el botón principal, en
+  las cifras de dinero y en los estados (correcto, aviso, error). Salen de él
+  los módulos activos de la barra, las sub-pestañas, los chips de filtro, los
+  hovers y la franja de versión, que pasan a blancos al 6-8 %.
+- **Barra superior** translúcida con desenfoque (`bg-(--pf-nav)
+  backdrop-blur-xl`) y filo al 8 %, como la de la landing; botones
+  secundarios con el contorno tenue de allí.
+- **Las pestañas del Panel** (Servidor, Visitas…) iban con subrayado verde y
+  las de Finanzas con píldora: **dos patrones para lo mismo**. El Panel pasa a
+  `SubTabs`, que ahora acepta una lista `readonly` (los tabs se declaran como
+  constante). En móvil sigue su desplegable: seis pestañas no caben en 375 px.
+- **Cabecera de página compartida** (`dashboard/cabecera.tsx`): título a
+  `text-2xl font-semibold` con el mismo tracking que la landing, icono
+  apagado y línea de apoyo. Estaba copiada en tres páginas con el icono en
+  verde.
+
+Verificado: tsc, lint, 678 tests, build de producción y capturas de las
+catorce vistas en escritorio y móvil, sin errores de consola.
+
+### Inicio y Finanzas, pantalla por pantalla
+
+Tras las piezas compartidas, las dos primeras pantallas:
+
+- **Una sola tarjeta de cifra** (`dashboard/tarjeta-cifra.tsx`): estaba
+  copiada en **seis** —inicio, panel de finanzas, vista de gastos, vista del
+  año, resumen de años y búsqueda— con tres tamaños de cifra, y el icono unas
+  veces en verde a la izquierda del rótulo y otras en un chip de color a la
+  derecha. Ahora la cifra va a 26-30 px con tracking negativo, el **icono
+  siempre apagado** en un chip neutro, y el `tono` (verde, rojo, esmeralda)
+  se reserva para cuando el color ES el dato. El inicio la re-exporta como
+  `Tile` para no tocar sus llamadas.
+- **Dos cifras por fila en móvil** en las nueve rejillas de KPI del dashboard
+  (iban de una en una). El inicio baja de 1.682 a 1.447 px, el panel de
+  finanzas de 1.587 a 1.416 y la vista de gastos de 4.366 a 4.155.
+- ⚠ **Las barras de progreso, debajo de su cifra en móvil.** Iban al lado del
+  porcentaje con `flex-1`, y en una tarjeta de media pantalla se quedaban en
+  **40 px**: una barra de progreso de 40 px no informa de nada. Desde `sm`
+  vuelven a su sitio, a la derecha del texto (`sm:flex-row-reverse`). Y todas
+  las pistas pasan de `bg-muted` al blanco al 8 % de la superficie.
+- **Iconos de los accesos del inicio**, neutros: llevaban cuatro colores
+  (esmeralda, verde, ámbar, gris) que no significaban nada, y competían con la
+  franja de avisos, que sí usa el color para decir qué es urgente.
+- La **cabecera del inicio** pasa también a `CabeceraPagina`: era la única
+  con `font-bold` y su propio botón de contorno.
+- **El alta rápida, plegada en móvil** (Adrián): son seis campos y ocupaba
+  340 px fijos dentro de la tabla de movimientos, **duplicando** lo que ya
+  hace el botón «+» de la barra superior, que abre esa misma alta en un
+  modal. Ahora en móvil hay un botón «Añadir movimiento» que la despliega
+  (`aria-expanded` + `aria-controls`); en escritorio es una fila y sigue
+  siempre a la vista. La vista de gastos baja de 4.155 a **3.815 px**.
+### Oportunidades
+
+- **La séptima copia de la tarjeta de cifra.** `Metrica` pintaba las cuatro
+  del embudo a `text-lg` en una tarjeta de `p-3`: la mitad de tamaño que las
+  del resto del dashboard, con el mismo peso informativo. Pasa a
+  `TarjetaCifra`.
+- **El conmutador de vistas** (Tablero · Tabla · Histórico) tenía su propia
+  píldora; ahora usa `claseTab`, la misma de las sub-pestañas. Y el estado
+  activo de **los seis grupos de filtros** del dashboard —vistas del pipeline,
+  mes/año de gastos, ámbitos y vistas de mantenimiento, niveles y ventana del
+  registro, capas del mapa, tipos de categoría— pasa de `bg-muted` al blanco
+  al 8 %: era el mismo gris del hover y no se distinguía del resto.
+- ⚠ **El selector de estado de una oportunidad, debajo del título en móvil.**
+  Iba a su derecha con `w-36`, y en 375 px truncaba las dos cosas: el título
+  y el propio estado («Conversaci…»), que es justo el dato que se va a tocar.
+  Medido después: ningún título recortado.
+
+### Panel de control, y el barrido final
+
+- **El icono de las doce tarjetas de comprobación**, apagado: iban todas en
+  esmeralda sobre `bg-primary/10`, compitiendo con el chip de estado
+  (Correcto · Aviso · Error), que es el que de verdad informa.
+- **La tabla de cuentas, en la tarjeta común** (`TarjetaTabla`) con
+  «Invitar» en su cabecera: el botón flotaba suelto sobre una tabla sin
+  contenedor, y era la única tabla del dashboard sin tarjeta.
+- **Rótulos de sección** («Salud del despliegue», «Recursos de la máquina»,
+  los de Visitas) con el mismo cuerpo y tracking que el del inicio: había
+  tres variantes de `uppercase tracking-*`.
+- ⚠ **La columna fija del Control mensual tenía fondo translúcido.** Iba con
+  `bg-card` (un blanco al 4 %), así que al desplazar la tabla en horizontal
+  el nombre del mes dejaba ver las celdas pasando por debajo. Una columna
+  `sticky` necesita fondo **opaco**: ahora es `bg-background`.
+- **Un solo separador en todo el dashboard**: `border-border/60` y
+  `border-border/50` (0,06 y 0,05 de blanco) pasan al filo compartido al
+  8 % en once ficheros, y los `hover:bg-muted/40` y `/60` al blanco al 6 %.
+  Los `bg-muted` que quedan **equivalen exactamente** a ese blanco al 6 %, así
+  que no se tocan.
+
+- ⚠ **Catorce clases inválidas** que había dejado el barrido de tarjetas:
+  `bg-card/50` (el fondo de los grupos de píldoras) se convirtió en
+  `rounded-xl/50`, que no existe, así que esos contenedores se quedaron sin
+  fondo. Son `superficie-baja`, que es justo para lo que va dentro de una
+  tarjeta. Lo caza un `grep` de `rounded-*/N`; ninguna herramienta avisa de
+  una clase de Tailwind que no existe.
 
 ## 12/09/2026 (en producción)
 

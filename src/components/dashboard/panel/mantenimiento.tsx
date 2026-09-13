@@ -243,7 +243,7 @@ export function MantenimientoTab({
             servidor no filtra nada y sería ruido. */}
         {enUso.size > 1 && (
           <div
-            className="flex overflow-x-auto rounded-lg border border-border bg-card/50 p-0.5 max-sm:w-full"
+            className="flex overflow-x-auto superficie-baja rounded-xl p-0.5 max-sm:w-full"
             role="group"
             aria-label="Filtrar por ámbito">
             {chipsAmbito.map((a) => (
@@ -253,7 +253,7 @@ export function MantenimientoTab({
                 className={cn(
                   chipFiltro,
                   filtro === a.uuid
-                    ? 'bg-muted text-foreground'
+                    ? 'bg-white/8 text-foreground'
                     : 'text-muted-foreground hover:text-foreground',
                 )}
                 onClick={() => setFiltro(a.uuid)}>
@@ -265,7 +265,7 @@ export function MantenimientoTab({
         <span className="flex-1" />
         {/* Lista / Calendario: la lista gestiona, el calendario planifica */}
         <div
-          className="flex rounded-lg border border-border bg-card/50 p-0.5 max-sm:w-full"
+          className="flex superficie-baja rounded-xl p-0.5 max-sm:w-full"
           role="group"
           aria-label="Vista">
           {([
@@ -278,7 +278,7 @@ export function MantenimientoTab({
               className={cn(
                 chipFiltro,
                 'inline-flex items-center justify-center gap-1.5',
-                vista === v.id ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
+                vista === v.id ? 'bg-white/8 text-foreground' : 'text-muted-foreground hover:text-foreground',
               )}
               aria-pressed={vista === v.id}
               onClick={() => setVista(v.id)}>
@@ -323,7 +323,7 @@ export function MantenimientoTab({
           }}
         />
       ) : visibles.length === 0 ? (
-        <div className="rounded-xl border border-border bg-card p-6 text-center text-sm text-muted-foreground">
+        <div className="superficie rounded-2xl p-6 text-center text-sm text-muted-foreground">
           <CalendarClock className="mx-auto mb-2 size-6 text-muted-foreground" />
           {rows.length === 0 ? (
             'Sin tareas todavía. Ejemplos útiles: revisar dependencias cada mes, comprobar backups cada mes, la ITV cada 12 meses o la revisión de la caldera cada año.'
@@ -345,7 +345,7 @@ export function MantenimientoTab({
       ) : (
         // `ul`/`li` para que un lector anuncie cuántas tareas hay. Lista de tarjetas y no
         // tabla: la nota es texto de varias líneas.
-        <ul className="flex flex-col divide-y divide-border/60 rounded-xl border border-border bg-card">
+        <ul className="flex flex-col divide-y divide-border/60 superficie rounded-2xl">
           {visibles.map((t) => {
             const cumpl = cumplida(t)
             const estado = ESTADO_TAREA[chipDe(t, hoy)]
@@ -395,7 +395,7 @@ export function MantenimientoTab({
                   )}
                 </div>
                 <span className="hidden shrink-0 sm:block">{chip}</span>
-                <span className="flex items-center justify-end gap-0.5 border-t border-border/60 pt-2 sm:border-0 sm:pt-0">
+                <span className="flex items-center justify-end gap-0.5 border-t border-white/8 pt-2 sm:border-0 sm:pt-0">
                   {/* Una puntual ya cumplida no se vuelve a marcar: en su sitio va "Reabrir". En
                       las que se repiten, marcar otra vez encadena el siguiente vencimiento. */}
                   {cumpl ? (
@@ -651,7 +651,7 @@ function AmbitosModal({ ambitos, onClose }: { ambitos: AmbitoRow[]; onClose: () 
           en vez de leerse como un montón de texto suelto. */}
       <ul>
       {ambitos.map((a) => (
-        <li key={a.uuid} className="border-b border-border/60 py-2">
+        <li key={a.uuid} className="border-b border-white/8 py-2">
           {editando === a.uuid ? (
             <div className="flex items-center gap-2">
               <TextField

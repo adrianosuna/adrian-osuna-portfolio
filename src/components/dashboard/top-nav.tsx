@@ -65,8 +65,8 @@ export function TopNav({ user, avisos, onSignOut }: TopNavProps) {
 
   return (
     // safe-top: en apaisado y en la isla dinámica el recorte llega hasta aquí.
-    <header className="safe-top sticky top-0 z-40 border-b border-border bg-background">
-      <div className="safe-x mx-auto flex h-14 w-full max-w-300 items-center gap-4">
+    <header className="safe-top sticky top-0 z-40 border-b border-white/8 bg-(--pf-nav) backdrop-blur-xl">
+      <div className="safe-x flex h-14 w-full items-center gap-4">
         {/* El enlace necesita su propio `aria-label`: la marca es un dibujo
             sin texto, así que sin él el enlace se queda SIN NOMBRE. */}
         <Link href="/app" aria-label="Inicio del panel" className="shrink-0 text-foreground transition-colors hover:text-primary">
@@ -82,8 +82,8 @@ export function TopNav({ user, avisos, onSignOut }: TopNavProps) {
               className={cn(
                 'whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
                 isActive(l.href)
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                  ? 'bg-white/8 text-foreground'
+                  : 'text-muted-foreground hover:bg-white/6 hover:text-foreground',
               )}>
               {l.label}
             </Link>
@@ -100,16 +100,16 @@ export function TopNav({ user, avisos, onSignOut }: TopNavProps) {
           <div className="hidden items-center gap-1.5 md:flex">
             <button
               type="button"
-              className="flex items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+              className="flex items-center gap-2 rounded-lg border border-white/12 bg-white/3 px-2.5 py-1.5 text-sm text-muted-foreground transition-colors hover:border-white/25 hover:text-foreground"
               onClick={acc.abrirPaleta}>
               <Search className="size-4" />
               <span className="sr-only lg:not-sr-only">Buscar</span>
-              <kbd className="hidden rounded border border-border px-1 text-[11px] leading-relaxed lg:inline">Ctrl&nbsp;K</kbd>
+              <kbd className="hidden rounded border border-white/12 px-1 text-[11px] leading-relaxed lg:inline">Ctrl&nbsp;K</kbd>
             </button>
             <Tooltip texto="Nuevo movimiento">
               <button
                 type="button"
-                className="flex items-center justify-center rounded-md bg-primary p-2 text-primary-foreground transition-opacity hover:opacity-90"
+                className="flex items-center justify-center rounded-lg bg-primary p-2 text-primary-foreground transition-opacity hover:opacity-90"
                 aria-label="Nuevo movimiento"
                 onClick={() => acc.abrirAlta('GASTO')}>
                 <Plus className="size-4" />
@@ -124,7 +124,7 @@ export function TopNav({ user, avisos, onSignOut }: TopNavProps) {
             type="button"
             // `pr-2` solo cuando se ve el nombre: con el avatar solo, ese
             // relleno lo descentraba dentro del círculo.
-            className="flex items-center gap-2 rounded-full border border-border p-0.5 transition-colors hover:border-primary/50 lg:pr-2"
+            className="flex items-center gap-2 rounded-full border border-white/12 bg-white/3 p-0.5 transition-colors hover:border-white/25 lg:pr-2"
             onClick={() => setProfileOpen((o) => !o)}
             aria-haspopup="menu"
             aria-expanded={profileOpen}>
@@ -145,24 +145,24 @@ export function TopNav({ user, avisos, onSignOut }: TopNavProps) {
           {profileOpen && (
             <div
               role="menu"
-              className="absolute right-0 top-full mt-2 w-64 rounded-xl border border-border bg-popover p-2 shadow-lg">
-              <div className="border-b border-border px-3 pb-3 pt-1">
+              className="absolute right-0 top-full mt-2 w-64 rounded-2xl border border-white/10 bg-popover p-2 shadow-[0_18px_50px_rgba(0,0,0,0.55)]">
+              <div className="border-b border-white/8 px-3 pb-3 pt-1">
                 <p className="truncate text-sm font-semibold">{user.name ?? '—'}</p>
                 <p className="truncate text-xs text-muted-foreground">{user.email}</p>
                 <span
                   className={cn(
                     'mt-2 inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold',
-                    user.role === 'ADMIN' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
+                    user.role === 'ADMIN' ? 'bg-primary/10 text-primary' : 'bg-white/8 text-muted-foreground',
                   )}>
                   {user.role === 'ADMIN' ? 'Administrador' : 'Usuario'}
                 </span>
               </div>
               {/* Preferencias de ESTE navegador (no viajan a la BD) */}
-              <div className="mt-1 border-b border-border pb-1">
+              <div className="mt-1 border-b border-white/8 pb-1">
                 <TogglePush />
                 <button
                   type="button"
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-white/6 hover:text-foreground"
                   onClick={() => {
                     setProfileOpen(false)
                     acc.abrirAtajos()
@@ -174,14 +174,14 @@ export function TopNav({ user, avisos, onSignOut }: TopNavProps) {
                 {silenciadas.length > 0 && (
                   <button
                     type="button"
-                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-white/6 hover:text-foreground"
                     onClick={() => {
                       restablecer()
                       setProfileOpen(false)
                     }}>
                     <RotateCcw className="size-4" />
                     Volver a preguntar al eliminar
-                    <span className="ml-auto rounded-full bg-muted px-1.5 text-[11px] tabular-nums">
+                    <span className="ml-auto rounded-full bg-white/8 px-1.5 text-[11px] tabular-nums">
                       {silenciadas.length}
                     </span>
                   </button>
@@ -189,7 +189,7 @@ export function TopNav({ user, avisos, onSignOut }: TopNavProps) {
               </div>
               <Link
                 href="/"
-                className="mt-1 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                className="mt-1 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-white/6 hover:text-foreground"
                 onClick={() => setProfileOpen(false)}>
                 <ExternalLink className="size-4" />
                 Ver portfolio público
@@ -208,7 +208,7 @@ export function TopNav({ user, avisos, onSignOut }: TopNavProps) {
         {/* Acciones rápidas en móvil: buscar (paleta) y alta de movimiento */}
         <button
           type="button"
-          className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:hidden"
+          className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-white/6 hover:text-foreground md:hidden"
           aria-label="Buscar"
           onClick={acc.abrirPaleta}>
           <Search className="size-5" />
@@ -216,7 +216,7 @@ export function TopNav({ user, avisos, onSignOut }: TopNavProps) {
         {acc.isAdmin && (
           <button
             type="button"
-            className="rounded-md bg-primary p-2 text-primary-foreground transition-opacity hover:opacity-90 md:hidden"
+            className="rounded-lg bg-primary p-2 text-primary-foreground transition-opacity hover:opacity-90 md:hidden"
             aria-label="Nuevo movimiento"
             onClick={() => acc.abrirAlta('GASTO')}>
             <Plus className="size-5" />
@@ -226,7 +226,7 @@ export function TopNav({ user, avisos, onSignOut }: TopNavProps) {
         {/* Hamburguesa (solo móvil) */}
         <button
           type="button"
-          className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:hidden"
+          className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-white/6 hover:text-foreground md:hidden"
           aria-label={menuOpen ? 'Cerrar menú' : 'Abrir menú'}
           aria-expanded={menuOpen}
           onClick={() => setMenuOpen((o) => !o)}>
@@ -236,8 +236,8 @@ export function TopNav({ user, avisos, onSignOut }: TopNavProps) {
 
       {/* Panel móvil: sólido (bg-popover), con los módulos y el perfil dentro */}
       {menuOpen && (
-        <nav className="safe-x safe-bottom border-t border-border bg-popover py-3 shadow-lg md:hidden">
-          <div className="mx-auto flex w-full max-w-300 flex-col gap-1">
+        <nav className="safe-x safe-bottom border-t border-white/8 bg-popover py-3 shadow-[0_18px_50px_rgba(0,0,0,0.55)] md:hidden">
+          <div className="flex w-full flex-col gap-1">
             {links.map((l) => (
               <Link
                 key={l.href}
@@ -246,15 +246,15 @@ export function TopNav({ user, avisos, onSignOut }: TopNavProps) {
                 className={cn(
                   'rounded-lg px-3.5 py-2.5 text-[15px] font-medium transition-colors',
                   isActive(l.href)
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                    ? 'bg-white/8 text-foreground'
+                    : 'text-muted-foreground hover:bg-white/6 hover:text-foreground',
                 )}>
                 {l.label}
               </Link>
             ))}
 
             {/* Cuenta: datos + acciones de sesión */}
-            <div className="mt-2 border-t border-border pt-3">
+            <div className="mt-2 border-t border-white/8 pt-3">
               <div className="flex items-center gap-3 px-3.5 pb-2">
                 {user.image ? (
                   <Image src={user.image} alt="" width={36} height={36} className="rounded-full" />
@@ -269,7 +269,7 @@ export function TopNav({ user, avisos, onSignOut }: TopNavProps) {
                     <span
                       className={cn(
                         'ml-2 rounded-full px-2 py-0.5 text-[10.5px] font-semibold',
-                        user.role === 'ADMIN' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
+                        user.role === 'ADMIN' ? 'bg-primary/10 text-primary' : 'bg-white/8 text-muted-foreground',
                       )}>
                       {user.role === 'ADMIN' ? 'Admin' : 'Usuario'}
                     </span>
@@ -280,7 +280,7 @@ export function TopNav({ user, avisos, onSignOut }: TopNavProps) {
               <Link
                 href="/"
                 onClick={() => setMenuOpen(false)}
-                className="flex items-center gap-2.5 rounded-lg px-3.5 py-2.5 text-[15px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+                className="flex items-center gap-2.5 rounded-lg px-3.5 py-2.5 text-[15px] text-muted-foreground transition-colors hover:bg-white/6 hover:text-foreground">
                 <ExternalLink className="size-4" />
                 Ver portfolio público
               </Link>

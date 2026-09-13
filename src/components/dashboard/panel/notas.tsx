@@ -325,25 +325,25 @@ export function NotasTab({
           Ninguna nota coincide con la búsqueda.
         </p>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 3xl:grid-cols-5">
           {visibles.map((n) => (
-            // No es un <button>: la tarjeta pinta HTML con bloques y enlaces, anidamiento
-            // inválido dentro de un botón. Div con role/teclado y preview sin pointer-events.
+            // Contenedor SIN rol: dentro va el botón de fijar, y un role="button"
+            // aquí anidaría dos controles (axe: nested-interactive). Quien abre la
+            // nota es el botón que cubre la tarjeta, debajo del de fijar.
             <div
               key={n.uuid}
-              role="button"
-              tabIndex={0}
-              onClick={() => abrir(n)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  abrir(n)
-                }
-              }}
               className={cn(
-                'relative flex cursor-pointer flex-col rounded-xl border bg-card p-4 text-left transition-colors hover:border-primary/50 focus:border-primary focus:outline-none',
+                'superficie relative flex flex-col rounded-2xl p-4 text-left transition-colors focus-within:border-primary hover:border-white/16',
                 n.pinned ? 'border-primary/40' : 'border-border',
               )}>
+              {/* Cubre la tarjeta y es lo que abre la nota: un botón de verdad, con
+                  su nombre accesible; el contenido va debajo sin recibir el ratón. */}
+              <button
+                type="button"
+                className="absolute inset-0 z-0 rounded-2xl focus:outline-none"
+                aria-label={`Abrir la nota ${n.title || 'sin título'}`}
+                onClick={() => abrir(n)}
+              />
               {/* Fijar: encima de la tarjeta, y para el clic para no abrirla */}
               <Tooltip texto={n.pinned ? 'Soltar' : 'Fijar arriba'}>
                 <button
@@ -352,7 +352,7 @@ export function NotasTab({
                     'absolute right-2 top-2 rounded-md p-1.5 transition-colors',
                     n.pinned
                       ? 'text-primary hover:bg-primary/10'
-                      : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                      : 'text-muted-foreground hover:bg-white/6 hover:text-foreground',
                   )}
                   aria-label={n.pinned ? 'Soltar la nota' : 'Fijar la nota arriba'}
                   aria-pressed={n.pinned}
@@ -442,7 +442,7 @@ export function NotasTab({
             />
             {/* Barra de formato del editor visual. El botón se marca cuando su
                 formato está activo donde está el cursor. */}
-            <div className="flex flex-wrap gap-0.5 rounded-md border border-border bg-card/50 p-1">
+            <div className="flex flex-wrap gap-0.5 superficie-baja rounded-lg p-1">
               <BotonFormato label="Título" icon={Heading} activo={activos.h3} onClick={() => formato('formatBlock', 'H3')} />
               <BotonFormato label="Negrita" icon={Bold} activo={activos.bold} onClick={() => formato('bold')} />
               <BotonFormato label="Cursiva" icon={Italic} activo={activos.italic} onClick={() => formato('italic')} />

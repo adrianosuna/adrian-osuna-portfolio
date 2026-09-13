@@ -411,7 +411,7 @@ function PaletaComandos({
                 onClick={() => c.run()}
                 className={cn(
                   'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors',
-                  i === idx ? 'bg-primary/10' : 'hover:bg-muted/60',
+                  i === idx ? 'bg-primary/10' : 'hover:bg-white/6',
                 )}>
                 <span
                   className={cn(
@@ -573,7 +573,7 @@ function AltaRapida({
       }>
       <div className="flex flex-col gap-3">
         {/* Tipo: segmentado (es binario) */}
-        <div className="flex gap-1 rounded-lg border border-border bg-card/50 p-0.5">
+        <div className="flex gap-1 superficie-baja rounded-xl p-0.5">
           {TIPOS.map((t) => (
             <button
               key={t.value}

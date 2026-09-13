@@ -2,8 +2,8 @@
 // sus mediciones dentro de un Suspense: el cambio pinta al instante.
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { CabeceraPagina } from '@/components/dashboard/cabecera'
 import { Gauge } from 'lucide-react'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
@@ -24,7 +24,6 @@ import { NotasTab } from '@/components/dashboard/panel/notas'
 import { PanelTabsMovil } from '@/components/dashboard/panel/tabs-movil'
 import { Registro as RegistroTab } from '@/components/dashboard/panel/registro'
 import { listLogs, POR_PAGINA as POR_PAGINA_LOG, retencionDias } from '@/lib/log-db'
-import { cn } from '@/lib/utils'
 import { dispositivoDe } from '@/lib/dispositivo'
 import { correoConfigurado } from '@/lib/correo'
 import { hoyMadrid, listAmbitos } from '@/lib/mantenimiento'
@@ -297,33 +296,16 @@ export default async function PanelPage({
 
   return (
     <div>
-      {/* mb-5: separa el título de la barra (antes lo hacía el subtítulo, ya retirado). */}
-      <h1 className="mb-5 flex items-center gap-2 text-xl font-bold">
-        <Gauge className="size-5 text-primary" />
-        Panel de control
-      </h1>
+      <CabeceraPagina titulo="Panel de control" icono={<Gauge className="size-5" />} />
 
       {/* Móvil: las cinco pestañas no caben en 375 px, así que van en un desplegable.
           Desde sm, pestañas normales. */}
       <div className="mb-5 sm:hidden">
         <PanelTabsMovil tabs={TABS} activa={activa} />
       </div>
-      <div className="mb-5 hidden border-b border-border sm:block">
-        <div className="-mb-px flex gap-1 overflow-x-auto overflow-y-hidden">
-          {TABS.map((t) => (
-            <Link
-              key={t.id}
-              href={t.href}
-              className={cn(
-                'shrink-0 whitespace-nowrap border-b-2 px-3.5 py-2 text-sm font-semibold transition-colors',
-                activa === t.id
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-muted-foreground hover:text-foreground',
-              )}>
-              {t.label}
-            </Link>
-          ))}
-        </div>
+      {/* Desde sm, la misma píldora que las secciones de Finanzas. */}
+      <div className="hidden sm:block">
+        <SubTabs ariaLabel="Secciones del panel" activa={activa} tabs={TABS} repartir={false} />
       </div>
 
       {/* La sub-pestaña entra en el key: cambiar de Cuentas a Sesiones vuelve a

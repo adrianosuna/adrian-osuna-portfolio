@@ -165,7 +165,7 @@ export function Navbar({ t }: NavbarProps) {
                   'rounded-xl px-4 py-3 text-[15px] font-medium transition-colors',
                   activeId === a.href.slice(1)
                     ? 'bg-muted text-foreground'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                    : 'text-muted-foreground hover:bg-white/6 hover:text-foreground',
                 )}
                 onClick={() => setMenuOpen(false)}>
                 {a.label}

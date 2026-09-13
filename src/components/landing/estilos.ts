@@ -1,11 +1,13 @@
 // Clases compartidas por las secciones de la landing (servidor) y sus islas
 // cliente. Sin directiva: lo importan los dos lados.
 import { cn } from '@/lib/utils'
+import { tarjeta as tarjetaBase } from '@/components/ui/superficie'
 
 export const contenedor = 'mx-auto w-full max-w-6xl px-6 sm:px-8'
 export const seccion = cn(contenedor, 'py-20 sm:py-24')
 
-export const tarjeta = 'pf-card relative overflow-hidden rounded-2xl'
+// Piezas compartidas: tarjeta, botones, chip y etiqueta pequeña.
+export const tarjeta = cn(tarjetaBase, 'relative overflow-hidden')
 export const btnPrimario =
   'inline-flex items-center gap-2 rounded-full bg-foreground px-5 py-2.5 text-sm font-medium text-background transition-colors hover:bg-primary'
 export const btnSecundario =

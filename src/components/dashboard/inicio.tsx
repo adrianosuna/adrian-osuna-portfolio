@@ -6,8 +6,11 @@ import {
 } from 'lucide-react'
 import type { ActividadItem, Aviso } from '@/lib/inicio'
 import { cn } from '@/lib/utils'
+import { tarjeta } from '@/components/ui/superficie'
+// La tarjeta de cifra es compartida; se re-exporta con los nombres que ya usaba el inicio.
+export { TarjetaCifra as Tile, TarjetaCifraEsqueleto as TileEsqueleto } from '@/components/dashboard/tarjeta-cifra'
 
-export const cardClass = 'rounded-xl border border-border bg-card'
+export const cardClass = tarjeta
 
 /** Antigüedad en lenguaje corto ("hace 2 h", "ayer", "hace 3 días"). */
 export function hace(iso: string) {
@@ -18,40 +21,6 @@ export function hace(iso: string) {
   if (horas < 24) return `hace ${horas} h`
   const dias = Math.round(horas / 24)
   return dias === 1 ? 'ayer' : `hace ${dias} días`
-}
-
-/** Tarjeta de KPI: etiqueta, cifra grande y un pie con contexto. */
-export function Tile({
-  label, valor, pie, icon, chip, to,
-}: {
-  label: string
-  valor: React.ReactNode
-  pie?: React.ReactNode
-  icon: React.ReactNode
-  chip: string
-  to?: string
-}) {
-  const cuerpo = (
-    <div className={cn(cardClass, 'h-full p-4', to && 'transition-colors hover:border-primary/40')}>
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[12.5px] text-muted-foreground">{label}</p>
-        <span className={cn('grid size-7 shrink-0 place-items-center rounded-md', chip)}>{icon}</span>
-      </div>
-      <p className="mt-1.5 text-2xl font-semibold tabular-nums">{valor}</p>
-      {pie && <div className="mt-1.5 text-[12px] text-muted-foreground">{pie}</div>}
-    </div>
-  )
-  return to ? <Link href={to}>{cuerpo}</Link> : cuerpo
-}
-
-export function TileEsqueleto() {
-  return (
-    <div className={cn(cardClass, 'h-full p-4')}>
-      <div className="h-3.5 w-24 animate-pulse rounded bg-muted" />
-      <div className="mt-2.5 h-7 w-16 animate-pulse rounded bg-muted" />
-      <div className="mt-2.5 h-3 w-28 animate-pulse rounded bg-muted" />
-    </div>
-  )
 }
 
 /** Franja de avisos accionables; sin avisos, el estado "todo al día". */
@@ -79,8 +48,8 @@ export function Atencion({ avisos }: { avisos: Aviso[] }) {
           key={a.clave}
           href={a.href}
           className={cn(
-            'flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50',
-            i > 0 && 'border-t border-border/60',
+            'flex items-center gap-3 px-4 py-3 transition-colors hover:bg-white/4',
+            i > 0 && 'border-t border-white/8',
           )}>
           <span
             className={cn(
@@ -110,8 +79,8 @@ const ICONO_ACTIVIDAD: Record<string, typeof Mail> = {
 /** Últimos movimientos del pipeline (historial de las oportunidades). */
 export function Actividad({ items }: { items: ActividadItem[] }) {
   return (
-    <div className={cn(cardClass, 'px-4 py-3')}>
-      <div className="flex items-center justify-between border-b border-border pb-2.5">
+    <div className={cn('@container', cardClass, 'px-4 py-3')}>
+      <div className="flex items-center justify-between border-b border-white/8 pb-2.5">
         <h2 className="text-[15px] font-semibold">Actividad reciente</h2>
         {/* `py-1`: sin él la caja pulsable mide 19 px de alto, por debajo de
             los 24 que pide WCAG 2.2 AA (2.5.8). */}
@@ -129,16 +98,18 @@ export function Actividad({ items }: { items: ActividadItem[] }) {
           return (
             <div
               key={it.uuid}
-              className={cn('flex items-start gap-2.5 py-2.5', i < items.length - 1 && 'border-b border-border/60')}>
+              className={cn('flex items-start gap-2.5 py-2.5', i < items.length - 1 && 'border-b border-white/8')}>
               <Icono
                 className={cn(
                   'mt-0.5 size-3.5 shrink-0',
                   it.tipo === 'ESTADO' ? 'text-primary' : 'text-muted-foreground',
                 )}
               />
-              <div className="min-w-0 flex-1">
+              {/* En una tarjeta ancha, el origen y el cuándo se van al otro extremo
+                  de la fila en vez de quedar debajo del texto. */}
+              <div className="min-w-0 flex-1 @3xl:flex @3xl:items-baseline @3xl:justify-between @3xl:gap-6">
                 <p className="truncate text-[13px] leading-snug">{it.detalle}</p>
-                <p className="truncate text-[11.5px] text-muted-foreground">
+                <p className="truncate text-[11.5px] text-muted-foreground @3xl:shrink-0">
                   {it.oportunidad} · {hace(it.cuando)}
                 </p>
               </div>

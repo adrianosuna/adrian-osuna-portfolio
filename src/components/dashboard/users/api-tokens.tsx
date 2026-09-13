@@ -93,7 +93,7 @@ export function ApiTokens({ rows, base }: { rows: ApiTokenRow[]; base: string })
             volver a verlo. Si se pierde, revócalo y crea otro.
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <code className="min-w-0 flex-1 overflow-x-auto rounded-md border border-border bg-background px-3 py-2 text-[12.5px] break-all">
+            <code tabIndex={0} className="min-w-0 flex-1 overflow-x-auto rounded-md border border-border bg-background px-3 py-2 text-[12.5px] break-all">
               {nuevo}
             </code>
             <button type="button" className={btnOutline} onClick={copiar}>
@@ -211,7 +211,7 @@ function ComoUsarla({ base }: { base: string }) {
   ].join('\n')
 
   return (
-    <div className="mt-4 rounded-xl border border-border bg-card p-4">
+    <div className="mt-4 superficie rounded-2xl p-4">
       {/* `h3`: va bajo el `h2` de la tarjeta, sin saltarse un nivel. */}
       <h3 className="text-sm font-semibold">Cómo usarla desde un Atajo</h3>
       <p className="mt-1 text-[12.5px] text-muted-foreground">
@@ -219,7 +219,7 @@ function ComoUsarla({ base }: { base: string }) {
         <strong>JSON</strong>, y una cabecera <code>Authorization</code> con{' '}
         <code>Bearer</code> y el token.
       </p>
-      <pre className="mt-3 overflow-x-auto rounded-md border border-border bg-background p-3 text-[12px] leading-relaxed">
+      <pre tabIndex={0} className="mt-3 overflow-x-auto rounded-md border border-border bg-background p-3 text-[12px] leading-relaxed">
         {ejemplo}
       </pre>
       <ul className="mt-3 flex flex-col gap-1 text-[12.5px] text-muted-foreground">

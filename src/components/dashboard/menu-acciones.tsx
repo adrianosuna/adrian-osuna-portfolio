@@ -97,7 +97,7 @@ export function MenuAcciones({
                     ? 'cursor-not-allowed opacity-50'
                     : a.destructiva
                       ? 'text-danger hover:bg-danger-bg'
-                      : 'hover:bg-muted',
+                      : 'hover:bg-white/6',
                 )}
                 disabled={a.disabled}
                 onClick={() => {
