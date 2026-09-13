@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Adrián Osuna — Desarrollador Web',
     description:
-      'Portfolio de Adrián Osuna, desarrollador web full-stack especializado en React y Node.js.',
+      'Portfolio de Adrián Osuna, desarrollador web Full-Stack especializado en React y Node.js.',
     url: '/',
     siteName: 'Adrián Osuna',
     locale: 'es_ES',

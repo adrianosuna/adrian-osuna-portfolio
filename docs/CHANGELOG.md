@@ -6,7 +6,373 @@ cuando algo se termina, se cuenta aquí con su porqué y desaparece de allí.
 
 ---
 
-## 12/09/2026
+## 12/09/2026 (pendiente de desplegar)
+
+### La landing, rehecha en clave de producto
+
+Petición de Adrián: «darle una nueva vuelta a la estética del porfolio [...]
+más profesional y elegante». Se revisó entera en escritorio y móvil antes de
+tocar nada, y lo que le restaba era acumulativo, no un fallo concreto: todo
+iba en tarjeta con borde y radio grande, dos verdes compitiendo (la esmeralda
+y el teal de los rótulos), monoespaciada en rótulos, fechas, chips y enlaces,
+el título «01 Proyectos ———» con raya, texto justificado con guiones
+(«pro-cesos», «li-dere»), la foto como un rectángulo blanco sobre fondo
+oscuro y los banners de IntarLAB y Portfolio repitiendo el nombre a 60 px
+encima del título.
+
+**Hubo dos intentos el mismo día.** El primero fue una versión **editorial**
+(Instrument Serif en los titulares, sin tarjetas, filos finos, retrato
+recortado fundido con el fondo, proyectos en filas figura + ficha). Adrián la
+vio y no le convenció por los cuatro frentes: la serif, el vacío, el hero con
+la silueta y las filas de proyectos. Eligió entonces **producto pulido, tipo
+Linear o Vercel**, que es lo que queda. La serif se retiró del todo
+(`next/font`, token y usos); de aquel intento sobreviven el texto alineado a
+la izquierda sin guiones, el acento único y el retrato recortado, que ahora
+vive en «Sobre mí».
+
+Lo que hay:
+
+- **Tipografía**: Geist en todo, titulares en `font-semibold` con
+  `tracking` de −0,03 a −0,04 em; la mono solo en numerales y fechas.
+- **Tarjeta única** (`.pf-card`): degradado de blanco al 4,5 % → 1,8 %, borde
+  al 8 %, brillo de 1 px en el filo superior y borde al 14 % al pasar el
+  ratón. Todo lo que es tarjeta la usa: cifras, proyectos, «Sobre mí»,
+  experiencia y contacto.
+- **Fondos**: rejilla de 48 px (`.pf-grid`, con la máscara radial la pone
+  quien la usa) y halos esmeralda con `color-mix`. El hero lleva la rejilla
+  desvaneciéndose hacia abajo y un halo que baja desde el borde superior.
+- **Hero centrado**: píldora con avatar circular y «Responsable de Desarrollo
+  en INTARCON» (enlaza a «Sobre mí»), nombre a `clamp(44px, 8vw, 92px)`, rol
+  en verde, entradilla, botón principal claro (`bg-foreground`, esmeralda al
+  pasar) y secundario en contorno, y debajo la ubicación con las tres redes
+  como botones redondos. Sin foto grande: era lo que no funcionaba.
+- **Cifras** en cuatro tarjetas (dos por fila en móvil), con el ordinal
+  «1.º» como manda la RAE.
+- **Cabecera de sección**: píldora con punto verde y el nombre de la sección
+  (Proyectos, Sobre mí, Experiencia, Contacto), titular grande y entradilla
+  opcional. Entran en `content.ts` los titulares `projectsHeadline`,
+  `about.headline` y `experienceHeadline`, y `hero.badge`.
+- **Proyectos en tres tarjetas iguales**, con la ficha corta a la vista y
+  el caso completo plegado. Hubo antes un **bento** (Client360 a todo el
+  ancho con la captura a un lado, los otros dos a media anchura con una
+  ilustración de nodos) que Adrián descartó al verlo («no me gusta como está
+  montado lo de los proyectos»); eligió tres tarjetas del mismo formato, el
+  texto recortado y una ilustración más parecida a una interfaz. Queda:
+  - Cada tarjeta lleva arriba una **ventana de navegador** (`MarcoNavegador`,
+    16:9, con marco completo y margen alrededor, sobre halo y rejilla; una
+    versión intermedia la apoyaba sin borde inferior en el filo de la
+    cabecera y la maqueta parecía cortada por abajo, Adrián pidió verla
+    entera) y debajo numeral, chip de origen, chip «Desde cero», título,
+    entradilla (`subtitle`, ahora obligatoria), chips del stack y una fila
+    con **«Leer el caso»** y los enlaces. El caso —reto, qué construí,
+    resultado— se abre en el **modal común** (`ui/modal.tsx`, ancho `lg`),
+    con la ventana, los tres bloques, el stack y los enlaces.
+    ⚠ La primera versión lo desplegaba dentro de la tarjeta, y para que la
+    abierta no estirase a las otras dos iban con `self-start`: eso las dejaba
+    de **distinta altura** también cerradas (la entradilla de Client360 ocupa
+    una línea más) y Adrián lo señaló al momento. Con el modal las tres
+    tarjetas se estiran a la misma altura y el pie va con `mt-auto`, a plomo
+    en las tres. El texto del caso sigue en `content.ts`: `llms.txt` y el
+    JSON-LD lo leen de ahí, no del HTML.
+    ⚠ El modal va por **`createPortal` al `body`**: el envoltorio de revelado
+    de la tarjeta lleva `translate` y `will-change`, que convierten al
+    `position: fixed` del modal en relativo a la tarjeta, y el
+    `overflow-hidden` de esta lo recortaba. Se vio en la primera captura: el
+    caso salía dentro de la columna, sin fondo y cortado.
+  - Client360 lleva la captura real (1904×1071, ver abajo). IntarLAB y
+    Portfolio, sin captura publicable, llevan una **maqueta de interfaz**
+    (`Maqueta`): cabecera, tres baldosas rotuladas con módulos del proyecto
+    (`flow`) y, según `mock`, una gráfica de series con dos trazas
+    (`'series'`) o barras y un donut (`'panel'`). La primera versión llevaba
+    además un menú lateral con esos módulos; Adrián lo quitó («no quiero que
+    le añadas el menú lateral») y los nombres pasaron a las baldosas.
+    ⚠ La gráfica de IntarLAB salió **rota** en la segunda revisión: el SVG iba
+    `absolute inset-2` dentro de su baldosa y un elemento reemplazado
+    posicionado **no se estira con los insets**, toma su tamaño intrínseco
+    (el `viewBox` 3:1), así que en tarjetas estrechas desbordaba la baldosa
+    por abajo. Ahora lleva alto y ancho explícitos, la maqueta es una rejilla
+    con la gráfica a `1fr` (antes flex, y la baldosa se quedaba en 46 px a
+    1024 px) y el donut va acotado por altura. **Sin cifras a propósito**:
+    solo forma; inventar números en un portfolio es la clase de detalle que
+    se vuelve en contra. Sustituye a los dos PNG sintéticos anteriores, que
+    se han borrado.
+  - ⚠ La captura de Client360 se ve **entera y a su escala**: una versión
+    intermedia la sacaba al 115 % de ancho asomando por el borde y Adrián la
+    señaló al momento («no me gusta como está enfocada»): la tarjeta
+    recortaba todo menos la esquina superior izquierda y el escalado la
+    dejaba borrosa. Va con `quality={90}` porque es texto fino de interfaz, e
+    `imageTop` desaparece de `CaseStudy` porque ya no se recorta nada.
+    Adrián aportó además una **captura nueva** (1920×1080, la pantalla de
+    Enfriadoras Inverter con la máquina grande), que sustituye a la anterior
+    de 1600×1000: se le recortó la barra de scroll del borde derecho (queda
+    en 1904×1071) y el marco es 16:9 (`aspect-video`).
+    ⚠ En la tarjeta la captura se pinta a unos 300 px de ancho y salía
+    **borrosa** por dos motivos: el optimizador servía la variante justa
+    (384 px) y el `quality={90}` **no se aplicaba** —Next 16 solo sirve las
+    calidades listadas en `images.qualities` y por defecto solo hay 75—. Ahora
+    `sizes` pide el doble de lo que se pinta (720 px en escritorio) para que
+    la reduzca el navegador, y `next.config.ts` declara `qualities: [75,
+    90]`. Con todo, una pantalla completa a 300 px es una miniatura: el texto
+    de la interfaz se lee en el modal, no en la tarjeta.
+- **«Sobre mí»** en dos tarjetas: el retrato y el texto con los cuatro
+  datos como baldosas. El retrato es la **foto original sin recortar**
+  (`adrian.webp`) **a sangre en su tarjeta**: la tarjeta es el marco, con un
+  degradado oscuro en el tercio inferior y una píldora con la ubicación en
+  la esquina. Se probó antes un encuadre con marco esmeralda desplazado,
+  esquinas marcadas y pie con nombre y cargo, y Adrián lo rechazó dos veces
+  («sigue sin gustarme el estilo del marco»). Hubo antes una silueta recortada
+  (`adrian-recorte.webp`, generada con `pnpm retrato` desde un PNG que
+  recortó Adrián y fundida por abajo con una máscara); Adrián pidió volver a
+  la foto entera («usa la que no tiene recorte y dale un estilo personal al
+  encuadre»), y el script, el WebP y la máscara se retiraron; el PNG maestro
+  de `docs/retrato/` se borró en la limpieza final del día.
+  ⚠ La foto va **`unoptimized`**: con el optimizador, en una pantalla a DPR 1
+  pedía la variante de 384 px y la servía como **JPEG a calidad 75 (9,5 KB)**,
+  y la cara salía blanda; Adrián lo vio al momento («la foto se ve borrosa y
+  antes no se veía así»). El original es un WebP de 800 px y 39 KB, nítido
+  hasta DPR 2 al tamaño al que se pinta, así que se sirve tal cual. El avatar
+  de la píldora del hero (26 px) sí sigue optimizado.
+- **Experiencia**: una tarjeta por empresa, con la duración en píldora y la
+  línea de tiempo de los puestos a la derecha.
+- **Contacto**: una sola tarjeta centrada con halo desde abajo, el correo
+  como botón principal y LinkedIn y GitHub como secundarios.
+- **Barra**: mismo contenedor que el contenido (`max-w-6xl`, `px-6/8`; la
+  anterior iba 24 px por fuera), botón «Dashboard» claro, punto verde bajo la
+  sección activa.
+- De paso, **un dato desfasado** en el caso del Portfolio: decía «gráficas
+  SVG dibujadas a mano (sin librerías)» y van sobre Chart.js desde el 27/08.
+
+Las rejillas de dos columnas entran en `lg` (1024 px), no en `md`: en
+tablet el texto se quedaba en columnas de 200 a 290 px. Desaparecen de
+`content.ts` `hero.hi`, `footer.navTitle` y `footer.contactTitle`.
+Verificado: tsc, lint, 668 tests y el build de producción; capturas de cada
+sección a 375, 768, 1024 y 1440 px.
+
+### Barra de scroll flotante, siempre a la vista
+
+Petición de Adrián en tres pasos: primero «una barra de scroll propia para
+toda la web y que se use esa y no la del navegador»; al ver la versión en
+CSS, «quiero que la barra sea flotante y se oculte sola»; y al probar el
+auto-ocultado, «prefiero que el scroll esté visible para el usuario». Queda
+flotante y fija:
+
+- **`ui/barra-scroll.tsx`**, montada en el layout raíz (vale para la landing
+  y el dashboard: los dos desplazan el documento). Es una pista fija en el
+  borde derecho con un pulgar que **sigue al scroll nativo**, que sigue
+  siendo el que manda —rueda, teclado, anclas, lectores de pantalla— y solo
+  deja de pintarse (`scrollbar-width: none` en `html`). Está siempre
+  visible, sin ocupar hueco en la maquetación; el pulgar se arrastra (Pointer
+  Events con captura) y un clic en la pista lleva a ese punto. Mínimo de
+  32 px de pulgar, y si la página no desborda no se monta. Hubo una versión
+  con auto-ocultado al segundo de quietud (y aparición al acercar el ratón al
+  borde), retirada el mismo día a petición de Adrián.
+- **Solo con puntero fino** (`(pointer: fine)`): en el móvil la barra del
+  sistema ya es flotante y se oculta sola, y un pulgar de 6 px no se puede
+  arrastrar con el dedo. Ahí no se toca nada.
+- Las **zonas interiores** con overflow (tablas, cuerpo del modal) conservan
+  la barra fina en CSS de la primera versión: pista transparente y pulgar
+  redondeado que crece al pasar el ratón. ⚠ Lo de Firefox
+  (`scrollbar-color`) va bajo `@supports not selector(::-webkit-scrollbar)`:
+  si Chrome ve `scrollbar-color`, ignora los `::-webkit-scrollbar` y vuelve
+  a su barra estándar.
+- Va por debajo del modal (`z-45` frente a `z-50`): con un modal abierto el
+  fondo no se desplaza y la barra no tiene que verse encima.
+
+Se descartó una librería de scroll superpuesto (tipo OverlayScrollbars):
+sustituyen el scroll nativo por uno propio, y eso es más peso y problemas
+conocidos con el teclado y los lectores de pantalla. Aquí el nativo sigue
+intacto; solo cambia lo que se pinta. Verificado con Playwright: barra
+nativa a 0 px, pulgar visible y siguiendo al scroll, y arrastre y clic en la
+pista moviendo el documento.
+
+### Login, 404, privacidad y la tarjeta de OpenGraph, al estilo de la landing
+
+Con la landing rediseñada, las otras tres páginas públicas y la tarjeta que
+sale al compartir el enlace seguían con el estilo anterior: el teal de los
+rótulos, los botones verdes rellenos (`--pf-btn`) y las tarjetas viejas. Ahora
+comparten las piezas de la landing —rejilla `.pf-grid` con máscara, halo
+`.pf-hero-glow`, tarjeta `.pf-card`, píldora con punto verde, botón principal
+claro que pasa a esmeralda— y el mismo tratamiento tipográfico:
+
+- **Login**: la tarjeta es `.pf-card` sobre rejilla y halo; «Entrar con
+  Google» es el botón claro. El atajo de desarrollo conserva su ámbar y su
+  borde discontinuo: tiene que verse distinto a propósito.
+- **404**: píldora «Error 404», el número a `clamp(88px, 16vw, 160px)` en
+  seminegrita y el botón claro.
+- **Privacidad**: píldora «Legal», titular como las cabeceras de sección,
+  bloques separados por filos finos en vez de aire suelto, enlaces subrayados
+  como en la landing. El banner de cookies y el botón de «retirar el
+  consentimiento» van con los mismos botones.
+- **Tarjeta de OpenGraph** (1200×630): rejilla y halo desde arriba, una
+  píldora con la ubicación, el nombre a 112 px, el rol en verde, el lema
+  («Aplicaciones web eficientes y escalables, del backend a la interfaz») y
+  al pie la marca con el dominio. **Solo datos de la persona**: la primera
+  versión llevaba la píldora del cargo en INTARCON y la entradilla del hero,
+  que también nombra a la empresa, y Adrián pidió quitarlo («que sea solo
+  info mía sobre mi persona, no del trabajo»). Lee `footer.location`,
+  `hero.role` y `footer.blurb` de `content.ts`, así que cambia con la
+  landing. La fuente
+  pasa de Inter a **Geist** (pesos 400/500/600 desde fontsource), la misma
+  que la web; sin red en el build se degrada a la del sistema, como antes.
+
+**«Full-Stack», así escrito**, con las dos mayúsculas y guion, en todo el
+sitio (petición de Adrián): el rol del hero, la entradilla, las
+descripciones y palabras clave de la metadata, el puesto de la experiencia y
+el README. Antes convivían «full-stack», «Full-stack» y «Full Stack».
+
+Con eso, los tokens `--pf-accent`, `--pf-btn` y `--pf-btn-hover` (y sus
+utilidades `accent-teal`, `bg-btn`, `bg-btn-hover`) dejan de usarse en todo
+el proyecto y se retiran de `globals.css`; `--pf-primary-dark` se queda
+porque lo usa un enlace de las notas del Panel.
+
+De paso, las clases arbitrarias con forma canónica en Tailwind 4 pasaron a
+ella en las seis piezas públicas (aviso del linter de Tailwind):
+`[mask-image:…]` → `mask-[…]`, `bg-white/[0.04]` → `bg-white/4` (y `/3`,
+`/6`), `h-[32rem]` → `h-128`. ⚠ Tras una sustitución así, **reiniciar el dev
+server**: Turbopack no regeneró la hoja con las clases nuevas y el navegador
+las pintaba como si no existieran (máscara `none`, fondo transparente),
+mientras el build de producción sí las traía. Mismo síntoma que la caché de
+imágenes, y se diagnostica igual de mal.
+Como el aviso se repetía (`leading-[1]`, `bg-gradient-to-t`, `aspect-[4/5]`,
+`before:-left-[29px]`), la regla queda en CLAUDE.md, sección «Clases de
+Tailwind»: la utilidad canónica siempre que exista, corchetes solo para lo
+que la escala no tiene (calc, clamp, cuerpos de 13 o 15 px).
+
+El botón de **volver arriba** apenas se veía sobre el fondo oscuro (fondo al
+80 % con desenfoque y borde al 7 %): ahora va con el fondo sólido de los
+paneles, borde al 15 %, icono en el color del texto y sombra, como las
+píldoras del resto de la landing.
+
+### Auditoría axe y Lighthouse de la landing nueva, antes de desplegar
+
+Sobre el build de producción (`next start` desde `.next-aparte` con la BD
+local, puerto 9445), no sobre `pnpm dev`.
+
+**axe** (axe-core 4.13, reglas WCAG 2.1 A/AA + buenas prácticas) en las cuatro
+páginas públicas —landing, login, privacidad y 404— a 1440 y 375 px: **cero
+violaciones** en las ocho combinaciones. Y la pasada de teclado que no cubre
+axe: Enter sobre «Leer el caso» abre el modal con el foco dentro, seis Tab
+siguen dentro, Escape lo cierra y devuelve el foco al botón, y la barra de
+scroll flotante no entra en el orden de tabulación.
+
+**Lighthouse 12** (Chromium de Playwright, tres pasadas):
+
+| | Rendimiento | Accesibilidad | Buenas prácticas | SEO | LCP |
+|---|---|---|---|---|---|
+| Escritorio | 100 | 100 | 100 | 100 | 0,7 s |
+| Móvil (antes) | 92 | 100 | 100 | 100 | 3,3 s |
+| Móvil (después) | 94–98 | 100 | 100 | 100 | 2,4–3,1 s simulado; **0,15 s observado** |
+
+Dos arreglos salieron de la pasada móvil:
+
+- ⚠ **El texto que nace con opacidad 0 no cuenta para el LCP.** La animación
+  de entrada del hero (`pf-entrada`) fundía desde `opacity: 0`, y Chrome
+  descarta como candidato el texto cuya primera pintura fue invisible: bajo
+  emulación móvil ni el h1 ni la entradilla eran candidatos, y el LCP caía en
+  lo primero que sí contaba cuando ya había hidratado React, la cifra «5+» de
+  las estadísticas a 3,3 s (`PerformanceObserver` lo enseñó: un único
+  candidato, la píldora del cargo). Ahora `pf-entrada` **solo desplaza**
+  (16 px, sin opacidad) y las cifras entran también con `inmediata` (en móvil
+  asoman en el primer pantallazo); el elemento LCP pasa a ser la entradilla
+  en móvil y el h1 en escritorio, pintados a los 147 ms. El 2,4–3,1 s que
+  sigue enseñando Lighthouse en móvil es la **simulación de Lantern**
+  («Render Delay» 1,9–2,7 s): cuenta el JS del bundle como dependencia
+  pesimista de la pintura, y varía entre pasadas por eso. Bajarlo de verdad
+  exige menos JS en la landing (ver SUGERENCIAS).
+- La captura de Client360 pedía la variante de **1920 px en móvil** (el
+  `sizes="200vw"` que se puso para nitidez, multiplicado por el DPR): 64 KiB
+  de más. Ahora `sizes` es `100vw` hasta 640 px, `150vw` hasta 1024 y 720 px
+  en escritorio; en móvil pide la de 750.
+
+Lo que Lighthouse sigue señalando y se deja a propósito: `adrian.webp` sin
+optimizar (23 KiB «de ahorro», es la decisión de nitidez documentada arriba),
+27 KiB de JS sin usar y 13 KiB de JS «legacy» (el runtime de Next/React, no
+código propio).
+
+### Sección «Cómo trabajo», y fuera la cifra que no era una cifra
+
+Dos remates de contenido tras el rediseño:
+
+- **«1.º Desarrollador de INTARCON» se retira** de la franja de cifras: era
+  una frase forzada a ser número (y el dato ya está en la entradilla del hero
+  y en «Sobre mí»). Se ofreció sustituirla por algo medible —usuarios de
+  Client360, equipos ensayados en IntarLAB— y Adrián prefirió quitarla. Quedan
+  **tres cifras** (años construyendo software, plataformas en producción, años
+  liderando el equipo), siempre en una fila: en móvil van más compactas
+  (`text-3xl`, `p-3.5`) para que las tres quepan a 375 px sin apilarse y
+  dejar una huérfana.
+- **Nueva sección «Cómo trabajo»** (`HowIWork`, id `como-trabajo`), entre
+  «Sobre mí» y Experiencia: cuatro principios cortos en tarjetas con icono,
+  numeral, título y dos frases —primero el problema real, el dato antes que
+  la pantalla, para producción y no para la demo, las decisiones por
+  escrito—. Es lo que distingue un portfolio de un currículum y encaja con
+  el tono de casos de estudio. El texto vive en `content.ts` (`work`), entra
+  en la barra y el pie (`nav.work`), en el scroll-spy y en `llms.txt`. Los
+  cuatro textos son una primera redacción para que Adrián los haga suyos.
+
+### Limpieza tras el rediseño
+
+Restos que dejaron las idas y venidas del día, retirados de una pasada:
+
+- **`docs/retrato/adrian-recortado.png`** (189 KB): el maestro de la silueta
+  recortada, que ya no usa nada. Y cuatro `.axe-*.png` de 10×10 px que la
+  auditoría axe había dejado en la raíz (la captura que asienta el streaming
+  antes de auditar iba a una variable de entorno que en Windows no existe).
+- **Tokens huérfanos de `globals.css`**: `--radius-5xl` (el redondeo del
+  retrato del hero antiguo) y `--pf-primary-dark` con su utilidad
+  `text-primary-dark`. Este segundo escondía un fallo: su único uso era un
+  `hover:` en las notas del Panel, fuera de `.pf-public`, donde el token no
+  está definido, así que el hover no cambiaba nada. Ahora es
+  `hover:text-primary/80`.
+- **La transición de `.reveal`** arrastraba `transform`, `border-color` y
+  `box-shadow` para el hover de las tarjetas antiguas; `.pf-card` lleva la
+  suya y `.reveal` se queda con opacidad y desplazamiento.
+- **README**: la descripción de la landing hablaba del hero con foto, la
+  paleta «esmeralda/teal» y cuatro cifras; puesta al día.
+
+### La landing en el servidor con islas cliente, tests propios y la disponibilidad
+
+Tres remates que salieron de la revisión de «qué le falta»:
+
+- **`sections.tsx` pasa a ser un server component.** Iba entero con
+  `'use client'` por tres piezas con estado, y eso mandaba al navegador el
+  JSX de las siete secciones. Ahora las únicas islas cliente son
+  **`TarjetaCaso`** (`tarjeta-caso.tsx`: el botón «Leer el caso» y el modal),
+  **`CompanyLogo`** (`company-logo.tsx`: solo por el `onError` del logo),
+  `Contador` y `Reveal`. Las clases compartidas viven en `estilos.ts`, sin
+  directiva, para que las importen los dos lados. La ventana de cada caso
+  (captura o maqueta) se **pinta en el servidor** y viaja a la tarjeta como
+  nodo (`ventana`), que la reutiliza en el modal: la maqueta no cuesta JS.
+  ⚠ Resultado medido sobre el build de producción: el JS que descarga la
+  landing baja de **554 a 524 KiB** sin comprimir (30 KiB, un 5 %), y
+  Lighthouse móvil se queda en **94–95**: los dos chunks grandes (223 y
+  126 KiB) son el runtime de Next y React, que el App Router hidrata haga lo
+  que haga la página. Con este stack, el 100 en móvil no está al alcance de
+  la landing; el refactor se queda por lo que aporta —menos JS y fronteras
+  claras—, no por la puntuación. La idea sale de SUGERENCIAS.
+- **Tests de la landing nueva** (`landing.dom.test.tsx`,
+  `barra-scroll.dom.test.tsx` y una aserción más en `geo.test.ts`): el h1,
+  las cinco secciones ancladas y las tres cifras; una tarjeta y un «Leer el
+  caso» por proyecto; los cuatro principios como lista; el modal (abre con el
+  caso completo, Escape lo cierra y **devuelve el foco** al botón); la
+  auditoría axe de la página entera en jsdom con el ayudante compartido; y la
+  barra de scroll (se monta solo con puntero fino y página que desborda,
+  pulgar a escala, sigue al scroll, el clic en la pista desplaza y nada
+  dentro es tabulable). `next/image` y `next/link` van mockeados a etiquetas
+  planas. De 668 a **678 tests**.
+- **El botón «Dashboard» sale de la barra y pasa al pie**, como «Dashboard
+  privado» junto a la política de privacidad (decisión de Adrián). En la
+  barra era el único botón relleno y el visitante lo pulsaba para darse
+  contra un login por invitación; en el pie sigue accesible para quien sabe
+  qué es. La barra queda con el logo y las cinco anclas; en móvil, con la
+  hamburguesa.
+- **Disponibilidad en Contacto** (`contact.availability`): «Abierto a
+  colaboraciones y proyectos puntuales», elegida por Adrián entre cuatro
+  opciones; píldora esmeralda con punto que late (quieto con
+  `prefers-reduced-motion`) bajo el texto de contacto, y una línea más en
+  `llms.txt`. Antes no se sabía a qué estaba abierto.
+
+## 12/09/2026 (en producción)
 
 ### Los comentarios del código, a uno o dos renglones
 
@@ -49,7 +415,7 @@ CLAUDE.md para los heredocs largos, con otra causa—.
 
 ---
 
-## 11/09/2026
+## 11/09/2026 (en producción)
 
 ### El logo nuevo, en todos los sitios
 
@@ -213,7 +579,7 @@ hoy ha sido en local; el CI de este repo no ha corrido jamás.
 
 ---
 
-## 07/09/2026
+## 07/09/2026 (en producción)
 
 ### Los logs, en el Panel de control
 
@@ -429,7 +795,7 @@ fichero.
 
 ---
 
-## 06/09/2026
+## 06/09/2026 (en producción)
 
 ### La tarjeta de Recurrentes, con los del mes que se está viendo
 

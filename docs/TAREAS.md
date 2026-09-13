@@ -1,45 +1,25 @@
 # Tareas pendientes
 
-> Desplegado en producción el **06/09/2026** (commit `c0edace`): las categorías
-> de gasto en dos niveles con su migración `grupos_de_categorias`, el
-> calendario del Panel, el mapa de visitas, el tooltip propio, el atajo de
-> login de desarrollo, los tres findings de la auditoría externa que tocaban el
-> repo y los cuatro repasos de la pestaña Mantenimiento. Verificado desde
-> fuera: `/api/ready` en 200 (la migración entró y la BD responde), la API en
-> 401 sin token, `security.txt` en `text/plain`, el favicon sirviéndose, la CSP
-> y HSTS aplicadas y **sin `X-Powered-By`**. Antes, el 02/09: las diez
-> migraciones, la API v1, la PWA con push y el endurecimiento. El detalle de
-> todo, en `CHANGELOG.md`.
+> Desplegado en producción el **12/09/2026** (commit `e56e58b`): la migración
+> `registro_de_eventos` con la pestaña Registro del Panel, la previsión de
+> cierre de mes, la tarjeta de recurrentes acotada al mes, el snooze del
+> seguimiento, la exportación global de Finanzas, el logo nuevo en toda la
+> aplicación, el arreglo del CI (que nunca había llegado a ejecutarse), el
+> `testTimeout` de los tests, la barra del dashboard entre 768 y 1023 px y los
+> comentarios del código a una o dos líneas. Antes, el 06/09 (`c0edace`): las
+> categorías en dos niveles, el calendario del Panel y el mapa de visitas; y el
+> 02/09: las diez migraciones, la API v1, la PWA con push y el endurecimiento.
+> El detalle de todo, en `CHANGELOG.md`.
 
-## Antes del próximo despliegue
+## Tras el despliegue del 12/09
 
-Pendiente de subir (ver `CHANGELOG.md`): **la tarjeta de recurrentes acotada al
-mes** (06/09), del 07/09 **los logs en el Panel** y la **previsión de cierre de
-mes**, y del 11/09 **el logo nuevo** en toda la aplicación.
-
-- [ ] **Aplicar la migración `registro_de_eventos`** (la tabla `log_event`).
-      Ya aplicada en local; no es destructiva —tabla nueva, no toca ninguna
-      existente—. Al llevar migración, el build necesita el perfil:
-
-      ```bash
-      git pull
-      docker compose --env-file .env.production --profile setup build
-      docker compose --env-file .env.production --profile setup run --rm migrate
-      docker compose --env-file .env.production up -d
-      ```
-
-- [ ] **`LOG_RETENCION_DIAS` es opcional**: sin ponerla son 30 días, que es lo
-      que se quiere. Solo hace falta tocarla para acortar o desactivar la purga.
-- [ ] **Pasar los e2e antes de subir** (`pnpm test:e2e`). En la última
-      ejecución: 24 en verde, pero fue ANTES de estos tres cambios.
-- [ ] **Al terminar, marcar los días en el CHANGELOG**: `## 06/09/2026`,
-      `## 07/09/2026` y `## 11/09/2026` pasan a `(en producción)`, como los
-      anteriores. Es lo que distingue de un vistazo lo subido de lo que está
-      solo en local.
-- [ ] **Con el logo nuevo, refrescar el icono en el móvil.** iOS y Android se
-      guardan el icono al instalar la app: el de la pantalla de inicio seguirá
-      siendo el «AO.» viejo hasta que se quite y se vuelva a añadir. El favicon
-      del navegador sí se actualiza solo (puede costar un Ctrl+F5).
+- [ ] **Refrescar el icono en el móvil.** iOS y Android se guardan el icono al
+      instalar la app: el de la pantalla de inicio seguirá siendo el «AO.» viejo
+      hasta quitar la app y volver a añadirla. El favicon del navegador se
+      actualiza solo (puede costar un Ctrl+F5).
+- [ ] **Mirar el CI del commit `e56e58b`.** Es la primera vez que el workflow
+      se ejecuta de verdad (estaba inválido desde `3d33a0f`): conviene ver que
+      los dos jobs, `verificar` y `e2e`, acaban en verde.
 
 ## Del despliegue del 02/09: una cosa suelta
 

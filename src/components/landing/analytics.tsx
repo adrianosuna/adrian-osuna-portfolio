@@ -76,24 +76,24 @@ export function Analytics() {
         <div
           role="dialog"
           aria-label="Aviso de cookies"
-          className="fixed inset-x-4 bottom-4 z-50 mx-auto max-w-130 rounded-2xl border border-border bg-popover p-4.5 shadow-[0_18px_50px_var(--pf-shadow)]">
+          className="fixed inset-x-4 bottom-4 z-50 mx-auto max-w-130 rounded-2xl border border-white/10 bg-popover p-4.5 shadow-[0_18px_50px_var(--pf-shadow)]">
           <p className="text-[13.5px] leading-relaxed text-body">
             Uso cookies de Google Analytics solo para saber cuánta gente visita la
             web. Si las rechazas, todo funciona exactamente igual.{' '}
-            <Link href="/privacidad" className="font-semibold text-primary hover:text-primary-dark">
+            <Link href="/privacidad" className="font-medium text-foreground underline decoration-white/25 underline-offset-4 hover:text-primary hover:decoration-primary">
               Más información
             </Link>
           </p>
           <div className="mt-3.5 flex gap-2.5">
             <button
               type="button"
-              className="flex-1 rounded-lg border border-border px-4 py-2 text-sm font-semibold text-body transition-colors hover:border-primary hover:text-primary"
+              className="flex-1 rounded-full border border-white/12 bg-white/3 px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-white/25 hover:bg-white/6"
               onClick={() => setConsent('denied')}>
               Rechazar
             </button>
             <button
               type="button"
-              className="flex-1 rounded-lg bg-btn px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-btn-hover"
+              className="flex-1 rounded-full bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-primary"
               onClick={() => setConsent('granted')}>
               Aceptar
             </button>
@@ -110,7 +110,7 @@ export function CookieReset() {
   return (
     <button
       type="button"
-      className="rounded-lg border border-border px-4 py-2 text-sm font-semibold text-primary transition-colors hover:border-primary"
+      className="rounded-full border border-white/12 bg-white/3 px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-white/25 hover:bg-white/6"
       onClick={() => {
         setConsent(null)
         // Borra las cookies de GA (_ga y _ga_*) del dominio actual.

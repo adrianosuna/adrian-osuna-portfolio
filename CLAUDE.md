@@ -74,7 +74,11 @@ plazos de caducidad** de la sesión, las dos trampas mudas del **logo**
 (`logotipo.dom.test.tsx`: la regla de relleno `evenodd` y el `aria-hidden` —si
 se rompen, el logo se sigue pintando) y una **auditoría axe** de las piezas
 compartidas (modal, campos, sub-pestañas y el **calendario**, que es la rejilla
-más densa: 35 botones con nombre propio). `server-only` se alias-ea a un stub
+más densa: 35 botones con nombre propio) y de la **landing entera**
+(`landing.dom.test.tsx`: secciones, modal del caso con devolución del foco,
+axe; `next/image` y `next/link` mockeados a etiquetas planas), más la
+**barra de scroll flotante** (`barra-scroll.dom.test.tsx`: cuándo se monta,
+geometría del pulgar, clic en la pista). `server-only` se alias-ea a un stub
 y `next-auth` se procesa inline en `vitest.config.mts`.
 **`tests/setup.ts`** rellena lo que jsdom no implementa y el dashboard sí usa
 (`matchMedia` para `prefers-reduced-motion`, `scrollIntoView`); va con guarda
@@ -154,12 +158,50 @@ Proyecto Next.js App Router con `src/`. **Paleta única en todo el sitio**
   `--warning`, `--danger`, `--viajes` con sus `-bg`). `--primary-foreground`
   es oscuro: el blanco sobre esmeralda no da contraste AA.
 - **Páginas públicas** (landing `/`, login `/login`, `/privacidad`): la clase
-  `.pf-public` ya solo aporta tokens extra propios de la landing (`--pf-btn`,
-  `--pf-accent`, glow, nav...). La landing gira alrededor de los **proyectos
-  como casos de estudio** (reto → qué construí → resultado); sus componentes
-  viven en `src/components/landing/` y su contenido (perfil, experiencia,
-  textos, casos) en `src/lib/landing/content.ts` — la única fuente de verdad
-  del contenido.
+  `.pf-public` ya solo aporta tokens extra propios de la landing (`--pf-body`,
+  `--pf-shadow`, `--pf-nav`, la caja del logo). La landing gira alrededor de los **proyectos
+  como casos de estudio** (reto → qué construí → resultado), con una sección
+  **«Cómo trabajo»** de cuatro principios entre «Sobre mí» y Experiencia; sus
+  componentes viven en `src/components/landing/` y su contenido (perfil,
+  experiencia, textos, casos, principios) en `src/lib/landing/content.ts` —
+  la única fuente de verdad del contenido, de la que también salen
+  `llms.txt` y la tarjeta de OpenGraph.
+  ⚠ **`sections.tsx` es un server component**: las únicas islas cliente son
+  `TarjetaCaso`, `CompanyLogo`, `Contador` y `Reveal`, y las clases
+  compartidas van en `estilos.ts` (sin directiva). Al añadir algo con
+  estado, va en su propio fichero `'use client'`, no un `'use client'` en
+  `sections.tsx`. El acceso al dashboard va **solo en el pie** («Dashboard
+  privado»), no en la barra: decisión de Adrián del 12/09/2026. Medido el 12/09/2026: el split ahorra 30 KiB de JS, pero
+  Lighthouse móvil se queda en 94–95 por el runtime de Next/React; no
+  perseguir el 100 ahí.
+  **Estética de producto** (rediseño del 12/09/2026; Adrián eligió «tipo
+  Linear/Vercel» tras descartar una versión editorial con serif que se probó
+  el mismo día): Geist en todo con titulares `font-semibold` y tracking
+  negativo, la **mono solo para numerales y fechas**, **un solo acento** (el
+  verde va en el rol del hero, los puntos de las píldoras, la sección activa
+  y los hovers; el teal `--pf-accent` y los botones `--pf-btn` se retiraron
+  del todo al alinear login, 404, privacidad y la tarjeta de OpenGraph con
+  la landing). **Una tarjeta única**, `.pf-card` (degradado tenue, borde al
+  8 %, brillo en el filo superior), y fondos con `.pf-grid` + halos
+  `color-mix`. Hero **centrado y sin foto grande** (píldora con avatar); la foto
+  original (`adrian.webp`, sin recortar: Adrián descartó la silueta) va a
+  sangre en una tarjeta de «Sobre mí», sin marco ni adornos (descartó
+  también un encuadre con marco desplazado y esquinas), y `unoptimized`
+  porque el optimizador la ablandaba a DPR 1.
+  ⚠ **`images.qualities`**: Next 16 solo sirve las calidades listadas en
+  `next.config.ts` (`[75, 90]`); un `quality` que no esté ahí cae a 75 sin
+  aviso. Y una captura que se pinte pequeña pide en `sizes` el doble de lo
+  que mide, para que la reduzca el navegador y no el optimizador. Proyectos en
+  **tres tarjetas iguales**: ventana de navegador arriba (captura real o
+  `Maqueta` de interfaz según `mock`, con los módulos de `flow` en las
+  baldosas, sin menú lateral y sin cifras), ficha corta con el pie en `mt-auto` (las tres a la misma altura,
+  petición de Adrián) y el caso completo en el modal común tras «Leer el
+  caso» (el texto vive en `content.ts`, de donde lo leen `llms.txt` y el
+  JSON-LD). Hubo un bento
+  con Client360 a todo el ancho, descartado por Adrián el mismo día. Texto **a la izquierda, sin
+  justificar ni partir palabras**; las rejillas de dos columnas entran en
+  `lg`, no en `md`. No volver a la serif, a la mono en rótulos, al «01
+  Proyectos ———» con raya ni a una foto grande en el hero.
 - **Dashboard** (`/app/*`): componentes en `src/components/dashboard/`. El
   inicio es un **centro de mando**: franja de avisos accionables (seguimientos
   vencidos, mantenimiento, meses de ahorro sin rellenar), KPIs con dato real y
@@ -213,6 +255,14 @@ Proyecto Next.js App Router con `src/`. **Paleta única en todo el sitio**
   el navegador: depende del orden de desmontaje.
 - **Tema único oscuro**: el selector claro/oscuro se retiró; los tokens de
   `:root` ya son los oscuros (sin clase `dark` ni `next-themes`).
+- **Barra de scroll flotante** de la página (`ui/barra-scroll.tsx`, montada
+  en el layout raíz): sigue al scroll nativo, que sigue mandando y solo deja
+  de pintarse; **siempre visible** (Adrián probó el auto-ocultado y lo
+  descartó). Solo con `(pointer: fine)`: en táctil se deja la del sistema. Las zonas interiores (tablas, modal) llevan la barra fina en CSS.
+  ⚠ Lo de Firefox (`scrollbar-color`) va bajo `@supports not
+  selector(::-webkit-scrollbar)`: si Chrome ve `scrollbar-color`, ignora los
+  `::-webkit-scrollbar`. Sin librerías de scroll superpuesto, a propósito: el
+  nativo queda intacto para teclado y lectores de pantalla.
 
 ### Convenciones de datos (heredadas del proyecto original)
 
@@ -1027,6 +1077,16 @@ contra un build de producción), así que un cambio aquí se ve allí.
 - **El título de una tarjeta es `h2`**, no `h3`: va bajo el `h1` de la página
   y saltarse un nivel rompe el orden de encabezados.
 
+⚠ **Rendimiento: el texto que nace con `opacity: 0` no cuenta para el LCP.**
+Chrome descarta como candidato lo que se pintó invisible por primera vez, así
+que un hero con fundido de entrada deja el LCP en cualquier otra cosa que
+cargue tarde. Por eso `pf-entrada` **solo desplaza** y las cifras del hero
+entran con `inmediata`. Lighthouse móvil enseña un LCP de 2–3 s que es
+simulación de Lantern (el JS del bundle como dependencia pesimista); el
+observado son ~150 ms. Auditoría axe y Lighthouse del 12/09/2026 en el
+CHANGELOG, con la receta (`next start` desde `.next-aparte` con la BD
+local y Lighthouse con el Chromium de Playwright).
+
 ⚠ Y dos trampas al MEDIR, que dan falsos positivos:
 
 - Auditar **mientras Next revela el streaming**: el árbol nuevo viaja en un
@@ -1301,6 +1361,37 @@ one-shot (`--profile setup`) que aplica la migración baseline y el seed.
 `NEXT_PUBLIC_SITE_URL` y `NEXT_PUBLIC_GA_ID` se hornean como build-args. Guía
 completa: `docs/DESPLIEGUE.md` (procedimiento validado en local el 25/08/2026).
 
+## Clases de Tailwind: la utilidad canónica, nunca el valor arbitrario
+
+Petición de Adrián (12/09/2026): el linter de Tailwind avisaba una y otra
+vez de clases escritas «a mano» que tienen forma propia en Tailwind 4, y no
+se hace así. **Si existe la utilidad, se usa la utilidad**; los corchetes
+quedan solo para valores que la escala no tiene.
+
+| Mal (arbitrario) | Bien (canónico) |
+|---|---|
+| `[mask-image:radial-gradient(…)]` | `mask-[radial-gradient(…)]` |
+| `bg-white/[0.04]` | `bg-white/4` (cualquier entero vale) |
+| `h-[32rem]`, `-left-[29px]` | `h-128`, `-left-7.25` (escala de 0,25 rem, sin tope) |
+| `leading-[1]` | `leading-none` |
+| `bg-gradient-to-t` | `bg-linear-to-t` |
+| `aspect-[4/5]`, `aspect-[16/10]` | `aspect-4/5`, `aspect-16/10` |
+| `w-[calc(100%-1rem)]` | `w-[calc(100%-1rem)]` (calc no tiene escala: aquí sí) |
+| `text-[clamp(44px,8vw,92px)]` | igual (clamp no tiene escala) |
+
+Reglas para no dudar: la **escala de espaciado es dinámica** —`p-7.25`,
+`h-128`, `-left-7.25` existen aunque no aparezcan en ninguna lista—; los
+**modificadores de opacidad** aceptan cualquier entero (`/3`, `/4`, `/15`);
+los **degradados** son `bg-linear-*`, `bg-radial-*` y `bg-conic-*`; la
+**máscara** es `mask-[…]`; y **`text-[13px]`** o **`text-[15px]`** se quedan
+como están, porque la escala tipográfica no tiene esos cuerpos (`text-xs`
+son 12 px y `text-sm` 14, y además fijan interlineado). Ante la duda, el
+linter de Tailwind lo dice: si sugiere «can be written as», se cambia.
+
+⚠ Tras una sustitución masiva de clases, **reiniciar el dev server**:
+Turbopack puede quedarse con la hoja anterior y las clases nuevas se pintan
+como si no existieran, mientras el build de producción sí las trae.
+
 ## Comentarios del código
 
 **Uno o dos renglones, directos y profesionales** (petición de Adrián,
@@ -1342,6 +1433,9 @@ espacio **irrompible** (` ` / `&nbsp;`), para que la cifra y el símbolo no
 se separen en un salto de línea. En finanzas lo pone `pct()` de `savings/comun`
 (vía `Intl`, que en es-ES ya usa ese espacio) — usarlo siempre que se pueda en
 lugar de componer el texto a mano.
+**«Full-Stack»**, siempre con las dos mayúsculas y guion (petición de Adrián,
+12/09/2026): nada de «full-stack», «Full-stack» ni «Full Stack», en la UI, la
+metadata ni la documentación.
 **Sin ejemplos enumerados en labels ni placeholders** — nada de "Concepto
 (vuelos, hotel...)" o "Título (rol, encargo...)": etiquetas escuetas
 ("Concepto", "Título"). Los placeholders solo si son funcionales ("Buscar...",

@@ -1,5 +1,5 @@
 // Acceso al dashboard: solo con Google y por lista de invitados (allowlist).
-// Usa la paleta pública (esmeralda/teal), como el login del Portfolio original.
+// Mismo estilo que la landing: tarjeta `.pf-card` sobre rejilla y halo.
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
@@ -27,19 +27,21 @@ export default async function LoginPage({
   return (
     // `main` y no `div`: sin un landmark, un lector de pantalla no puede
     // saltar al contenido — lo caza `landmark-one-main` de axe.
-    <main className="pf-public flex min-h-dvh flex-col items-center justify-center bg-background px-4 text-body">
-      <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-8 text-center shadow-[0_10px_40px_var(--pf-shadow)]">
+    <main className="pf-public relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-background px-4 text-body">
+      <div aria-hidden="true" className="pf-grid absolute inset-0 mask-[radial-gradient(ellipse_60%_60%_at_50%_40%,#000_10%,transparent_75%)]" />
+      <div aria-hidden="true" className="pf-hero-glow" />
+      <div className="pf-card relative w-full max-w-sm rounded-2xl p-8 text-center">
         {/* La marca, decorativa: quien lea la pantalla ya tiene el h1 de
             debajo. Ver `ui/logotipo.tsx`. */}
         <Logotipo className="mx-auto h-7 w-auto text-foreground" />
-        <h1 className="mt-4 text-xl font-bold text-foreground">Dashboard interno</h1>
+        <h1 className="mt-5 text-xl font-semibold tracking-[-0.02em] text-foreground">Dashboard interno</h1>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
           Acceso solo con Google y por invitación. Si tu correo no está dado de
           alta, no podrás entrar.
         </p>
 
         {error && (
-          <p className="mt-4 rounded-lg bg-danger-bg px-3 py-2 text-sm font-medium text-danger">
+          <p className="mt-4 rounded-lg border border-danger/30 bg-danger-bg px-3 py-2 text-sm font-medium text-danger">
             {error === 'AccessDenied'
               ? 'Tu correo no está en la lista de invitados o está deshabilitado.'
               : 'No se pudo iniciar sesión. Inténtalo de nuevo.'}
@@ -53,7 +55,7 @@ export default async function LoginPage({
           }}>
           <button
             type="submit"
-            className="mt-6 inline-flex w-full items-center justify-center gap-2.5 rounded-xl bg-btn px-6 py-3 text-[15px] font-semibold text-white transition-all hover:-translate-y-px hover:bg-btn-hover">
+            className="mt-6 inline-flex w-full items-center justify-center gap-2.5 rounded-full bg-foreground px-6 py-3 text-[15px] font-medium text-background transition-colors hover:bg-primary">
             <FaGoogle className="size-4" />
             Entrar con Google
           </button>
@@ -69,7 +71,7 @@ export default async function LoginPage({
             }}>
             <button
               type="submit"
-              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-warning/60 bg-warning/10 px-6 py-2.5 text-sm font-semibold text-warning transition-colors hover:bg-warning/15">
+              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-full border border-dashed border-warning/60 bg-warning/10 px-6 py-2.5 text-sm font-medium text-warning transition-colors hover:bg-warning/15">
               <FlaskConical className="size-4" />
               Entrar como {devLogin}
               <span className="rounded-md bg-warning/20 px-1.5 py-0.5 text-[10px] uppercase tracking-wide">
@@ -89,7 +91,7 @@ export default async function LoginPage({
         href="/"
         // py-2 solo suma zona táctil (el texto se ve igual): 20px de alto era
         // un objetivo escaso para el pulgar, y es el único control secundario.
-        className="mt-4 flex items-center gap-1.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
+        className="relative mt-5 flex items-center gap-1.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
         <ArrowLeft className="size-4" />
         Volver al portfolio
       </Link>

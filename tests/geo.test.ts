@@ -42,6 +42,12 @@ describe('/llms.txt', () => {
     expect(md).toContain(PROFILE.github)
   })
 
+  it('lleva la sección «Cómo trabajo» con sus principios', async () => {
+    const md = await llms().text()
+    expect(md).toContain('## Cómo trabajo')
+    for (const p of CONTENT.work.principles) expect(md).toContain(p.title)
+  })
+
   it('es texto plano en UTF-8 (no HTML)', () => {
     const res = llms()
     expect(res.headers.get('Content-Type')).toBe('text/plain; charset=utf-8')

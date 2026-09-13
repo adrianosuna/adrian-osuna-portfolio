@@ -2,7 +2,7 @@
 
 # Portfolio & Dashboard — Adrián Osuna
 
-**Portfolio profesional orientado a casos de estudio + dashboard interno de gestión (finanzas personales, pipeline de oportunidades, usuarios y panel de control del servidor), en un único proyecto full-stack.**
+**Portfolio profesional orientado a casos de estudio + dashboard interno de gestión (finanzas personales, pipeline de oportunidades, usuarios y panel de control del servidor), en un único proyecto Full-Stack.**
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js&logoColor=white)](https://nextjs.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev)
@@ -23,9 +23,10 @@
 
 **Landing pública** (`/`)
 - **Proyectos como casos de estudio** — cada uno con *reto → qué construí → resultado*, captura y enlaces a demo en vivo y código
-- Hero con posicionamiento y cifras calculadas en vivo (años de experiencia y de liderazgo, siempre al día) con contador animado al entrar en pantalla
-- Tema oscuro único con paleta esmeralda/teal propia; navbar transparente que gana fondo con blur al hacer scroll
-- Animaciones de revelado al hacer scroll, respetando `prefers-reduced-motion`
+- Hero centrado sobre rejilla y halo, con tres cifras calculadas en vivo (años de experiencia, plataformas en producción y años liderando el equipo) y contador animado
+- Proyectos como casos de estudio en tres tarjetas iguales (ventana de navegador con captura o maqueta, ficha corta y el caso completo en un modal), «Sobre mí» con el retrato a sangre, «Cómo trabajo» con cuatro principios, experiencia y contacto
+- Tema oscuro único con paleta esmeralda y un solo acento; tarjetas con degradado tenue y borde fino; barra de scroll flotante propia
+- Animaciones de revelado al hacer scroll, respetando `prefers-reduced-motion`; la entrada del hero solo desplaza (el texto con opacidad 0 no cuenta para el LCP)
 - SEO completo: metadata y Open Graph (imagen generada en build), JSON-LD `ProfilePage` con proyectos como `CreativeWork`, sitemap y robots
 - **Preparada para buscadores de IA (GEO)**: agentes de IA permitidos explícitamente en robots.txt y `/llms.txt` generado en build desde el contenido real
 - **Google Analytics 4 con consentimiento previo (RGPD)**: ni un script se carga sin aceptación, con [política de privacidad](https://adrianosuna.com/privacidad) y retirada del consentimiento en un clic

@@ -63,6 +63,8 @@ const nextConfig: NextConfig = {
   images: {
     // Avatares de la cuenta de Google (foto de perfil en el dashboard).
     remotePatterns: [{ protocol: "https", hostname: "lh3.googleusercontent.com" }],
+    // Next 16 solo sirve las calidades listadas; la 90 es para capturas con texto fino.
+    qualities: [75, 90],
   },
   // Fuera el `X-Powered-By`: revela el framework sin dar nada. En el origen y no en
   // Caddy porque aquí es una línea.

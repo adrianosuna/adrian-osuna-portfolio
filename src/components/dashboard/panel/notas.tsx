@@ -57,7 +57,7 @@ function CuerpoNota({ html, etiqueta }: { html: string; etiqueta: string | null 
       {(recortada || abierta) && (
         <button
           type="button"
-          className="mt-1 self-start text-[11px] font-semibold uppercase tracking-[0.4px] text-primary hover:text-primary-dark"
+          className="mt-1 self-start text-[11px] font-semibold uppercase tracking-[0.4px] text-primary hover:text-primary/80"
           aria-expanded={abierta}
           // Con varias tarjetas, "Ver más" a secas no dice de qué nota es.
           aria-label={`${abierta ? 'Recortar' : 'Ver entera'}: ${etiqueta || 'nota sin título'}`}

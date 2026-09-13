@@ -4,7 +4,7 @@ import { Analytics } from '@/components/landing/analytics'
 import { Navbar } from '@/components/landing/navbar'
 import { BackToTop } from '@/components/landing/back-to-top'
 import {
-  About, Contact, Experience, Footer, Hero, Projects, Stats,
+  About, Contact, Experience, Footer, Hero, HowIWork, Projects, Stats,
 } from '@/components/landing/sections'
 import { CONTENT } from '@/lib/landing/content'
 
@@ -30,6 +30,7 @@ export function Landing() {
         <Stats t={t} />
         <Projects t={t} />
         <About t={t} />
+        <HowIWork t={t} />
         <Experience t={t} />
         <Contact t={t} />
       </main>

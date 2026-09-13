@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { SITE_URL } from "@/lib/site";
 import { CONTENT } from "@/lib/landing/content";
 import { LINKS_SPLASH } from "@/lib/splash";
+import { BarraScroll } from "@/components/ui/barra-scroll";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -22,8 +23,8 @@ export const metadata: Metadata = {
     template: "%s | Adrián Osuna",
   },
   description:
-    "Portfolio de Adrián Osuna, desarrollador web full-stack especializado en React y Node.js. Aplicaciones web eficientes y escalables, de la base de datos a la interfaz.",
-  keywords: ["Adrián Osuna", "desarrollador web", "full stack", "React", "Node.js", "Next.js", "portfolio"],
+    "Portfolio de Adrián Osuna, desarrollador web Full-Stack especializado en React y Node.js. Aplicaciones web eficientes y escalables, de la base de datos a la interfaz.",
+  keywords: ["Adrián Osuna", "desarrollador web", "Full-Stack", "React", "Node.js", "Next.js", "portfolio"],
   // Instalable en iPhone/iPad: pantalla completa y directo al dashboard. Barra de
   // estado en negro, a tono con el tema oscuro.
   appleWebApp: {
@@ -67,7 +68,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Adrián Osuna — Desarrollador Web",
     description:
-      "Portfolio de Adrián Osuna, desarrollador web full-stack especializado en React y Node.js.",
+      "Portfolio de Adrián Osuna, desarrollador web Full-Stack especializado en React y Node.js.",
     siteName: "Adrián Osuna",
     locale: "es_ES",
     type: "website",
@@ -76,7 +77,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Adrián Osuna — Desarrollador Web",
     description:
-      "Portfolio de Adrián Osuna, desarrollador web full-stack especializado en React y Node.js.",
+      "Portfolio de Adrián Osuna, desarrollador web Full-Stack especializado en React y Node.js.",
   },
 };
 
@@ -166,6 +167,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
         />
         {children}
+        <BarraScroll />
       </body>
     </html>
   );

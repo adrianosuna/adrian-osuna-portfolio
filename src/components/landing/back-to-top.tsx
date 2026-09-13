@@ -27,7 +27,7 @@ export function BackToTop() {
       tabIndex={visible ? 0 : -1}
       onClick={() => window.scrollTo({ top: 0 })}
       className={cn(
-        'fixed bottom-5 right-5 z-30 flex size-11 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-[0_6px_18px_var(--pf-shadow)] transition-all hover:-translate-y-0.5 hover:border-primary hover:text-primary',
+        'fixed bottom-5 right-6 z-30 flex size-11 items-center justify-center rounded-full border border-white/15 bg-popover text-foreground shadow-[0_8px_24px_rgba(0,0,0,0.5)] transition-all hover:border-primary hover:text-primary',
         visible ? 'opacity-100' : 'pointer-events-none translate-y-2 opacity-0',
       )}>
       <ArrowUp className="size-4.5" />

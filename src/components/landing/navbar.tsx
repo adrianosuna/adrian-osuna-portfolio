@@ -3,7 +3,6 @@
 // Barra de navegación de la landing: transparente sobre el hero, con fondo y blur al
 // hacer scroll. En móvil, menú en panel flotante.
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import { Menu, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Logotipo } from '@/components/ui/logotipo'
@@ -53,10 +52,11 @@ export function Navbar({ t }: NavbarProps) {
   const anchors = [
     { href: '#proyectos', label: t.nav.projects },
     { href: '#sobre-mi', label: t.nav.about },
+    { href: '#como-trabajo', label: t.nav.work },
     { href: '#experiencia', label: t.nav.experience },
     { href: '#contacto', label: t.nav.contact },
   ]
-  const activeId = useActiveSection(['proyectos', 'sobre-mi', 'experiencia', 'contacto'])
+  const activeId = useActiveSection(['proyectos', 'sobre-mi', 'como-trabajo', 'experiencia', 'contacto'])
 
   // Transparente arriba del todo; con fondo en cuanto hay scroll.
   useEffect(() => {
@@ -100,12 +100,13 @@ export function Navbar({ t }: NavbarProps) {
         className={cn(
           'fixed inset-x-0 top-0 z-40 border-b transition-colors duration-300',
           menuOpen
-            ? 'border-border bg-background'
+            ? 'border-white/8 bg-background'
             : scrolled
-              ? 'border-border bg-(--pf-nav) backdrop-blur-xl'
+              ? 'border-white/8 bg-(--pf-nav) backdrop-blur-xl'
               : 'border-transparent bg-transparent',
         )}>
-        <div className="relative mx-auto flex h-16 max-w-300 items-center justify-between px-4 sm:px-8">
+        {/* Mismo contenedor que las secciones (max-w-6xl, px-6/8): logo y botón a plomo con el contenido. */}
+        <div className="relative mx-auto flex h-16 max-w-6xl items-center justify-between px-6 sm:px-8">
           <a href="#contenido" className="group" aria-label={t.a11y.home}>
             <Logo />
           </a>
@@ -118,10 +119,11 @@ export function Navbar({ t }: NavbarProps) {
                 key={a.href}
                 href={a.href}
                 aria-current={activeId === a.href.slice(1) ? 'true' : undefined}
+                // El activo lleva un punto esmeralda debajo, sin píldora.
                 className={cn(
-                  'whitespace-nowrap rounded-full px-3.5 py-1.5 text-[14px] font-medium transition-colors',
+                  'relative whitespace-nowrap px-3 py-1.5 text-[14px] font-medium transition-colors after:absolute after:-bottom-0.5 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-primary after:opacity-0 after:transition-opacity after:content-[""]',
                   activeId === a.href.slice(1)
-                    ? 'bg-primary/10 text-primary'
+                    ? 'text-foreground after:opacity-100'
                     : 'text-muted-foreground hover:text-foreground',
                 )}>
                 {a.label}
@@ -129,16 +131,10 @@ export function Navbar({ t }: NavbarProps) {
             ))}
           </nav>
 
-          <Link
-            href="/app"
-            className="hidden items-center rounded-full bg-btn px-4.5 py-2 text-sm font-semibold text-white transition-all hover:-translate-y-px hover:bg-btn-hover md:inline-flex">
-            {t.nav.dashboard}
-          </Link>
-
           {/* Botón del menú móvil: alterna hamburguesa/X */}
           <button
             type="button"
-            className="flex size-10 items-center justify-center rounded-full border border-border text-foreground transition-colors hover:border-primary hover:text-primary md:hidden"
+            className="flex size-10 items-center justify-center rounded-full border border-white/10 bg-white/3 text-foreground transition-colors hover:border-white/25 md:hidden"
             onClick={() => setMenuOpen((o) => !o)}
             aria-label={menuOpen ? t.a11y.closeMenu : t.a11y.openMenu}
             aria-expanded={menuOpen}
@@ -152,7 +148,7 @@ export function Navbar({ t }: NavbarProps) {
         <div
           id="menu-movil"
           className={cn(
-            'absolute inset-x-3 top-[calc(100%+8px)] origin-top rounded-3xl border border-border bg-popover p-3 shadow-[0_18px_50px_var(--pf-shadow)] transition-all duration-200 motion-reduce:transition-none md:hidden',
+            'absolute inset-x-4 top-[calc(100%+8px)] origin-top rounded-2xl border border-white/10 bg-popover p-3 shadow-[0_18px_50px_var(--pf-shadow)] transition-all duration-200 motion-reduce:transition-none md:hidden',
             menuOpen
               ? 'pointer-events-auto scale-100 opacity-100'
               : 'pointer-events-none -translate-y-2 scale-95 opacity-0',
@@ -166,9 +162,9 @@ export function Navbar({ t }: NavbarProps) {
                 href={a.href}
                 aria-current={activeId === a.href.slice(1) ? 'true' : undefined}
                 className={cn(
-                  'rounded-2xl px-4 py-3 text-[15px] font-medium transition-colors',
+                  'rounded-xl px-4 py-3 text-[15px] font-medium transition-colors',
                   activeId === a.href.slice(1)
-                    ? 'bg-primary/10 text-primary'
+                    ? 'bg-muted text-foreground'
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                 )}
                 onClick={() => setMenuOpen(false)}>
@@ -176,14 +172,6 @@ export function Navbar({ t }: NavbarProps) {
               </a>
             ))}
           </nav>
-          <div className="mt-2 border-t border-border pt-3">
-            <Link
-              href="/app"
-              className="flex w-full items-center justify-center rounded-full bg-btn px-4.5 py-2.5 text-sm font-semibold text-white transition-all hover:bg-btn-hover"
-              onClick={() => setMenuOpen(false)}>
-              {t.nav.dashboard}
-            </Link>
-          </div>
         </div>
       </header>
     </>

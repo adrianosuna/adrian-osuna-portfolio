@@ -51,6 +51,10 @@ Datos clave:
 
 ${proyectos}
 
+## Cómo trabajo
+
+${c.work.principles.map((p) => `- **${p.title}**: ${p.text}`).join('\n')}
+
 ## Experiencia
 
 - **INTARCON** (${c.experience[0].place}, ${c.experience[0].employment}):
@@ -60,6 +64,7 @@ ${rolesIntarcon}
 
 ## Contacto
 
+- **Disponibilidad**: ${c.contact.availability}
 - **Email**: ${PROFILE.email} (${c.contact.text})
 - **LinkedIn**: ${PROFILE.linkedin}
 - **GitHub**: ${PROFILE.github}
