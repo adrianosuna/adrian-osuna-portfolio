@@ -11,16 +11,6 @@
 > 02/09: las diez migraciones, la API v1, la PWA con push y el endurecimiento.
 > El detalle de todo, en `CHANGELOG.md`.
 
-## Tras el despliegue del 12/09
-
-- [ ] **Refrescar el icono en el móvil.** iOS y Android se guardan el icono al
-      instalar la app: el de la pantalla de inicio seguirá siendo el «AO.» viejo
-      hasta quitar la app y volver a añadirla. El favicon del navegador se
-      actualiza solo (puede costar un Ctrl+F5).
-- [ ] **Mirar el CI del commit `e56e58b`.** Es la primera vez que el workflow
-      se ejecuta de verdad (estaba inválido desde `3d33a0f`): conviene ver que
-      los dos jobs, `verificar` y `e2e`, acaban en verde.
-
 ## Del despliegue del 02/09: una cosa suelta
 
 - [ ] **Crear el primer token de la API** en Panel de control → Usuarios →

@@ -4,18 +4,58 @@
 
 **Portfolio profesional orientado a casos de estudio + dashboard interno de gestión (finanzas personales, pipeline de oportunidades, usuarios y panel de control del servidor), en un único proyecto Full-Stack.**
 
+[![CI](https://github.com/adrianosuna/adrian-osuna-portfolio/actions/workflows/ci.yml/badge.svg)](https://github.com/adrianosuna/adrian-osuna-portfolio/actions/workflows/ci.yml)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js&logoColor=white)](https://nextjs.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Prisma](https://img.shields.io/badge/Prisma-7-2D3748?logo=prisma&logoColor=white)](https://www.prisma.io)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 [![Auth.js](https://img.shields.io/badge/Auth.js-v5-8B5CF6)](https://authjs.dev)
-[![Vitest](https://img.shields.io/badge/Vitest-322_tests-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev)
+[![Vitest](https://img.shields.io/badge/Vitest-678_tests-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev)
 [![Docker](https://img.shields.io/badge/Docker-multi--stage-2496ED?logo=docker&logoColor=white)](https://www.docker.com)
 
 🌐 [adrianosuna.com](https://adrianosuna.com)
 
 </div>
+
+---
+
+## 📸 Un vistazo
+
+> [!NOTE]
+> **Todos los datos que se ven en las capturas son inventados.** Los importes de
+> finanzas, las oportunidades del pipeline con sus empresas y contactos, las
+> tareas de mantenimiento y las métricas de analítica son un juego de ejemplo
+> generado para enseñar la aplicación: no son reales ni corresponden a nadie.
+
+**La landing**: hero centrado sobre rejilla y halo, y los proyectos contados como
+casos de estudio — reto, qué construí y en qué acabó — con el caso completo en un
+modal.
+
+![Portada del portfolio: el nombre en grande, el rol en verde y tres cifras de experiencia sobre un fondo oscuro con rejilla](docs/capturas/landing.png)
+
+![Sección de proyectos: tres tarjetas iguales, cada una con una ventana de navegador arriba, la ficha corta y los enlaces al caso y al código](docs/capturas/landing-proyectos.png)
+
+**El dashboard**: el inicio como centro de mando —lo que requiere atención, los
+KPIs con dato real y la actividad reciente— y Finanzas, que en pantalla ancha
+reparte los movimientos a un lado y lo que mira hacia delante al otro.
+
+![Inicio del dashboard: franja de avisos accionables, cuatro tarjetas de cifra y la actividad reciente junto a los accesos](docs/capturas/dashboard-inicio.png)
+
+![Vista del mes en Finanzas: cifras del mes, previsión de cierre, la tabla de movimientos con su alta rápida y, a la derecha, topes y recurrentes](docs/capturas/dashboard-gastos.png)
+
+<details>
+<summary><b>Más vistas del dashboard</b> — ahorro, analítica y calendario</summary>
+
+<br>
+
+![Año de ahorro: las cifras del año, el objetivo con su ritmo y proyección, el control mensual editable y, al lado, ingresos extraordinarios y viajes](docs/capturas/dashboard-ahorro.png)
+
+![Pestaña de visitas: métricas de GA4, usuarios activos por día, fuentes de tráfico, geografía y el mapa de calor por día y hora](docs/capturas/dashboard-visitas.png)
+
+![Calendario del Panel: la rejilla del mes con las tareas de mantenimiento, los cargos recurrentes y los seguimientos del pipeline en un solo sitio](docs/capturas/dashboard-calendario.png)
+
+</details>
 
 ---
 
@@ -199,7 +239,7 @@ prisma/
 ├── schema.prisma             # Esquema (User, SavingYear, Opportunity, Expense, …)
 ├── migrations/               # Baseline 0_init + migraciones (migrate diff)
 └── seed.ts                   # Asegura el administrador inicial
-tests/                        # 618 tests (Vitest; jsdom para componentes, axe)
+tests/                        # 678 tests (Vitest; jsdom para componentes, axe)
 e2e/                          # 24 tests de extremo a extremo (Playwright)
 docs/
 ├── DESPLIEGUE.md             # Guía de despliegue en OVH (Docker + Caddy + rclone)
@@ -225,6 +265,16 @@ contraseñas propias: la identidad la verifica Google. Cada login queda registra
 como **sesión activa** (dispositivo y última actividad) y puede **cerrarse
 remotamente** desde el panel. Los módulos de **Finanzas, Oportunidades y Panel de
 control son personales del administrador**: los usuarios invitados no los ven.
+
+## 📄 Licencia
+
+El **código** de este repositorio se publica bajo licencia [MIT](LICENSE): se
+puede leer, usar y adaptar citando la autoría.
+
+Queda **fuera de esa licencia el contenido**, que es personal y se reserva
+todos los derechos: los textos de la landing y de los casos de estudio, el
+retrato y las capturas, el logotipo y la marca «Adrián Osuna», y los datos de
+la experiencia profesional.
 
 ## 👤 Autor
 

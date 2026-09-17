@@ -1302,8 +1302,11 @@ arrastrar el «AO.» delante: la regla WCAG 2.5.3 (label in name) solo aplica
 cuando hay una etiqueta VISIBLE que respetar.
 
 Dónde sale: la barra y el footer de la landing, el login, el `top-nav` del
-dashboard, `icon.svg`, `favicon.ico`, `apple-icon`, las splash y la tarjeta de
-OpenGraph. **La excepción es el correo**, y no por gusto: un correo no puede
+dashboard, `icon.svg`, `favicon.ico`, `apple-icon`, las splash, la tarjeta de
+OpenGraph y la **tarjeta social del repositorio**
+(`docs/marca/social-preview.png`, 1280×640, con su fuente HTML al lado: es la
+imagen de GitHub → Ajustes → Social preview, y ahí el trazo va copiado a mano
+porque un HTML suelto no puede importar `marca.ts`). **La excepción es el correo**, y no por gusto: un correo no puede
 llevar un SVG en línea (medio cliente lo tira), así que va como imagen alojada
 (`/img/logo-correo.png`) con el fondo claro de la plantilla **cocido** —el modo
 oscuro de los clientes de correo no invierte las imágenes, y una tinta oscura
