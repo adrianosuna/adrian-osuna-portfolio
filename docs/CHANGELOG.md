@@ -6,7 +6,48 @@ cuando algo se termina, se cuenta aquí con su porqué y desaparece de allí.
 
 ---
 
-## 16/09/2026 (pendiente de desplegar)
+## 29/09/2026 (pendiente de desplegar)
+
+### Revisión mensual de dependencias
+
+`pnpm audit` daba **3 altas y 8 moderadas** (ninguna crítica); tras la
+revisión, **cero**. Casi todas llegaban por herramientas de desarrollo
+—`js-yaml`, `fast-uri`, `qs`, `undici` e `ip-address`, vía shadcn, eslint, el
+CLI de Prisma y jsdom— y se resolvieron con `pnpm update` sin tocar
+`overrides`. La única que llegaba a producción era **nodemailer ≤10.0.1**
+(el envío de los correos del cron), y exigía el salto de major.
+
+- **nodemailer 9.1 → 10.0.12**. La 10 solo rompe exigiendo Node ≥20 (la
+  imagen y el CI van en 24); `correo.ts` no cambia. Queda un aviso de peer de
+  next-auth (pide ^7/^8), que ya estaba con la 9: es opcional y solo lo usa
+  el proveedor Email, que aquí no existe.
+- **dotenv 17 → 18**: retira `.env.vault` y el precargado; `import
+  'dotenv/config'`, que es como lo cargan `prisma.config.ts` y el seed, sigue
+  igual y ahora calla por defecto.
+- **vitest 4 → 5**, sin tocar ni la config ni los tests: `clearMocks` pasa a
+  activo por defecto (solo borra el registro de llamadas, no las
+  implementaciones) y `vi.mock`/`vi.hoisted` fuera del primer nivel ahora
+  lanzan, y aquí no hay ninguno. La suite baja de 23 a 10 s. Vitest sugiere
+  `isolate: false` para arañar otros 4 s, y **no se aplica**: `dev-login.test.ts`
+  reimporta `@/auth` con distintos entornos y el tope de peticiones guarda su
+  contador en el proceso, así que cada fichero tiene que seguir en el suyo.
+- **pnpm 11.24 → 12.6**, en sus dos sitios: `packageManager` (de ahí lo toma
+  `pnpm/action-setup` en el CI) y el `npm install -g` del Dockerfile. La 12
+  valida las claves de `pnpm-workspace.yaml` (las nuestras son todas
+  oficiales) y cambia cómo rompe los ciclos de peers, pero la resolución sale
+  idéntica: el lockfile solo gana una cabecera `packageManagerDependencies`
+  donde pnpm apunta su propia versión, y `--frozen-lockfile` pasa.
+- Parches y menores: next y eslint-config-next 16.3.6, react/react-dom
+  19.3.0, lucide-react 1.48, zod 4.6.5, tailwind-merge 3.7, shadcn 4.21,
+  Playwright 1.63, jsdom 30.1.1, tsx y los tipos.
+- **Retenidas**: eslint 10, TypeScript 7, `@types/node` (sube dentro de la 24)
+  y next-auth beta.32, como siempre; además **prisma 8**, que sigue en rc.
+
+`pnpm test` (678), lint, type-check y `pnpm build:aislado` en verde. Los e2e
+no se pudieron correr en local porque la descarga del Chromium de Playwright
+1.63 no llegaba a completarse; en el CI se instala solo.
+
+## 16/09/2026 (en producción)
 
 ### El repositorio en GitHub: descripción, licencia y capturas
 
@@ -54,7 +95,7 @@ alrededor de hoy, y el inicio enseñando **un aviso de cada tipo**: un
 seguimiento vencido, una tarea vencida y un mes sin rellenar. Nada de esto es
 real: es la base de datos de desarrollo.
 
-## 13/09/2026 (pendiente de desplegar)
+## 13/09/2026 (en producción)
 
 ### El dashboard a todo el ancho de la pantalla
 
@@ -274,7 +315,7 @@ Tras las piezas compartidas, las dos primeras pantallas:
   tarjeta. Lo caza un `grep` de `rounded-*/N`; ninguna herramienta avisa de
   una clase de Tailwind que no existe.
 
-## 12/09/2026 (pendiente de desplegar)
+## 12/09/2026 (en producción)
 
 ### La landing, rehecha en clave de producto
 

@@ -3,7 +3,7 @@
 # build; el resto son variables de runtime.
 
 FROM node:24-alpine AS base
-RUN npm install -g pnpm@11.24.0
+RUN npm install -g pnpm@12.6.0
 WORKDIR /app
 
 # ── Dependencias (capa cacheable) ──────────────────────────────────────────
