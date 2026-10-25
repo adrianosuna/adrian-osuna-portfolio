@@ -6,7 +6,84 @@ cuando algo se termina, se cuenta aquí con su porqué y desaparece de allí.
 
 ---
 
-## 29/09/2026 (pendiente de desplegar)
+## 25/10/2026 (pendiente de desplegar)
+
+### Revisión mensual de dependencias
+
+`pnpm audit` daba **48 avisos: 2 críticos, 13 altos, 28 moderados y 5 bajos**;
+tras la revisión, **cero**. Los críticos eran de **next < 16.3.8**, que llega a
+producción. El resto llegaba sobre todo por herramientas de desarrollo
+(shadcn, vitest, jsdom y el CLI de Prisma) y se resolvió con `pnpm update`,
+sin saltos de major.
+
+- **next y eslint-config-next 16.3.6 → 16.4.3**, y `@next/bundle-analyzer` a
+  la par.
+- **Se retira el override `mariadb: 3.4.7`** de `pnpm-workspace.yaml`, junto
+  con su `minimumReleaseAgeExclude`. Lo dejaba en 3.4.7 un aviso nuevo
+  (GHSA-cx2f-j9fh-8g68, caída del cliente en la autenticación ed25519 con
+  TLS), que solo se parchea en la 3.5.4. Ahora `@prisma/adapter-mariadb`
+  7.10.1 ya fija esa versión por sí mismo, que era la condición para retirar el
+  override.
+- Parches y menores: react y react-dom 19.3.1, Prisma 7.10.1, zod 4.6.7,
+  nodemailer 10.2.1, sanitize-html 2.18.1, chart.js 4.6.1, lucide-react 1.61,
+  shadcn 4.22.1, vitest 5.0.5, Playwright 1.64.1, axe-core 4.14, jsdom 30.1.3,
+  dotenv 18.0.9 y los tipos.
+- **Retenidas**, como siempre: eslint 10, TypeScript 7, `@types/node` (sube
+  dentro de la 24), next-auth beta.32 y prisma 8, que sigue en rc. Sigue
+  también el aviso de peer de next-auth con nodemailer 10, que es inofensivo.
+
+`pnpm test` (678), lint, type-check y `pnpm build:aislado` en verde.
+
+### Mantenimiento del 25/10/2026
+
+- **Restauración del backup probada en producción**: el dump de esa
+  madrugada se restauró en una BD temporal (`restore_test`, con el root del
+  contenedor) y daba las mismas 20 tablas y las mismas filas que la real. La
+  única diferencia eran dos cargos recurrentes que el cron de la app apuntó a
+  las 8:00, después del dump. La BD temporal se borró al terminar. Drive
+  tiene los 7 dumps.
+- **Backups y contenedores**: 7 dumps rotando, entre 16 y 17 KB, y `db` y
+  `web` healthy.
+
+## 04/10/2026 (pendiente de desplegar)
+
+### Backup de la BD: un volcado roto ya no pisa la copia buena
+
+El backup diario era una línea de cron: `mysqldump … | gzip >
+portfolio-N.sql.gz && rclone copy …`. Sin `pipefail`, una tubería devuelve el
+estado de su último comando, gzip, que termina bien aunque `mysqldump` falle a
+medias. Quedaba entonces un gzip válido con el volcado cortado, que:
+
+- sustituía a la copia buena de ese día de la semana, la de hace siete días;
+- se subía a Drive encima de la buena, porque `rclone copy` sobrescribe;
+- dejaba el Panel en «Cron de las 4:00 al día», porque el fichero era de esa
+  misma madrugada.
+
+Ahora lo hace `scripts/backup-bd.sh`, el mismo que usa Temple (gym-temple):
+
+- **Vuelca a un temporal** (`.part`, que el Panel no cuenta) y solo lo guarda
+  si el gzip está entero y el volcado termina con «-- Dump completed». Si no,
+  sale con error y no sube nada, y el Panel ve envejecer el último dump y
+  avisa.
+- **Usa el usuario, la contraseña y la BD del propio contenedor**
+  (`MYSQL_PWD`): la contraseña no sale de él y desaparece el aviso de
+  «password on the command line». Añade `--single-transaction` para no
+  bloquear la app.
+- **Sube a Drive solo los `portfolio-*.sql.gz`**, no todo lo que haya en
+  `~/backups`.
+- `.gitattributes` con `*.sh` en LF: con CRLF, bash falla en el VPS.
+
+**Probado** contra un MySQL 8.4 levantado con el `docker-compose.yml` del
+proyecto y las migraciones aplicadas:
+
+- el dump sale bien (8 KB);
+- con la BD parada, da error sin tocar la copia buena ni dejar el temporal;
+- tras borrar una tabla y vaciar otra, la restauración de `DESPLIEGUE.md`
+  devuelve las mismas filas.
+
+Falta cambiar la línea del cron en el VPS (TAREAS).
+
+## 29/09/2026 (en producción)
 
 ### Revisión mensual de dependencias
 

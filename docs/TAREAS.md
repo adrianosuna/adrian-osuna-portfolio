@@ -11,6 +11,16 @@
 > 02/09: las diez migraciones, la API v1, la PWA con push y el endurecimiento.
 > El detalle de todo, en `CHANGELOG.md`.
 
+## Del 04/10/2026: el backup con el script nuevo
+
+- [ ] **Cambiar la línea del cron del backup** por la de `DESPLIEGUE.md`
+      («Copias de seguridad»). Primero, traer el código al VPS (`git pull`).
+      No hace falta rebuild: el script corre en el host. Lanzarlo una vez a
+      mano (`bash /var/www/adrian-osuna-portfolio/scripts/backup-bd.sh`) y
+      comprobar que imprime la línea del dump y que el Panel sigue al día.
+      Hasta entonces sigue la línea vieja, que funciona pero no se protege de
+      un volcado roto.
+
 ## Del despliegue del 02/09: una cosa suelta
 
 - [ ] **Crear el primer token de la API** en Panel de control → Usuarios →

@@ -1,0 +1,2 @@
+# Los scripts de shell corren en el VPS (Linux): con CRLF, bash falla. Así salen con LF también desde Windows
+*.sh text eol=lf

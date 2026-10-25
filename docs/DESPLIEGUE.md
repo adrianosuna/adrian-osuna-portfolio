@@ -230,19 +230,53 @@ docker compose --env-file .env.production up -d
 
 ## Copias de seguridad
 
-Dump diario de la BD con cron (guarda los últimos 7 días):
+Dump diario de la BD con cron y `scripts/backup-bd.sh`: vuelca la BD del
+compose con `mysqldump`, la comprime en `~/backups/portfolio-<día de la
+semana>.sql.gz` (los últimos 7 días, que rotan solos) y la sube a Google Drive
+(abajo):
 
 ```bash
 crontab -e
-# 0 4 * * * docker compose -f /var/www/adrian-osuna-portfolio/docker-compose.yml --env-file /var/www/adrian-osuna-portfolio/.env.production exec -T db sh -c 'mysqldump --no-tablespaces -uportfolio -p"$MYSQL_PASSWORD" portfolio' | gzip > /home/ubuntu/backups/portfolio-$(date +\%u).sql.gz && /usr/bin/rclone copy /home/ubuntu/backups gdrive:vps-backups/adrianosuna.com --quiet
-# (--no-tablespaces: el usuario de la app no tiene el privilegio PROCESS y no
-# lo necesita; sin el flag, el dump falla en MySQL 8)
+# 0 4 * * * bash /var/www/adrian-osuna-portfolio/scripts/backup-bd.sh >> $HOME/backups/backup.log 2>&1
 ```
 
-(Crear antes la carpeta: `mkdir -p ~/backups`.)
+(Crear antes la carpeta: `mkdir -p ~/backups`. La primera vez, lanzarlo a
+mano con `bash scripts/backup-bd.sh` y comprobar que imprime la línea del dump.)
 
-**Copia fuera del VPS (configurado el 26/08/2026)**: tras el dump, el mismo
-cron sube `~/backups` a Google Drive con `rclone copy` — carpeta
+- **Un volcado cortado no pisa la copia buena** (04/10/2026). Hasta entonces
+  era una sola línea de cron, `mysqldump … | gzip > … && rclone copy …`, y
+  sin `pipefail` una tubería devuelve el estado de gzip. Si `mysqldump`
+  fallaba a medias, quedaba un gzip válido con el volcado cortado, que pisaba
+  la copia buena de ese día de la semana, se subía a Drive encima de la buena
+  y dejaba el Panel en «al día». Ahora el script escribe en un temporal
+  (`.part`) y solo lo guarda si el gzip está entero y el volcado termina con
+  «-- Dump completed». Si no, sale con error y no sube nada, y el Panel ve
+  envejecer el último dump y avisa.
+- **La contraseña no sale del contenedor**: usa `MYSQL_USER`,
+  `MYSQL_PASSWORD` y `MYSQL_DATABASE` del propio `db`, con `MYSQL_PWD` y sin
+  el aviso de «password on the command line». `--no-tablespaces` porque el
+  usuario de la app no tiene el privilegio PROCESS y, sin el flag, el dump
+  falla en MySQL 8. `--single-transaction` para no bloquear la app mientras
+  vuelca.
+- El log (`backup.log`) va en la misma carpeta: el Panel solo cuenta los
+  `portfolio-*.sql.gz`, y a Drive solo suben esos.
+
+**Restaurar**, con la app parada para que nadie escriba a medias. Sustituye
+las tablas por las del volcado:
+
+```bash
+docker compose --env-file .env.production stop web
+gzip -dc ~/backups/portfolio-3.sql.gz | docker compose --env-file .env.production exec -T db sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" exec mysql -u"$MYSQL_USER" "$MYSQL_DATABASE"'
+docker compose --env-file .env.production start web
+```
+
+Probado el 04/10/2026 contra un MySQL 8.4 con este `docker-compose.yml` y las
+migraciones aplicadas: el dump, el fallo con la BD parada sin tocar la copia
+buena, y la restauración tras borrar una tabla y vaciar otra, con las mismas
+filas que antes.
+
+**Copia fuera del VPS (configurado el 26/08/2026)**: tras el dump, el script
+sube los `portfolio-*.sql.gz` de `~/backups` a Google Drive con `rclone copy` — carpeta
 `vps-backups/adrianosuna.com` (un subdirectorio por dominio, pensado para
 futuros proyectos en el mismo VPS). Como `copy` no borra y los nombres rotan
 por día de semana, Drive mantiene el espejo de los últimos 7 días sin crecer.
